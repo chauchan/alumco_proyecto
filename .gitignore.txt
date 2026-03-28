@@ -1,0 +1,21 @@
+# Dependencias (se instalan con npm install, no hay que subirlas)
+node_modules/
+
+# Base de datos local (cada uno tiene la suya)
+data/
+
+# Variables de entorno con contraseñas (nunca se sube)
+.env
+
+# Archivos subidos por usuarios
+uploads/*.pdf
+uploads/*.mp4
+uploads/*.pptx
+uploads/protocolos/
+
+# Carpeta de build del frontend
+dist/
+
+# Archivos de sistema de Windows
+Thumbs.db
+Desktop.ini
