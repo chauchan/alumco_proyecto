@@ -3,6 +3,12 @@ import Topbar from '../components/Topbar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
+const NavIcon = ({ d }) => (
+  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {d}
+  </svg>
+)
+
 export default function Colaborador() {
   const { usuario } = useAuth()
   const [cursos, setCursos] = useState([])
@@ -10,153 +16,124 @@ export default function Colaborador() {
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      api.get('/cursos'),
-      api.get('/certificados')
-    ]).then(([c, cert]) => {
-      setCursos(c.data)
-      setCertificados(cert.data)
-    }).finally(() => setCargando(false))
+    Promise.all([api.get('/cursos'), api.get('/certificados')])
+      .then(([c, cert]) => { setCursos(c.data); setCertificados(cert.data) })
+      .catch(() => {})
+      .finally(() => setCargando(false))
   }, [])
 
-  const completados = cursos.filter(c => c.completado).length
   const pendientes = cursos.filter(c => !c.completado)
+  const completados = cursos.filter(c => c.completado).length
   const certAprobados = certificados.filter(c => c.estado === 'aprobado')
 
-  if (cargando) return <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>
-
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="app-shell">
       <Topbar seccion="Mi capacitación" />
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div className="app-body">
 
         {/* Sidebar */}
-        <aside style={{ width: 210, background: 'white', borderRight: '1px solid #E8E8E8', padding: '20px 0' }}>
+        <aside className="sidebar">
+          <div className="nav-section-label">Principal</div>
           {[
-            { label: 'Inicio', active: true },
-            { label: 'Mis cursos', active: false },
-            { label: 'Certificados', active: false },
-            { label: 'Mi perfil', active: false },
+            { label:'Inicio', active:true },
+            { label:'Mis cursos', active:false },
+            { label:'Certificados', active:false },
+            { label:'Mi perfil', active:false },
           ].map(item => (
-            <div key={item.label} style={{
-              padding: '9px 20px', fontSize: 13, cursor: 'pointer',
-              background: item.active ? '#EEF2FF' : 'transparent',
-              color: item.active ? '#2B4BA0' : '#555',
-              fontWeight: item.active ? 500 : 400,
-              borderLeft: item.active ? '3px solid #2B4BA0' : '3px solid transparent'
-            }}>
-              {item.label}
+            <div key={item.label} className={`nav-item ${item.active?'active':''}`}>
+              <span>{item.label}</span>
             </div>
           ))}
         </aside>
 
         {/* Main */}
-        <main style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
-          {/* Banner saludo */}
-          <div style={{
-            background: '#2B4BA0', borderRadius: 12, padding: '16px 20px',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-          }}>
+          {/* Saludo */}
+          <div className="greeting-bar">
             <div>
-              <div style={{ color: 'white', fontSize: 18, fontWeight: 600 }}>
+              <div className="greeting-name" style={{ fontSize:17, fontWeight:500, color:'#fff' }}>
                 Hola, {usuario?.nombre?.split(' ')[0]} 👋
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 }}>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:3 }}>
                 {usuario?.sede_nombre} · {usuario?.tipo_contrato === 'fijo' ? 'Funcionaria/o fija/o' : 'Reemplazo'}
               </div>
             </div>
-            <div style={{
-              background: 'rgba(255,255,255,0.15)', borderRadius: 10,
-              padding: '10px 16px', textAlign: 'center'
-            }}>
-              <div style={{ color: '#F5A623', fontSize: 24, fontWeight: 600 }}>{pendientes.length}</div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10 }}>cursos pendientes</div>
+            <div className="greeting-badge">
+              <div style={{ fontSize:22, fontWeight:500, color:'#F5A623' }}>{pendientes.length}</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)' }}>cursos pendientes</div>
             </div>
           </div>
 
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <div className="stats-grid-3">
             {[
-              { val: completados, label: 'Completados', color: '#7BC67A' },
-              { val: certAprobados.length, label: 'Certificados', color: '#2B4BA0' },
-              { val: 'Hoy', label: 'Último acceso', color: '#F5A623' },
+              { val: completados, label:'Cursos completados', sub:'este período' },
+              { val: certAprobados.length, label:'Certificados obtenidos', sub:'disponibles para descarga' },
+              { val:'Hoy', label:'Último acceso', sub:'sesión activa' },
             ].map(s => (
-              <div key={s.label} className="card" style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 24, fontWeight: 600, color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>{s.label}</div>
+              <div key={s.label} className="stat-card">
+                <div className="stat-label">{s.label}</div>
+                <div className="stat-value">{s.val}</div>
+                <div className="stat-sub">{s.sub}</div>
               </div>
             ))}
           </div>
 
           {/* Cursos pendientes */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>Cursos pendientes</span>
-              <span style={{ fontSize: 12, color: '#2B4BA0', cursor: 'pointer' }}>Ver todos →</span>
+            <div className="card-header" style={{ marginBottom:10 }}>
+              <span className="card-title" style={{ fontSize:14 }}>Cursos pendientes</span>
+              <span className="card-link">Ver todos →</span>
             </div>
-            {pendientes.length === 0 ? (
-              <div className="card" style={{ color: '#888', textAlign: 'center', padding: 24 }}>
+            {cargando ? (
+              <div className="card" style={{ textAlign:'center', color:'#888', padding:24 }}>Cargando cursos...</div>
+            ) : pendientes.length === 0 ? (
+              <div className="card" style={{ textAlign:'center', color:'#888', padding:24 }}>
                 ¡Estás al día con todos tus cursos!
               </div>
-            ) : (
-              pendientes.map(curso => (
-                <div key={curso.id} className="card" style={{
-                  display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8
-                }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10,
-                    background: '#FFF0EC', flexShrink: 0
-                  }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</div>
-                    <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                      {curso.area} · {curso.modulos_count || 0} módulos
-                    </div>
-                    <div style={{ height: 4, background: '#EEE', borderRadius: 2, marginTop: 6, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${curso.progreso || 0}%`, background: '#2B4BA0', borderRadius: 2 }} />
-                    </div>
+            ) : pendientes.map(curso => (
+              <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
+                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0 }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:500 }}>
+                    {curso.nombre}
+                    <span className="badge-nuevo" style={{ marginLeft:8 }}>Nuevo</span>
                   </div>
-                  <button
-                    className="btn-primary"
-                    style={{ padding: '8px 16px', fontSize: 12 }}
-                    onClick={() => window.location.href = `/curso/${curso.id}`}
-                  >
-                    {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
-                  </button>
+                  <div style={{ fontSize:11, color:'#888', marginTop:3 }}>{curso.area || 'General'}</div>
+                  <div className="progress-bar-wrap" style={{ marginTop:6 }}>
+                    <div className="progress-bar-fill" style={{ width:`${curso.progreso||0}%` }} />
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
-
-          {/* Certificados recientes */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>Certificados recientes</span>
-              <span style={{ fontSize: 12, color: '#2B4BA0', cursor: 'pointer' }}>Ver todos →</span>
-            </div>
-            {certAprobados.slice(0, 3).map(cert => (
-              <div key={cert.id} className="card" style={{
-                display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8
-              }}>
-                <div style={{ width: 32, height: 32, background: '#EEF2FF', borderRadius: 8, flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 13 }}>{cert.curso_nombre}</span>
-                <span style={{ fontSize: 11, color: '#888' }}>
-                  {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
-                </span>
-                <a
-                  href={`/api/certificados/${cert.id}/descargar`}
-                  style={{
-                    fontSize: 11, color: '#2B4BA0', border: '1px solid #E8E8E8',
-                    borderRadius: 8, padding: '5px 10px'
-                  }}
-                >
-                  ⬇ Descargar
-                </a>
+                <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}>
+                  {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
+                </button>
               </div>
             ))}
           </div>
 
+          {/* Certificados */}
+          <div>
+            <div className="card-header" style={{ marginBottom:10 }}>
+              <span className="card-title" style={{ fontSize:14 }}>Certificados recientes</span>
+              <span className="card-link">Ver todos →</span>
+            </div>
+            {certAprobados.slice(0,3).map(cert => (
+              <div key={cert.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
+                <div style={{ width:32, height:32, background:'#EEF2FF', borderRadius:8, flexShrink:0 }} />
+                <span style={{ flex:1, fontSize:13 }}>{cert.curso_nombre}</span>
+                <span style={{ fontSize:11, color:'#888' }}>
+                  {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
+                </span>
+                <a href={`/api/certificados/${cert.id}/descargar`} style={{
+                  fontSize:11, color:'#2B4BA0', border:'0.5px solid #E8E8E8',
+                  borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:4
+                }}>
+                  ↓ Descargar
+                </a>
+              </div>
+            ))}
+          </div>
         </main>
       </div>
     </div>
