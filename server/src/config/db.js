@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
@@ -18,12 +19,24 @@ pool.getConnection()
   })
   .catch(err => console.error('✗ Error conexión MySQL:', err.message));
 
-// mysql2 devuelve [rows, fields] — adaptamos para que el código existente
-// siga usando pool.query() y reciba { rows }
-const originalQuery = pool.query.bind(pool);
+// Wrapper: convierte $1,$2... (postgres style) a ? (mysql style)
+// y devuelve { rows } igual que pg para no cambiar el resto del código
+const _query = pool.query.bind(pool);
+
 pool.query = async (sql, params = []) => {
-  const [rows] = await originalQuery(sql, params);
-  return { rows: Array.isArray(rows) ? rows : [rows], rowCount: Array.isArray(rows) ? rows.length : 1 };
+  // Reemplazar $1, $2, $3... por ?
+  const mysqlSql = sql.replace(/\$\d+/g, '?');
+  // Reemplazar true/false literales por 1/0 para MySQL
+  const finalSql = mysqlSql
+    .replace(/= true\b/gi, '= 1')
+    .replace(/= false\b/gi, '= 0');
+
+  const [rows] = await _query(finalSql, params);
+  return {
+    rows: Array.isArray(rows) ? rows : [rows],
+    rowCount: Array.isArray(rows) ? rows.length : 1,
+    lastID: rows?.insertId
+  };
 };
 
 module.exports = pool;
