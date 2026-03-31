@@ -1,148 +1,164 @@
 require('dotenv').config();
-const sqlite3 = require('sqlite3').verbose();
+const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-const fs = require('fs');
-
-const DB_DIR = path.join(__dirname, '../../data');
-if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-
-const db = new sqlite3.Database(path.join(DB_DIR, 'alumco.db'));
-
-// Ejecutar un statement como promesa
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
-}
-
-// Obtener filas como promesa
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-}
 
 async function migrate() {
+  const conn = await mysql.createConnection({
+    host:     process.env.DB_HOST     || 'localhost',
+    port:     process.env.DB_PORT     || 3306,
+    user:     process.env.DB_USER     || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME     || 'alumco',
+    multipleStatements: true
+  });
+
   try {
-    await run('PRAGMA foreign_keys = ON');
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
-    await run(`CREATE TABLE IF NOT EXISTS sedes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      ciudad TEXT,
-      activa INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS sedes (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        nombre VARCHAR(100) NOT NULL,
+        ciudad VARCHAR(100),
+        activa TINYINT(1) DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS usuarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      identificador TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      rol TEXT NOT NULL CHECK (rol IN ('colaborador','profesor','admin_sede','jefatura')),
-      tipo_contrato TEXT CHECK (tipo_contrato IN ('fijo','reemplazo')),
-      sede_id INTEGER REFERENCES sedes(id),
-      rango_etario TEXT,
-      activo INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        nombre VARCHAR(150) NOT NULL,
+        identificador VARCHAR(50) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        rol ENUM('colaborador','profesor','admin_sede','jefatura') NOT NULL,
+        tipo_contrato ENUM('fijo','reemplazo'),
+        sede_id INT,
+        rango_etario VARCHAR(20),
+        activo TINYINT(1) DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (sede_id) REFERENCES sedes(id)
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS cursos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      descripcion TEXT,
-      area TEXT,
-      profesor_id INTEGER REFERENCES usuarios(id),
-      publicado INTEGER DEFAULT 0,
-      generado_por_ia INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS cursos (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        nombre VARCHAR(200) NOT NULL,
+        descripcion TEXT,
+        area VARCHAR(100),
+        profesor_id INT,
+        publicado TINYINT(1) DEFAULT 0,
+        generado_por_ia TINYINT(1) DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (profesor_id) REFERENCES usuarios(id)
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS modulos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      curso_id INTEGER REFERENCES cursos(id) ON DELETE CASCADE,
-      titulo TEXT NOT NULL,
-      descripcion TEXT,
-      tipo TEXT CHECK (tipo IN ('pdf','video','ppt')),
-      archivo_url TEXT,
-      orden INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS modulos (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        curso_id INT,
+        titulo VARCHAR(200) NOT NULL,
+        descripcion TEXT,
+        tipo ENUM('pdf','video','ppt'),
+        archivo_url VARCHAR(500),
+        orden INT DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS asignaciones (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario_id INTEGER REFERENCES usuarios(id),
-      curso_id INTEGER REFERENCES cursos(id),
-      obligatorio INTEGER DEFAULT 0,
-      fecha_limite TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(usuario_id, curso_id)
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS asignaciones (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id INT,
+        curso_id INT,
+        obligatorio TINYINT(1) DEFAULT 0,
+        fecha_limite DATE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_asignacion (usuario_id, curso_id),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+        FOREIGN KEY (curso_id) REFERENCES cursos(id)
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS progreso (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario_id INTEGER REFERENCES usuarios(id),
-      curso_id INTEGER REFERENCES cursos(id),
-      completado INTEGER DEFAULT 0,
-      porcentaje INTEGER DEFAULT 0,
-      ultimo_acceso TEXT,
-      UNIQUE(usuario_id, curso_id)
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS progreso (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id INT,
+        curso_id INT,
+        completado TINYINT(1) DEFAULT 0,
+        porcentaje INT DEFAULT 0,
+        ultimo_acceso DATETIME,
+        UNIQUE KEY uq_progreso (usuario_id, curso_id),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+        FOREIGN KEY (curso_id) REFERENCES cursos(id)
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS preguntas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      curso_id INTEGER REFERENCES cursos(id) ON DELETE CASCADE,
-      texto TEXT NOT NULL,
-      alternativas TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS preguntas (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        curso_id INT,
+        texto TEXT NOT NULL,
+        alternativas JSON NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS intentos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario_id INTEGER REFERENCES usuarios(id),
-      curso_id INTEGER REFERENCES cursos(id),
-      numero_intento INTEGER DEFAULT 1,
-      respuestas TEXT,
-      nota INTEGER,
-      aprobado INTEGER DEFAULT 0,
-      fecha TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS intentos (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id INT,
+        curso_id INT,
+        numero_intento INT DEFAULT 1,
+        respuestas JSON,
+        nota INT,
+        aprobado TINYINT(1) DEFAULT 0,
+        fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+        FOREIGN KEY (curso_id) REFERENCES cursos(id)
+      )
+    `);
 
-    await run(`CREATE TABLE IF NOT EXISTS certificados (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      usuario_id INTEGER REFERENCES usuarios(id),
-      curso_id INTEGER REFERENCES cursos(id),
-      intento_id INTEGER REFERENCES intentos(id),
-      validado_por INTEGER REFERENCES usuarios(id),
-      estado TEXT DEFAULT 'pendiente' CHECK (estado IN ('pendiente','aprobado','rechazado')),
-      archivo_url TEXT,
-      fecha_emision TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    )`);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS certificados (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id INT,
+        curso_id INT,
+        intento_id INT,
+        validado_por INT,
+        estado ENUM('pendiente','aprobado','rechazado') DEFAULT 'pendiente',
+        archivo_url VARCHAR(500),
+        fecha_emision DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+        FOREIGN KEY (curso_id) REFERENCES cursos(id),
+        FOREIGN KEY (intento_id) REFERENCES intentos(id),
+        FOREIGN KEY (validado_por) REFERENCES usuarios(id)
+      )
+    `);
+
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
     // Sedes iniciales
-    const sedes = await all(`SELECT id FROM sedes WHERE nombre = 'ELEAM Hualpén'`);
+    const [sedes] = await conn.query("SELECT id FROM sedes WHERE nombre = 'ELEAM Hualpén'");
     if (sedes.length === 0) {
-      await run(`INSERT INTO sedes (nombre, ciudad) VALUES ('ELEAM Hualpén', 'Hualpén')`);
-      await run(`INSERT INTO sedes (nombre, ciudad) VALUES ('ELEAM Coyhaique', 'Coyhaique')`);
+      await conn.query("INSERT INTO sedes (nombre, ciudad) VALUES ('ELEAM Hualpén', 'Hualpén')");
+      await conn.query("INSERT INTO sedes (nombre, ciudad) VALUES ('ELEAM Coyhaique', 'Coyhaique')");
       console.log('✓ Sedes creadas');
     }
 
     // Usuario admin de prueba
-    const admins = await all(`SELECT id FROM usuarios WHERE identificador = 'admin'`);
+    const [admins] = await conn.query("SELECT id FROM usuarios WHERE identificador = 'admin'");
     if (admins.length === 0) {
       const hash = bcrypt.hashSync('admin123', 10);
-      await run(
-        `INSERT INTO usuarios (nombre, identificador, password_hash, rol) VALUES (?, ?, ?, ?)`,
+      await conn.query(
+        "INSERT INTO usuarios (nombre, identificador, password_hash, rol) VALUES (?, ?, ?, ?)",
         ['Administrador ALUMCO', 'admin', hash, 'jefatura']
       );
       console.log('✓ Usuario de prueba creado:');
@@ -151,12 +167,12 @@ async function migrate() {
       console.log('  rol:           jefatura');
     }
 
-    console.log('✓ Migración completada exitosamente');
-    db.close();
+    console.log('✓ Migración MySQL completada exitosamente');
+    await conn.end();
     process.exit(0);
   } catch (err) {
     console.error('✗ Error en migración:', err.message);
-    db.close();
+    await conn.end();
     process.exit(1);
   }
 }
