@@ -3,38 +3,34 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-const authRoutes        = require('./routes/auth');
-const usuariosRoutes    = require('./routes/usuarios');
-const cursosRoutes      = require('./routes/cursos');
+const authRoutes         = require('./routes/auth');
+const usuariosRoutes     = require('./routes/usuarios');
+const cursosRoutes       = require('./routes/cursos');
 const evaluacionesRoutes = require('./routes/evaluaciones');
 const certificadosRoutes = require('./routes/certificados');
-const reportesRoutes    = require('./routes/reportes');
-const iaRoutes          = require('./routes/ia');
+const reportesRoutes     = require('./routes/reportes');
+const iaRoutes           = require('./routes/ia');
+const sedesRoutes        = require('./routes/sedes');
 
 const app = express();
 
-// Middleware
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Rutas
-app.use('/api/auth',         authRoutes);
-app.use('/api/usuarios',     usuariosRoutes);
-app.use('/api/cursos',       cursosRoutes);
-app.use('/api/evaluaciones', evaluacionesRoutes);
-app.use('/api/certificados', certificadosRoutes);
-app.use('/api/reportes',     reportesRoutes);
-app.use('/api/ia',           iaRoutes);
+app.use('/api/auth',          authRoutes);
+app.use('/api/usuarios',      usuariosRoutes);
+app.use('/api/cursos',        cursosRoutes);
+app.use('/api/evaluaciones',  evaluacionesRoutes);
+app.use('/api/certificados',  certificadosRoutes);
+app.use('/api/reportes',      reportesRoutes);
+app.use('/api/ia',            iaRoutes);
+app.use('/api/sedes',         sedesRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => res.json({ status: 'ok', env: process.env.NODE_ENV }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-// 404
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
-
-// Error global
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Error interno del servidor' });

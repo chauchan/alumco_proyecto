@@ -147,4 +147,19 @@ router.patch('/:id/progreso', verificarToken, verificarRol('colaborador'), async
   }
 });
 
+// POST /api/cursos/:id/preguntas — agregar pregunta de evaluación
+router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const { texto, alternativas } = req.body;
+  if (!texto || !alternativas?.length) return res.status(400).json({ error: 'Texto y alternativas son requeridos' });
+  try {
+    const result = await pool.query(
+      'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1, $2, $3) RETURNING *',
+      [req.params.id, texto, JSON.stringify(alternativas)]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar pregunta' });
+  }
+});
+
 module.exports = router;

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LogoSVG } from '../components/Topbar'
+import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
 
 const RUTA = { colaborador:'/colaborador', profesor:'/profesor', admin_sede:'/admin', jefatura:'/jefatura' }
 
@@ -34,16 +34,10 @@ export default function Login() {
       }}>
         {/* Logo */}
         <div>
-          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
-            <LogoSVG size={48} />
-            <div>
-              <div style={{ fontSize:28, fontWeight:500, color:'#fff', letterSpacing:1 }}>alumco</div>
-              <div style={{ fontSize:12, color:'rgba(255,255,255,0.6)', marginTop:2 }}>Plataforma de Capacitación</div>
-            </div>
+          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24 }}>
+            <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 56 }} />
+            <img src={LOGO_LETRAS} alt="alumco" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
           </div>
-          <p style={{ fontSize:15, color:'rgba(255,255,255,0.88)', fontStyle:'italic', lineHeight:1.75, marginTop:24 }}>
-            "Nuestros cuidados son el<br/>reflejo de la empatía."
-          </p>
         </div>
 
         {/* Deco geométrica fondo */}
