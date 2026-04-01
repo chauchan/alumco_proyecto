@@ -1,19 +1,6 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-
-const LogoSVG = ({ size = 32 }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-    <polygon points="50,5 72,27 50,27" fill="#7BC67A"/>
-    <polygon points="50,5 28,27 50,27" fill="#1E3A6E"/>
-    <polygon points="72,27 95,50 72,50" fill="#E8505B"/>
-    <polygon points="5,50 28,27 28,50" fill="#F5A623"/>
-    <polygon points="28,50 50,50 28,72" fill="#1E3A6E"/>
-    <polygon points="72,50 95,50 72,72" fill="#7BC67A"/>
-    <polygon points="28,72 50,72 50,95" fill="#E8505B"/>
-    <polygon points="50,72 72,72 50,95" fill="#F5A623"/>
-    <polygon points="50,33 62,50 50,62 38,50" fill="#E8505B"/>
-  </svg>
-)
+import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
 
 const avatarColors = {
   colaborador: '#F5A623',
@@ -29,9 +16,7 @@ const rolesLabel = {
   jefatura: 'Jefatura',
 }
 
-export { LogoSVG }
-
-export default function Topbar({ seccion, dark = false }) {
+export default function Topbar({ seccion }) {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -40,10 +25,10 @@ export default function Topbar({ seccion, dark = false }) {
     : '?'
 
   return (
-    <header className={`topbar ${dark ? 'topbar-dark' : ''}`}>
+    <header className="topbar">
       <div className="topbar-left">
-        <LogoSVG size={28} />
-        <span className="topbar-logo-text">alumco</span>
+        <img src={LOGO_SIMBOLO} alt="ALUMCO símbolo" style={{ height: 32 }} />
+        <img src={LOGO_LETRAS} alt="alumco" style={{ height: 20, filter: 'brightness(0) invert(1)' }} />
         <div className="topbar-divider" />
         <span className="topbar-section">{seccion}</span>
       </div>
@@ -56,7 +41,7 @@ export default function Topbar({ seccion, dark = false }) {
           className="avatar"
           style={{ background: avatarColors[usuario?.rol] || '#F5A623' }}
           title="Cerrar sesión"
-          onClick={() => { logout(); navigate('/login'); }}
+          onClick={() => { logout(); navigate('/login') }}
         >
           {iniciales}
         </div>
