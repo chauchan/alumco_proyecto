@@ -27,7 +27,7 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const pdfBase64 = pdfBuffer.toString('base64');
 
     // Llamar a la API de Gemini
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const prompt = `Eres un asistente para crear cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
 
 Analiza el protocolo institucional adjunto y genera un borrador de curso con el siguiente formato JSON estricto:
