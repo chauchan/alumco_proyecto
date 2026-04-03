@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const pdfParse = require('pdf-parse');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 
@@ -22,15 +23,14 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
   if (!nombre_curso) return res.status(400).json({ error: 'El nombre del curso es requerido' });
 
   try {
-    // Extraer texto del PDF (simple: leer como buffer y enviarlo como base64 a Claude)
+    // Extraer texto del PDF con pdf-parse
     const pdfBuffer = fs.readFileSync(req.file.path);
-    const pdfBase64 = pdfBuffer.toString('base64');
+    const pdfData = await pdfParse(pdfBuffer);
+    const textoPdf = pdfData.text.trim().slice(0, 12000); // limitar tokens
 
-    // Llamar a la API de Gemini
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const prompt = `Eres un asistente para crear cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
 
-Analiza el protocolo institucional adjunto y genera un borrador de curso con el siguiente formato JSON estricto:
+Analiza el siguiente protocolo institucional y genera un borrador de curso con el siguiente formato JSON estricto:
 
 {
   "modulos": [
@@ -60,33 +60,33 @@ Instrucciones:
 - Contexto adicional: ${contexto || 'protocolo de cuidado del adulto mayor'}
 - Nombre del curso: ${nombre_curso}
 
-Responde SOLO con el JSON, sin texto adicional.`;
+Responde SOLO con el JSON, sin texto adicional.
 
-    const response = await fetch(geminiUrl, {
+PROTOCOLO:
+${textoPdf}`;
+
+    // Llamar a Ollama (local)
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+
+    const response = await fetch(`${ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            {
-              inline_data: {
-                mime_type: 'application/pdf',
-                data: pdfBase64
-              }
-            },
-            { text: prompt }
-          ]
-        }]
+        model: ollamaModel,
+        prompt: prompt,
+        stream: false,
+        format: 'json'
       })
     });
 
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({}));
-      console.error('[Gemini API] Status:', response.status, '| Error:', JSON.stringify(errorBody));
-      throw new Error('Error al llamar a la API de IA');
+      const errorBody = await response.text().catch(() => '');
+      console.error('[Ollama] Status:', response.status, '| Error:', errorBody);
+      throw new Error('Error al llamar a Ollama. ¿Está corriendo en localhost:11434?');
     }
     const data = await response.json();
-    const textoRespuesta = data.candidates[0].content.parts[0].text;
+    const textoRespuesta = data.response;
 
     let borrador;
     try {
