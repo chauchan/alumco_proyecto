@@ -99,24 +99,24 @@ ${textoPdf}`;
     }
 
     // Crear el curso en BD como borrador
-    const cursoResult = await pool.query(
-      'INSERT INTO cursos (nombre, descripcion, area, profesor_id, publicado, generado_por_ia) VALUES ($1,$2,$3,$4,false,true) RETURNING *',
+    const [cursoResult] = await pool.query(
+      'INSERT INTO cursos (nombre, descripcion, area, profesor_id, publicado, generado_por_ia) VALUES (?,?,?,?,false,true)',
       [nombre_curso, `Generado automáticamente desde protocolo: ${req.file.originalname}`, area || null, profesor_id || null]
     );
-    const curso = cursoResult.rows[0];
+    const cursoId = cursoResult.insertId;
 
     // Guardar módulos y preguntas
     for (let i = 0; i < borrador.modulos.length; i++) {
       const mod = borrador.modulos[i];
-      const moduloResult = await pool.query(
-        'INSERT INTO modulos (curso_id, titulo, descripcion, orden) VALUES ($1,$2,$3,$4) RETURNING id',
-        [curso.id, mod.titulo, mod.descripcion, i + 1]
+      await pool.query(
+        'INSERT INTO modulos (curso_id, titulo, descripcion, orden) VALUES (?,?,?,?)',
+        [cursoId, mod.titulo, mod.descripcion, i + 1]
       );
       // Guardar preguntas
       for (const pregunta of mod.preguntas) {
         await pool.query(
-          'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1,$2,$3)',
-          [curso.id, pregunta.texto, JSON.stringify(pregunta.alternativas)]
+          'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES (?,?,?)',
+          [cursoId, pregunta.texto, JSON.stringify(pregunta.alternativas)]
         );
       }
     }
@@ -127,11 +127,11 @@ ${textoPdf}`;
     // Notificar al profesor via N8N (sin bloquear la respuesta al cliente)
     // Si N8N falla, el curso ya está guardado — cumple RNF-18 tolerancia a fallos
     if (profesor_id) {
-      const profesorResult = await pool.query(
-        'SELECT nombre, email FROM usuarios WHERE id = $1',
+      const [profesorRows] = await pool.query(
+        'SELECT nombre, email FROM usuarios WHERE id = ?',
         [profesor_id]
       );
-      const profesor = profesorResult.rows[0];
+      const profesor = profesorRows[0];
 
       if (profesor) {
         const totalPreguntas = borrador.modulos.reduce((acc, m) => acc + (m.preguntas?.length || 0), 0);
@@ -139,8 +139,8 @@ ${textoPdf}`;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            curso_id:        curso.id,
-            curso_nombre:    curso.nombre,
+            curso_id:        cursoId,
+            curso_nombre:    nombre_curso,
             profesor_email:  profesor.email,
             profesor_nombre: profesor.nombre,
             nombre_archivo:  req.file.originalname,
@@ -153,8 +153,8 @@ ${textoPdf}`;
     }
 
     res.status(201).json({
-      curso_id: curso.id,
-      nombre: curso.nombre,
+      curso_id: cursoId,
+      nombre:   nombre_curso,
       generado_por_ia: true,
       modulos: borrador.modulos,
       message: 'Borrador generado correctamente. Debe ser revisado y aprobado por el profesor antes de publicarse.'
