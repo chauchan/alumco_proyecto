@@ -26,27 +26,9 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const pdfBuffer = fs.readFileSync(req.file.path);
     const pdfBase64 = pdfBuffer.toString('base64');
 
-    // Llamar a la API de Claude
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20251022',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
-            },
-            {
-              type: 'text',
-              text: `Eres un asistente para crear cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
+    // Llamar a la API de Gemini
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const prompt = `Eres un asistente para crear cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
 
 Analiza el protocolo institucional adjunto y genera un borrador de curso con el siguiente formato JSON estricto:
 
@@ -78,8 +60,21 @@ Instrucciones:
 - Contexto adicional: ${contexto || 'protocolo de cuidado del adulto mayor'}
 - Nombre del curso: ${nombre_curso}
 
-Responde SOLO con el JSON, sin texto adicional.`
-            }
+Responde SOLO con el JSON, sin texto adicional.`;
+
+    const response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inline_data: {
+                mime_type: 'application/pdf',
+                data: pdfBase64
+              }
+            },
+            { text: prompt }
           ]
         }]
       })
@@ -87,11 +82,11 @@ Responde SOLO con el JSON, sin texto adicional.`
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({}));
-      console.error('[Claude API] Status:', response.status, '| Error:', JSON.stringify(errorBody));
+      console.error('[Gemini API] Status:', response.status, '| Error:', JSON.stringify(errorBody));
       throw new Error('Error al llamar a la API de IA');
     }
     const data = await response.json();
-    const textoRespuesta = data.content[0].text;
+    const textoRespuesta = data.candidates[0].content.parts[0].text;
 
     let borrador;
     try {
