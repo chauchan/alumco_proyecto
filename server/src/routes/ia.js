@@ -35,7 +35,7 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-5-20251022',
         max_tokens: 2000,
         messages: [{
           role: 'user',
@@ -85,7 +85,11 @@ Responde SOLO con el JSON, sin texto adicional.`
       })
     });
 
-    if (!response.ok) throw new Error('Error al llamar a la API de IA');
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      console.error('[Claude API] Status:', response.status, '| Error:', JSON.stringify(errorBody));
+      throw new Error('Error al llamar a la API de IA');
+    }
     const data = await response.json();
     const textoRespuesta = data.content[0].text;
 
