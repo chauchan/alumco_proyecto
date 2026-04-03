@@ -125,6 +125,34 @@ Responde SOLO con el JSON, sin texto adicional.`
     // Limpiar archivo temporal
     fs.unlinkSync(req.file.path);
 
+    // Notificar al profesor via N8N (sin bloquear la respuesta al cliente)
+    // Si N8N falla, el curso ya está guardado — cumple RNF-18 tolerancia a fallos
+    if (profesor_id) {
+      const profesorResult = await pool.query(
+        'SELECT nombre, email FROM usuarios WHERE id = $1',
+        [profesor_id]
+      );
+      const profesor = profesorResult.rows[0];
+
+      if (profesor) {
+        const totalPreguntas = borrador.modulos.reduce((acc, m) => acc + (m.preguntas?.length || 0), 0);
+        fetch(process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/alumco/notificar-profesor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            curso_id:        curso.id,
+            curso_nombre:    curso.nombre,
+            profesor_email:  profesor.email,
+            profesor_nombre: profesor.nombre,
+            nombre_archivo:  req.file.originalname,
+            modulos_count:   borrador.modulos.length,
+            preguntas_count: totalPreguntas,
+            subido_por:      req.usuario.nombre || 'Jefatura'
+          })
+        }).catch(err => console.error('[N8N] Error al notificar al profesor:', err.message));
+      }
+    }
+
     res.status(201).json({
       curso_id: curso.id,
       nombre: curso.nombre,
