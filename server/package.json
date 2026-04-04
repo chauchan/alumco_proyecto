@@ -1,13 +1,16 @@
 {
   "name": "alumco-server",
   "version": "1.0.0",
-  "description": "Backend API - Plataforma de Capacitación ALUMCO",
+  "description": "Backend API - Plataforma de Capacitaci\u00f3n ALUMCO",
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "db:migrate": "node src/config/migrate.js",
-    "db:seed": "node seed.js"
+    "db:seed": "node seed.js",
+    "db:estamentos": "node src/config/migrate_estamentos.js",
+    "db:practicos": "node src/config/migrate_practicos.js",
+    "db:contacto": "node src/config/migrate_contacto.js"
   },
   "dependencies": {
     "express": "^4.18.2",

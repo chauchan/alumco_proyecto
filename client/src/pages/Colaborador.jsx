@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Topbar from '../components/Topbar'
+import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
@@ -32,19 +33,7 @@ export default function Colaborador() {
       <div className="app-body">
 
         {/* Sidebar */}
-        <aside className="sidebar">
-          <div className="nav-section-label">Principal</div>
-          {[
-            { label:'Inicio', active:true },
-            { label:'Mis cursos', active:false },
-            { label:'Certificados', active:false },
-            { label:'Mi perfil', active:false },
-          ].map(item => (
-            <div key={item.label} className={`nav-item ${item.active?'active':''}`}>
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </aside>
+        <Sidebar />
 
         {/* Main */}
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>

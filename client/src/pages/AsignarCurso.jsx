@@ -1,0 +1,227 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import Topbar from '../components/Topbar'
+import Sidebar from '../components/Sidebar'
+import api from '../services/api'
+
+const ESTAMENTOS = [
+  'Profesional de Atención Directa',
+  'Técnico de Atención Directa',
+  'Asistente de Trato Directo',
+  'Auxiliares de Servicio',
+  'Manipuladores de Alimentos',
+  'Administración y Apoyo',
+  'Directivos',
+]
+
+export default function AsignarCurso() {
+  const navigate = useNavigate()
+  const { id: cursoId } = useParams()
+  const [curso, setCurso] = useState(null)
+  const [usuarios, setUsuarios] = useState([])
+  const [seleccionados, setSeleccionados] = useState([])
+  const [modo, setModo] = useState('estamento') // 'estamento' | 'individual'
+  const [estamentosSeleccionados, setEstamentosSeleccionados] = useState([])
+  const [obligatorio, setObligatorio] = useState(false)
+  const [exito, setExito] = useState('')
+  const [error, setError] = useState('')
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.get(`/cursos/${cursoId}`),
+      api.get('/usuarios')
+    ]).then(([c, u]) => {
+      setCurso(c.data)
+      setUsuarios(u.data.filter(u => u.rol === 'colaborador' && u.activo))
+    }).catch(() => {})
+    .finally(() => setCargando(false))
+  }, [cursoId])
+
+  const toggleEstamento = (est) => {
+    setEstamentosSeleccionados(prev =>
+      prev.includes(est) ? prev.filter(e => e !== est) : [...prev, est]
+    )
+  }
+
+  const toggleUsuario = (id) => {
+    setSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  const usuariosPorEstamento = (est) => usuarios.filter(u => u.estamento === est)
+
+  const usuariosAAsignar = modo === 'estamento'
+    ? usuarios.filter(u => estamentosSeleccionados.includes(u.estamento)).map(u => u.id)
+    : seleccionados
+
+  const handleAsignar = async () => {
+    if (usuariosAAsignar.length === 0) {
+      return setError('Selecciona al menos un estamento o colaborador')
+    }
+    setError('')
+    try {
+      await api.post(`/cursos/${cursoId}/asignar`, {
+        usuario_ids: usuariosAAsignar,
+        obligatorio
+      })
+      setExito(`Curso asignado a ${usuariosAAsignar.length} colaborador${usuariosAAsignar.length !== 1 ? 'es' : ''} correctamente`)
+      setTimeout(() => navigate('/profesor'), 2000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al asignar el curso')
+    }
+  }
+
+  if (cargando) return <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>
+
+  return (
+    <div className="app-shell">
+      <Topbar seccion="Profesor — Asignar curso" />
+      <div className="app-body">
+        <Sidebar />
+
+        <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          <div>
+            <div className="page-title">Asignar curso</div>
+            <div className="page-sub">{curso?.nombre}</div>
+          </div>
+
+          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}>✓ {exito}</div>}
+          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}>✗ {error}</div>}
+
+          {/* Modo de asignación */}
+          <div className="card">
+            <div className="card-title" style={{ marginBottom: 12 }}>Modo de asignación</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[
+                { value: 'estamento', label: 'Por estamento', desc: 'Asigna a todos los colaboradores de uno o varios estamentos' },
+                { value: 'individual', label: 'Individual', desc: 'Selecciona colaboradores específicos' },
+              ].map(m => (
+                <div key={m.value}
+                  onClick={() => setModo(m.value)}
+                  style={{
+                    flex: 1, border: `0.5px solid ${modo === m.value ? '#2B4BA0' : '#E8E8E8'}`,
+                    borderRadius: 10, padding: 14, cursor: 'pointer',
+                    background: modo === m.value ? '#EEF2FF' : 'white'
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 500, color: modo === m.value ? '#2B4BA0' : '#1a1a1a', marginBottom: 4 }}>{m.label}</div>
+                  <div style={{ fontSize: 11, color: '#888' }}>{m.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Por estamento */}
+          {modo === 'estamento' && (
+            <div className="card">
+              <div className="card-title" style={{ marginBottom: 12 }}>Seleccionar estamentos</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ESTAMENTOS.map(est => {
+                  const count = usuariosPorEstamento(est).length
+                  const seleccionado = estamentosSeleccionados.includes(est)
+                  return (
+                    <div key={est}
+                      onClick={() => toggleEstamento(est)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                        border: `0.5px solid ${seleccionado ? '#2B4BA0' : '#E8E8E8'}`,
+                        borderRadius: 8, cursor: 'pointer',
+                        background: seleccionado ? '#EEF2FF' : 'white'
+                      }}
+                    >
+                      <div style={{
+                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                        border: `2px solid ${seleccionado ? '#2B4BA0' : '#CCC'}`,
+                        background: seleccionado ? '#2B4BA0' : 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        {seleccionado && <span style={{ color: 'white', fontSize: 12 }}>✓</span>}
+                      </div>
+                      <span style={{ flex: 1, fontSize: 13, color: seleccionado ? '#2B4BA0' : '#1a1a1a', fontWeight: seleccionado ? 500 : 400 }}>
+                        {est}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#888' }}>
+                        {count} colaborador{count !== 1 ? 'es' : ''}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              {estamentosSeleccionados.length > 0 && (
+                <div style={{ marginTop: 12, padding: '8px 12px', background: '#EEF2FF', borderRadius: 8, fontSize: 12, color: '#2B4BA0' }}>
+                  Se asignará a <strong>{usuariosAAsignar.length} colaborador{usuariosAAsignar.length !== 1 ? 'es' : ''}</strong> de los estamentos seleccionados
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Individual */}
+          {modo === 'individual' && (
+            <div className="card">
+              <div className="card-title" style={{ marginBottom: 12 }}>Seleccionar colaboradores</div>
+              {usuarios.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>No hay colaboradores activos</div>
+              ) : ESTAMENTOS.map(est => {
+                const grupo = usuariosPorEstamento(est)
+                if (grupo.length === 0) return null
+                return (
+                  <div key={est} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{est}</div>
+                    {grupo.map(u => (
+                      <div key={u.id}
+                        onClick={() => toggleUsuario(u.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                          border: `0.5px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#E8E8E8'}`,
+                          borderRadius: 8, cursor: 'pointer', marginBottom: 4,
+                          background: seleccionados.includes(u.id) ? '#EEF2FF' : 'white'
+                        }}
+                      >
+                        <div style={{
+                          width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                          border: `2px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#CCC'}`,
+                          background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          {seleccionados.includes(u.id) && <span style={{ color: 'white', fontSize: 10 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
+                        <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Opciones */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input type="checkbox" id="obligatorio" checked={obligatorio}
+                onChange={e => setObligatorio(e.target.checked)} style={{ width: 16, height: 16 }} />
+              <label htmlFor="obligatorio" style={{ fontSize: 13, cursor: 'pointer' }}>
+                Marcar como <strong>curso obligatorio</strong> para los colaboradores asignados
+              </label>
+            </div>
+          </div>
+
+          {/* Botones */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-primary" onClick={handleAsignar} disabled={usuariosAAsignar.length === 0}
+              style={{ opacity: usuariosAAsignar.length === 0 ? 0.5 : 1 }}>
+              Asignar a {usuariosAAsignar.length > 0 ? `${usuariosAAsignar.length} colaborador${usuariosAAsignar.length !== 1 ? 'es' : ''}` : 'colaboradores'}
+            </button>
+            <button onClick={() => navigate('/profesor')}
+              style={{ background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '8px 16px', fontSize: 13, color: '#888', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
