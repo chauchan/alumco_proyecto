@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
-import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
@@ -44,7 +43,52 @@ export default function Capacitaciones() {
       <div className="app-body">
 
         {/* Sidebar según rol */}
-        <Sidebar />
+        <aside className="sidebar">
+          <div className="nav-section-label">
+            {usuario?.rol === 'colaborador' ? 'Principal' : 'Menú'}
+          </div>
+          {usuario?.rol === 'colaborador' && [
+            { label: 'Inicio', path: '/colaborador' },
+            { label: 'Capacitaciones', path: '/capacitaciones', active: true },
+            { label: 'Certificados', path: '/colaborador' },
+            { label: 'Mi perfil', path: '/cambiar-password' },
+          ].map(item => (
+            <div key={item.label} className={`nav-item ${item.active ? 'active' : ''}`} onClick={() => navigate(item.path)}>
+              {item.label}
+            </div>
+          ))}
+          {usuario?.rol === 'profesor' && [
+            { label: 'Mis cursos', path: '/profesor' },
+            { label: 'Capacitaciones', path: '/capacitaciones', active: true },
+            { label: 'Nuevo curso', path: '/profesor/nuevo-curso' },
+            { label: 'Validar certificados', path: '/profesor' },
+          ].map(item => (
+            <div key={item.label} className={`nav-item ${item.active ? 'active' : ''}`} onClick={() => navigate(item.path)}>
+              {item.label}
+            </div>
+          ))}
+          {usuario?.rol === 'admin_sede' && [
+            { label: 'Resumen', path: '/admin' },
+            { label: 'Capacitaciones', path: '/capacitaciones', active: true },
+            { label: 'Colaboradores', path: '/admin' },
+            { label: 'Reportes', path: '/admin' },
+          ].map(item => (
+            <div key={item.label} className={`nav-item ${item.active ? 'active' : ''}`} onClick={() => navigate(item.path)}>
+              {item.label}
+            </div>
+          ))}
+          {usuario?.rol === 'jefatura' && [
+            { label: 'Resumen global', path: '/jefatura' },
+            { label: 'Capacitaciones', path: '/capacitaciones', active: true },
+            { label: 'Usuarios', path: '/jefatura/usuarios' },
+            { label: 'Generador IA', path: '/jefatura/ia', new: true },
+          ].map(item => (
+            <div key={item.label} className={`nav-item ${item.active ? 'active' : ''}`} onClick={() => navigate(item.path)}>
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.new && <span className="nav-new">Nuevo</span>}
+            </div>
+          ))}
+        </aside>
 
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 

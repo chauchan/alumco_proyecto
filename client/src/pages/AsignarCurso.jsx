@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
-import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 
 const ESTAMENTOS = [
@@ -79,7 +78,16 @@ export default function AsignarCurso() {
     <div className="app-shell">
       <Topbar seccion="Profesor — Asignar curso" />
       <div className="app-body">
-        <Sidebar />
+        <aside className="sidebar">
+          <div className="nav-section-label">Docencia</div>
+          {[
+            { label: 'Mis cursos', path: '/profesor' },
+            { label: 'Capacitaciones', path: '/capacitaciones' },
+            { label: 'Nuevo curso', path: '/profesor/nuevo-curso' },
+          ].map(item => (
+            <div key={item.label} className="nav-item" onClick={() => navigate(item.path)}>{item.label}</div>
+          ))}
+        </aside>
 
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
-import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
@@ -108,7 +107,15 @@ export default function Practicos() {
     <div className="app-shell">
       <Topbar seccion="Calendario de prácticos" />
       <div className="app-body">
-        <Sidebar />
+        <aside className="sidebar">
+          <div className="nav-section-label">Menú</div>
+          {(navSidebar[usuario?.rol] || []).map(item => (
+            <div key={item.label} className={`nav-item ${item.active ? 'active' : ''}`}
+              onClick={() => navigate(item.path)}>
+              {item.label}
+            </div>
+          ))}
+        </aside>
 
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
