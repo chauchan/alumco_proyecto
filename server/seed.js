@@ -23,7 +23,7 @@ async function seed() {
 
     const usuarios = [
       // Jefatura
-      { nombre:'Patricia Soto',    identificador:'jefatura',    password:'jefatura123',  rol:'jefatura',   tipo:null,        sede: null },
+      { nombre:'Valentina Garrido',    identificador:'jefatura',    password:'jefatura123',  rol:'jefatura',   tipo:null,        sede: null },
       // Admin de sede
       { nombre:'Carmen Rojas',     identificador:'admin.hualpen', password:'admin123',   rol:'admin_sede', tipo:null,        sede: hualpen.id },
       { nombre:'Roberto Fuentes',  identificador:'admin.coyhaique',password:'admin123',  rol:'admin_sede', tipo:null,        sede: coyhaique.id },

@@ -26,27 +26,9 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const pdfBuffer = fs.readFileSync(req.file.path);
     const pdfBase64 = pdfBuffer.toString('base64');
 
-    // Llamar a la API de Claude
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
-            },
-            {
-              type: 'text',
-              text: `Eres un asistente para crear cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
+    // Llamar a la API de Gemini
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const prompt = `Eres un asistente para crear cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
 
 Analiza el protocolo institucional adjunto y genera un borrador de curso con el siguiente formato JSON estricto:
 
@@ -78,16 +60,33 @@ Instrucciones:
 - Contexto adicional: ${contexto || 'protocolo de cuidado del adulto mayor'}
 - Nombre del curso: ${nombre_curso}
 
-Responde SOLO con el JSON, sin texto adicional.`
-            }
+Responde SOLO con el JSON, sin texto adicional.`;
+
+    const response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inline_data: {
+                mime_type: 'application/pdf',
+                data: pdfBase64
+              }
+            },
+            { text: prompt }
           ]
         }]
       })
     });
 
-    if (!response.ok) throw new Error('Error al llamar a la API de IA');
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      console.error('[Gemini API] Status:', response.status, '| Error:', JSON.stringify(errorBody));
+      throw new Error('Error al llamar a la API de IA');
+    }
     const data = await response.json();
-    const textoRespuesta = data.content[0].text;
+    const textoRespuesta = data.candidates[0].content.parts[0].text;
 
     let borrador;
     try {
@@ -124,6 +123,34 @@ Responde SOLO con el JSON, sin texto adicional.`
 
     // Limpiar archivo temporal
     fs.unlinkSync(req.file.path);
+
+    // Notificar al profesor via N8N (sin bloquear la respuesta al cliente)
+    // Si N8N falla, el curso ya está guardado — cumple RNF-18 tolerancia a fallos
+    if (profesor_id) {
+      const profesorResult = await pool.query(
+        'SELECT nombre, email FROM usuarios WHERE id = $1',
+        [profesor_id]
+      );
+      const profesor = profesorResult.rows[0];
+
+      if (profesor) {
+        const totalPreguntas = borrador.modulos.reduce((acc, m) => acc + (m.preguntas?.length || 0), 0);
+        fetch(process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/alumco/notificar-profesor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            curso_id:        curso.id,
+            curso_nombre:    curso.nombre,
+            profesor_email:  profesor.email,
+            profesor_nombre: profesor.nombre,
+            nombre_archivo:  req.file.originalname,
+            modulos_count:   borrador.modulos.length,
+            preguntas_count: totalPreguntas,
+            subido_por:      req.usuario.nombre || 'Jefatura'
+          })
+        }).catch(err => console.error('[N8N] Error al notificar al profesor:', err.message));
+      }
+    }
 
     res.status(201).json({
       curso_id: curso.id,

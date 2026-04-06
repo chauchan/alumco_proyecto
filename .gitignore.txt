@@ -1,6 +1,7 @@
 # Dependencias (se instalan con npm install, no hay que subirlas)
 node_modules/
 .env
+*.env
 client/node_modules/
 server/node_modules/
 
