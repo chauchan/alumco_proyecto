@@ -53,6 +53,24 @@ router.get('/', verificarToken, async (req, res) => {
   }
 });
 
+// GET /api/cursos/pendientes-ia — cursos generados por IA pendientes de validación
+router.get('/pendientes-ia', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.*, COUNT(m.id) as modulos_count, COUNT(p.id) as preguntas_count
+       FROM cursos c
+       LEFT JOIN modulos m ON m.curso_id = c.id
+       LEFT JOIN preguntas p ON p.curso_id = c.id
+       WHERE c.generado_por_ia = 1 AND c.publicado = 0
+       GROUP BY c.id
+       ORDER BY c.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener borradores' });
+  }
+});
+
 // GET /api/cursos/:id — detalle de curso con módulos
 router.get('/:id', verificarToken, async (req, res) => {
   try {
@@ -159,6 +177,48 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
     res.status(201).json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar pregunta' });
+  }
+});
+
+// PATCH /api/cursos/:id/aprobar — profesor aprueba y publica el curso
+router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nombre, publicado',
+      [req.usuario.id, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al aprobar curso' });
+  }
+});
+
+// DELETE /api/cursos/:id — elimina un curso borrador
+router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM cursos WHERE id = $1 AND publicado = 0', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar curso' });
+  }
+});
+
+// PUT /api/cursos/:id — actualiza nombre y descripción de un curso borrador
+router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const { nombre, descripcion, modulos } = req.body;
+  try {
+    if (nombre) {
+      await pool.query('UPDATE cursos SET nombre = $1, descripcion = $2, updated_at = NOW() WHERE id = $3', [nombre, descripcion || '', req.params.id]);
+    }
+    if (modulos?.length) {
+      for (const mod of modulos) {
+        await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion, mod.id]);
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar curso' });
   }
 });
 

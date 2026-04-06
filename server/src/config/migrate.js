@@ -63,6 +63,7 @@ async function migrate() {
         curso_id INT,
         titulo VARCHAR(200) NOT NULL,
         descripcion TEXT,
+        contenido_presentacion JSON,
         tipo ENUM('pdf','video','ppt'),
         archivo_url VARCHAR(500),
         orden INT DEFAULT 1,
@@ -70,6 +71,11 @@ async function migrate() {
         FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
       )
     `);
+
+    // Migración incremental: agregar columna si no existe en BDs previas
+    await conn.query(`
+      ALTER TABLE modulos ADD COLUMN IF NOT EXISTS contenido_presentacion JSON AFTER descripcion
+    `).catch(() => {}); // ignorar si ya existe o BD no soporta IF NOT EXISTS
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS asignaciones (
