@@ -76,6 +76,37 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
   }
 });
 
+
+// GET /api/certificados/todos — para jefatura y admin_sede con filtros
+router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'profesor'), async (req, res) => {
+  const { rol, sede_id } = req.usuario;
+  try {
+    let query = `
+      SELECT cert.*, 
+             u.nombre as usuario_nombre, u.identificador as usuario_rut,
+             u.estamento, u.sede_id,
+             c.nombre as curso_nombre, c.area,
+             s.nombre as sede_nombre,
+             v.nombre as validado_por_nombre
+      FROM certificados cert
+      JOIN usuarios u ON cert.usuario_id = u.id
+      JOIN cursos c ON cert.curso_id = c.id
+      LEFT JOIN sedes s ON u.sede_id = s.id
+      LEFT JOIN usuarios v ON cert.validado_por = v.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (rol === 'admin_sede') {
+      query += ' AND u.sede_id = ?'; params.push(sede_id);
+    }
+    query += ' ORDER BY cert.created_at DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener certificados' });
+  }
+});
+
 // GET /api/certificados/:id/descargar — descargar PDF
 router.get('/:id/descargar', verificarToken, async (req, res) => {
   try {
