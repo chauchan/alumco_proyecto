@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 
 export default function NuevoCurso() {
@@ -104,15 +105,7 @@ export default function NuevoCurso() {
       <Topbar seccion="Profesor — Nuevo curso" />
       <div className="app-body">
 
-        <aside className="sidebar">
-          <div className="nav-section-label">Docencia</div>
-          {['Mis cursos','Nuevo curso','Validar certificados','Mi perfil'].map((item, i) => (
-            <div key={item} className={`nav-item ${item==='Nuevo curso'?'active':''}`}
-              onClick={() => item === 'Mis cursos' && navigate('/profesor')}>
-              <span>{item}</span>
-            </div>
-          ))}
-        </aside>
+        <Sidebar />
 
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:20 }}>
 

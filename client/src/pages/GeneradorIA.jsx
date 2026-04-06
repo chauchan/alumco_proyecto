@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 
 // ── buildSlides: usa diapositivas IA si existen, sino fallback legacy ──────────
@@ -269,15 +270,6 @@ export default function GeneradorIA() {
     }
   }
 
-  const navItems = [
-    { label: 'Resumen global', active: false },
-    { label: 'Sedes', active: false },
-    { label: 'Métricas y reportes', active: false },
-    { label: 'Cursos', active: false },
-    { label: 'Generador IA', active: true, new: true },
-    { label: 'Configuración', active: false },
-  ]
-
   // ── Slides activos para el módulo en el modal ──
   const pres = presentacionActiva !== null ? presentaciones[presentacionActiva] : null
   const mod  = presentacionActiva !== null ? resultado?.modulos?.[presentacionActiva] : null
@@ -289,18 +281,7 @@ export default function GeneradorIA() {
       <Topbar seccion="Panel de jefatura — Generador de cursos" />
       <div className="app-body">
 
-        <aside className="sidebar">
-          <div className="nav-section-label">Global ONG</div>
-          {navItems.map(item => (
-            <div key={item.label}
-              className={`nav-item ${item.active ? 'active-dark' : ''}`}
-              onClick={() => !item.active && navigate('/jefatura')}
-            >
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {item.new && <span className="nav-new">Nuevo</span>}
-            </div>
-          ))}
-        </aside>
+        <Sidebar />
 
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
