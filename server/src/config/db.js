@@ -37,4 +37,4 @@ pool.query = async (sql, params = []) => {
   };
 };
 
-export default pool;
+module.exports = pool;
