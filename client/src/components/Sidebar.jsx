@@ -1,36 +1,37 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+// Ítems del sidebar por rol — siempre los mismos sin importar en qué página esté
 const NAV_ITEMS = {
   colaborador: [
-    { label: 'Inicio',             path: '/colaborador' },
-    { label: 'Mis capacitaciones', path: '/capacitaciones' },
-    { label: 'Mis certificados',   path: '/mis-certificados' },
-    { label: 'Prácticos',          path: '/practicos' },
+    { label: 'Inicio',            path: '/colaborador' },
+    { label: 'Mis capacitaciones',path: '/capacitaciones' },
+    { label: 'Mis certificados',  path: '/mis-certificados' },
+    { label: 'Prácticos',         path: '/practicos' },
   ],
   profesor: [
-    { label: 'Mis cursos',         path: '/profesor' },
-    { label: 'Capacitaciones',     path: '/capacitaciones' },
-    { label: 'Mis certificados',   path: '/mis-certificados' },
-    { label: 'Prácticos',          path: '/practicos' },
-    { label: 'Nuevo curso',        path: '/profesor/nuevo-curso' },
+    { label: 'Mis cursos',        path: '/profesor' },
+    { label: 'Capacitaciones',    path: '/capacitaciones' },
+    { label: 'Mis certificados',  path: '/mis-certificados' },
+    { label: 'Prácticos',         path: '/practicos' },
+    { label: 'Nuevo curso',       path: '/profesor/nuevo-curso' },
   ],
   admin_sede: [
-    { label: 'Resumen',            path: '/admin' },
-    { label: 'Capacitaciones',     path: '/capacitaciones' },
-    { label: 'Mis certificados',   path: '/mis-certificados' },
-    { label: 'Certificados sede',  path: '/certificados-globales' },
-    { label: 'Prácticos',          path: '/practicos' },
-    { label: 'Generador IA',       path: '/jefatura/ia', new: true },
+    { label: 'Resumen',           path: '/admin' },
+    { label: 'Capacitaciones',    path: '/capacitaciones' },
+    { label: 'Mis certificados',  path: '/mis-certificados' },
+    { label: 'Certificados sede', path: '/certificados-globales' },
+    { label: 'Prácticos',         path: '/practicos' },
+    { label: 'Generador IA',      path: '/jefatura/ia', new: true },
   ],
   jefatura: [
-    { label: 'Resumen global',     path: '/jefatura' },
-    { label: 'Gestión de usuarios',path: '/jefatura/usuarios' },
-    { label: 'Capacitaciones',     path: '/capacitaciones' },
-    { label: 'Mis certificados',   path: '/mis-certificados' },
-    { label: 'Certificados ONG',   path: '/certificados-globales' },
-    { label: 'Prácticos',          path: '/practicos' },
-    { label: 'Generador IA',       path: '/jefatura/ia', new: true },
+    { label: 'Resumen global',    path: '/jefatura' },
+    { label: 'Gestión de usuarios', path: '/jefatura/usuarios' },
+    { label: 'Capacitaciones',    path: '/capacitaciones' },
+    { label: 'Mis certificados',  path: '/mis-certificados' },
+    { label: 'Certificados ONG',  path: '/certificados-globales' },
+    { label: 'Prácticos',         path: '/practicos' },
+    { label: 'Generador IA',      path: '/jefatura/ia', new: true },
   ],
 }
 

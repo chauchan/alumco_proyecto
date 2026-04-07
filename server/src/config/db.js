@@ -2,14 +2,16 @@ require('dotenv').config();
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     parseInt(process.env.DB_PORT) || 3306,
-  user:     process.env.DB_USER     || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME     || 'alumco',
+  host:               process.env.DB_HOST,
+  port:               parseInt(process.env.DB_PORT) || 3306,
+  user:               process.env.DB_USER,
+  password:           process.env.DB_PASSWORD,
+  database:           process.env.DB_NAME,
+  ssl:                { rejectUnauthorized: false },
   waitForConnections: true,
-  connectionLimit: 10,
-  decimalNumbers: true,
+  connectionLimit:    10,
+  enableKeepAlive:    true,
+  keepAliveInitialDelay: 10000
 });
 
 pool.getConnection()
@@ -24,14 +26,24 @@ pool.getConnection()
 const _query = pool.query.bind(pool);
 
 pool.query = async (sql, params = []) => {
-  // Reemplazar $1, $2, $3... por ?
   const mysqlSql = sql.replace(/\$\d+/g, '?');
-  // Reemplazar true/false literales por 1/0 para MySQL
   const finalSql = mysqlSql
     .replace(/= true\b/gi, '= 1')
     .replace(/= false\b/gi, '= 0');
 
-  const [rows] = await _query(finalSql, params);
+  const ejecutar = () => _query(finalSql, params);
+
+  let rows;
+  try {
+    [rows] = await ejecutar();
+  } catch (err) {
+    if (err.code === 'ECONNRESET' || err.code === 'PROTOCOL_CONNECTION_LOST') {
+      [rows] = await ejecutar();
+    } else {
+      throw err;
+    }
+  }
+
   return {
     rows: Array.isArray(rows) ? rows : [rows],
     rowCount: Array.isArray(rows) ? rows.length : 1,

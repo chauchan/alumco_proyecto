@@ -1,0 +1,176 @@
+const express = require('express');
+const router = express.Router();
+const { google } = require('googleapis');
+const pool = require('../config/db');
+const { verificarToken, verificarRol } = require('../middleware/auth');
+
+async function sincronizarConGoogle(usuarioId, practico) {
+  try {
+    const userResult = await pool.query(
+      `SELECT google_access_token, google_refresh_token FROM usuarios WHERE id = ?`,
+      [usuarioId]
+    );
+    const user = userResult.rows[0];
+    if (!user?.google_refresh_token) return;
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    oauth2Client.setCredentials({
+      access_token: user.google_access_token,
+      refresh_token: user.google_refresh_token
+    });
+    oauth2Client.on('tokens', async (tokens) => {
+      if (tokens.access_token) {
+        await pool.query(
+          `UPDATE usuarios SET google_access_token = ? WHERE id = ?`,
+          [tokens.access_token, usuarioId]
+        );
+      }
+    });
+
+    const fecha = practico.fecha;
+    const inicio = `${fecha}T${practico.hora_inicio}`;
+    const fin = practico.hora_fin ? `${fecha}T${practico.hora_fin}` : `${fecha}T${practico.hora_inicio.slice(0,2)}:59:00`;
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: practico.titulo,
+        description: `Curso: ${practico.curso_nombre || ''}${practico.descripcion ? '\n' + practico.descripcion : ''}`,
+        location: practico.lugar || 'ALUMCO',
+        start: { dateTime: inicio, timeZone: 'America/Santiago' },
+        end: { dateTime: fin, timeZone: 'America/Santiago' }
+      }
+    });
+  } catch (err) {
+    console.error('Error sincronizando con Google Calendar:', err.message);
+  }
+}
+
+const PUEDE_CREAR = verificarRol('profesor', 'admin_sede', 'jefatura');
+
+// GET /api/practicos — listar prácticos del usuario o sede
+router.get('/', verificarToken, async (req, res) => {
+  const { rol, id, sede_id } = req.usuario;
+  try {
+    let query, params = [];
+
+    if (rol === 'colaborador' || rol === 'profesor') {
+      // Ver prácticos de cursos asignados a este usuario
+      query = `
+        SELECT p.*, c.nombre as curso_nombre, s.nombre as sede_nombre,
+               u.nombre as creado_por_nombre
+        FROM practicos p
+        JOIN cursos c ON p.curso_id = c.id
+        JOIN sedes s ON p.sede_id = s.id
+        JOIN usuarios u ON p.creado_por = u.id
+        WHERE p.curso_id IN (
+          SELECT curso_id FROM asignaciones WHERE usuario_id = ?
+        )
+        ORDER BY p.fecha ASC, p.hora_inicio ASC
+      `;
+      params = [id];
+    } else if (rol === 'admin_sede') {
+      query = `
+        SELECT p.*, c.nombre as curso_nombre, s.nombre as sede_nombre,
+               u.nombre as creado_por_nombre
+        FROM practicos p
+        JOIN cursos c ON p.curso_id = c.id
+        JOIN sedes s ON p.sede_id = s.id
+        JOIN usuarios u ON p.creado_por = u.id
+        WHERE p.sede_id = ?
+        ORDER BY p.fecha ASC, p.hora_inicio ASC
+      `;
+      params = [sede_id];
+    } else {
+      // Jefatura ve todos
+      query = `
+        SELECT p.*, c.nombre as curso_nombre, s.nombre as sede_nombre,
+               u.nombre as creado_por_nombre
+        FROM practicos p
+        JOIN cursos c ON p.curso_id = c.id
+        JOIN sedes s ON p.sede_id = s.id
+        JOIN usuarios u ON p.creado_por = u.id
+        ORDER BY p.fecha ASC, p.hora_inicio ASC
+      `;
+    }
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener prácticos' });
+  }
+});
+
+// POST /api/practicos — crear práctico y notificar a los asignados
+router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
+  const { curso_id, titulo, descripcion, fecha, hora_inicio, hora_fin, lugar } = req.body;
+  const { sede_id, id: creado_por } = req.usuario;
+
+  if (!curso_id || !titulo || !fecha || !hora_inicio) {
+    return res.status(400).json({ error: 'Curso, título, fecha y hora de inicio son obligatorios' });
+  }
+
+  try {
+    // Crear el práctico
+    const result = await pool.query(
+      `INSERT INTO practicos (curso_id, sede_id, titulo, descripcion, fecha, hora_inicio, hora_fin, lugar, creado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [curso_id, sede_id, titulo, descripcion || null, fecha, hora_inicio, hora_fin || null, lugar || null, creado_por]
+    );
+    const practicoId = result.lastID;
+
+    // Obtener todos los colaboradores asignados a ese curso en esa sede
+    const asignados = await pool.query(
+      `SELECT u.id, u.nombre
+       FROM asignaciones a
+       JOIN usuarios u ON a.usuario_id = u.id
+       WHERE a.curso_id = ? AND u.sede_id = ? AND u.activo = 1`,
+      [curso_id, sede_id]
+    );
+
+    // Crear notificación para cada asignado
+    const fechaFormateada = new Date(fecha).toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' });
+    const mensaje = `Se ha programado un práctico para el curso. Fecha: ${fechaFormateada} a las ${hora_inicio}. Lugar: ${lugar || 'ELEAM sede'}`;
+
+    for (const u of asignados.rows) {
+      await pool.query(
+        `INSERT INTO notificaciones (usuario_id, practico_id, titulo, mensaje)
+         VALUES (?, ?, ?, ?)`,
+        [u.id, practicoId, `Práctico programado: ${titulo}`, mensaje]
+      );
+    }
+
+    // Sincronizar con Google Calendar del creador si está conectado
+    const cursoResult = await pool.query(`SELECT nombre FROM cursos WHERE id = ?`, [curso_id]);
+    await sincronizarConGoogle(creado_por, {
+      titulo, descripcion, fecha, hora_inicio, hora_fin, lugar,
+      curso_nombre: cursoResult.rows[0]?.nombre || ''
+    });
+
+    res.status(201).json({
+      id: practicoId,
+      message: `Práctico creado. Se notificó a ${asignados.rows.length} colaborador${asignados.rows.length !== 1 ? 'es' : ''}.`
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al crear el práctico' });
+  }
+});
+
+// DELETE /api/practicos/:id — eliminar práctico
+router.delete('/:id', verificarToken, PUEDE_CREAR, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM practicos WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Práctico eliminado' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar práctico' });
+  }
+});
+
+module.exports = router;
