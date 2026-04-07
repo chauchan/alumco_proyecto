@@ -4,9 +4,12 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
+const { Agent, fetch: undiciFetch } = require('undici');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
+
+const ollamaAgent = new Agent({ headersTimeout: 600000, bodyTimeout: 600000, connectTimeout: 30000 });
 
 const upload = multer({
   dest: path.join(__dirname, '../../uploads/protocolos'),
@@ -24,10 +27,11 @@ async function llamarOllama(prompt, timeoutMs = 180000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    const response = await undiciFetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
+      dispatcher: ollamaAgent,
       body: JSON.stringify({
         model: OLLAMA_MODEL,
         prompt,
@@ -35,7 +39,7 @@ async function llamarOllama(prompt, timeoutMs = 180000) {
         format: 'json',
         options: {
           num_ctx: 8192,
-          num_predict: 4096,
+          num_predict: 6144,
           temperature: 0.2
         }
       })
@@ -71,25 +75,24 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const pdfBuffer = fs.readFileSync(req.file.path);
     const pdfData   = await pdfParse(pdfBuffer);
     const textoCompleto = pdfData.text.trim();
-    // 6000 chars = ~1500 tokens aprox, deja espacio suficiente para la respuesta
     const textoPdf  = textoCompleto.slice(0, 6000);
     const totalChars = textoCompleto.length;
-    const modulosMin = totalChars > 12000 ? 6 : totalChars > 6000 ? 5 : 4;
-    const modulosMax = totalChars > 12000 ? 9 : totalChars > 6000 ? 7 : 5;
+    const modulosMin = totalChars > 12000 ? 5 : totalChars > 6000 ? 4 : 3;
+    const modulosMax = totalChars > 12000 ? 7 : totalChars > 6000 ? 6 : 5;
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ usando:', textoPdf.length, '→ módulos:', modulosMin, '-', modulosMax);
 
-    const prompt = `Eres un experto en diseño de cursos de capacitación para trabajadores de hogares de adultos mayores (ELEAM) en Chile.
+    const prompt = `Eres un experto en diseño instruccional y evaluación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tienes experiencia en taxonomía de Bloom y en la creación de preguntas de opción múltiple de alta calidad.
 
-Analiza este protocolo y genera un curso estructurado en formato JSON:
+Analiza el protocolo y genera un curso completo en formato JSON:
 
 {
   "modulos": [
     {
-      "titulo": "string",
-      "descripcion": "string (2-3 oraciones sobre el contenido)",
+      "titulo": "string (título claro y específico del tema)",
+      "descripcion": "string (4-6 oraciones: qué cubre el módulo, por qué es importante para el cuidado del adulto mayor, qué habilidades desarrollará el trabajador y cómo aplicarlo en su trabajo diario)",
       "preguntas": [
         {
-          "texto": "string (pregunta de alternativas)",
+          "texto": "string (pregunta clara, sin ambigüedades, que evalúe comprensión real o aplicación práctica)",
           "alternativas": [
             { "texto": "string", "correcta": false },
             { "texto": "string", "correcta": true },
@@ -103,19 +106,22 @@ Analiza este protocolo y genera un curso estructurado en formato JSON:
 }
 
 Reglas:
-- Genera entre ${modulosMin} y ${modulosMax} módulos cubriendo los principales temas del protocolo
-- Cada módulo: entre 3 y 5 preguntas de alternativas (4 opciones, 1 correcta)
-- Lenguaje claro para personal sin formación técnica avanzada
+- Entre ${modulosMin} y ${modulosMax} módulos con los temas principales del protocolo
+- Cada módulo: exactamente 4 preguntas de alternativas
+- Preguntas variadas: comprensión, aplicación práctica y análisis
+- Alternativas incorrectas plausibles (errores reales del personal, no respuestas absurdas)
+- Sin "todas las anteriores" ni "ninguna de las anteriores"
+- Descripciones de módulo: 3 oraciones claras para personal sin formación técnica
 - Nombre del curso: ${nombre_curso}
 - Contexto: ${contexto || 'protocolo de cuidado del adulto mayor'}
 
-Responde SOLO con el JSON, sin texto adicional.
+Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código markdown.
 
 PROTOCOLO:
 ${textoPdf}`;
 
-    console.log('[IA] Paso 3: llamando a Ollama (max 3 min)...');
-    const textoRespuesta = await llamarOllama(prompt, 180000);
+    console.log('[IA] Paso 3: llamando a Ollama (max 10 min)...');
+    const textoRespuesta = await llamarOllama(prompt, 600000);
     console.log('[IA] Paso 4: respuesta recibida, chars:', textoRespuesta?.length);
     console.log('[IA] Raw (300 chars):', textoRespuesta?.slice(0, 300));
 
@@ -163,10 +169,10 @@ ${textoPdf}`;
     });
 
   } catch (err) {
-    console.error('[IA] Error:', err.message);
+    console.error('[IA] Error completo:', err);
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
-      return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o vuelve a intentarlo.' });
+      return res.status(504).json({ error: 'La IA tardó demasiado tiempo (más de 10 min). Intenta con un PDF más pequeño o vuelve a intentarlo.' });
     }
     res.status(500).json({ error: err.message || 'Error al generar el curso con IA.' });
   }
@@ -178,46 +184,48 @@ router.post('/generar-presentacion', verificarToken, verificarRol('jefatura', 'a
   const { titulo, descripcion, contexto } = req.body;
   if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
 
-  const prompt = `Eres un experto en diseño instruccional para trabajadores de hogares de adultos mayores en Chile.
+  const prompt = `Eres un experto en diseño instruccional y comunicación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tu objetivo es crear material de aprendizaje claro, práctico y memorable.
 
-Para el módulo indicado genera un JSON con DOS secciones independientes:
+Para el módulo indicado genera un JSON con DOS secciones:
 
 {
   "resumen": {
-    "objetivo": "string (qué aprenderá el trabajador)",
-    "puntos_clave": ["string x4 (ideas principales del módulo)"],
-    "conceptos_importantes": [{ "termino": "string", "definicion": "string" }],
-    "procedimientos": ["string (pasos si aplica, sino [])"],
-    "advertencias": ["string (errores comunes, sino [])"],
-    "cierre": "string (2 oraciones de cierre)"
+    "objetivo": "string (oración completa: al terminar este módulo el trabajador será capaz de...)",
+    "puntos_clave": ["string x5-6 (ideas principales, redactadas como aprendizajes concretos, no solo temas)"],
+    "conceptos_importantes": [
+      { "termino": "string", "definicion": "string (definición completa en 2-3 oraciones, con ejemplo de uso real en el ELEAM)" }
+    ],
+    "procedimientos": ["string (pasos numerados y detallados, comenzando con verbo de acción: Verificar, Registrar, Informar...)"],
+    "advertencias": ["string (errores frecuentes del personal y sus consecuencias reales para el residente)"],
+    "cierre": "string (3-4 oraciones que refuercen la importancia del tema y motiven al trabajador a aplicar lo aprendido)"
   },
   "diapositivas": [
     {
       "tipo": "portada",
       "titulo": "string (nombre del módulo)",
-      "subtitulo": "string (frase motivadora o pregunta de enganche)"
+      "subtitulo": "string (pregunta provocadora o dato impactante que genere interés inmediato)"
     },
     {
       "tipo": "definicion",
-      "concepto": "string (término técnico del módulo)",
-      "definicion_completa": "string (explicación clara y detallada del concepto)",
-      "ejemplo_real": "string (ejemplo concreto de cómo se aplica en el trabajo diario)"
+      "concepto": "string (término central del módulo)",
+      "definicion_completa": "string (explicación completa en lenguaje simple, sin jerga técnica, 3-4 oraciones)",
+      "ejemplo_real": "string (escena concreta del trabajo diario en el ELEAM, con nombres ficticios si ayuda: 'Cuando doña Rosa...', '...el auxiliar Pedro notó que...')"
     },
     {
       "tipo": "caso",
-      "titulo": "string (título del caso)",
-      "situacion": "string (descripción realista de una situación que puede ocurrir)",
-      "como_actuar": ["string x3-4 (pasos concretos de qué hacer)"]
+      "titulo": "string (título descriptivo del caso)",
+      "situacion": "string (narrativa detallada de una situación real que puede ocurrir, 3-4 oraciones con contexto específico)",
+      "como_actuar": ["string x4-5 (pasos concretos y ordenados, comenzando con verbo de acción)"]
     },
     {
       "tipo": "importante",
-      "titulo": "string",
-      "puntos": ["string x3-4 (cosas críticas a recordar, distintas a puntos_clave)"]
+      "titulo": "string (título que resuma la idea central)",
+      "puntos": ["string x4-5 (alertas críticas, consecuencias de no cumplir, obligaciones legales o éticas relevantes)"]
     },
     {
       "tipo": "reflexion",
-      "pregunta": "string (pregunta que invite a pensar sobre el tema)",
-      "pista": "string (orientación breve hacia la respuesta correcta)"
+      "pregunta": "string (pregunta abierta que conecte el tema con la experiencia personal del trabajador)",
+      "pista": "string (2-3 oraciones que guíen hacia la respuesta correcta sin darla directamente)"
     }
   ]
 }
@@ -226,12 +234,16 @@ Módulo: ${titulo}
 Descripción: ${descripcion || ''}
 Contexto: ${contexto || 'protocolo de cuidado del adulto mayor'}
 
-IMPORTANTE: Las diapositivas deben tener contenido DISTINTO al resumen — más profundo, con ejemplos reales y situaciones prácticas del trabajo.
-Responde SOLO con el JSON válido.`;
+Reglas:
+- Cada sección debe tener contenido DISTINTO y complementario, no repetir la misma información
+- Usa lenguaje accesible, directo y empático para personal con educación media
+- Los ejemplos deben ser situaciones reales y específicas del trabajo en ELEAM chilenos
+- Los procedimientos deben ser ejecutables tal como están escritos, sin necesitar explicación adicional
+Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código markdown.`;
 
   try {
     console.log('[IA] Generando presentación para:', titulo);
-    const textoRespuesta = await llamarOllama(prompt, 120000);
+    const textoRespuesta = await llamarOllama(prompt, 600000);
     const presentacion = parsearJSON(textoRespuesta);
     res.json({ presentacion });
   } catch (err) {

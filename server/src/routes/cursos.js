@@ -204,16 +204,32 @@ router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'je
   }
 });
 
-// PUT /api/cursos/:id — actualiza nombre y descripción de un curso borrador
+// PUT /api/cursos/:id — actualiza nombre, descripción, módulos, preguntas y PPT de un curso borrador
 router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { nombre, descripcion, modulos } = req.body;
+  const { nombre, descripcion, modulos, preguntas } = req.body;
   try {
-    if (nombre) {
-      await pool.query('UPDATE cursos SET nombre = $1, descripcion = $2, updated_at = NOW() WHERE id = $3', [nombre, descripcion || '', req.params.id]);
-    }
+    await pool.query(
+      'UPDATE cursos SET nombre = COALESCE($1, nombre), descripcion = COALESCE($2, descripcion), updated_at = NOW() WHERE id = $3',
+      [nombre || null, descripcion !== undefined ? descripcion : null, req.params.id]
+    );
     if (modulos?.length) {
       for (const mod of modulos) {
-        await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion, mod.id]);
+        if (mod.contenido_presentacion !== undefined) {
+          await pool.query(
+            'UPDATE modulos SET titulo = $1, descripcion = $2, contenido_presentacion = $3 WHERE id = $4',
+            [mod.titulo, mod.descripcion, JSON.stringify(mod.contenido_presentacion), mod.id]
+          );
+        } else {
+          await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion, mod.id]);
+        }
+      }
+    }
+    if (preguntas?.length) {
+      for (const preg of preguntas) {
+        await pool.query(
+          'UPDATE preguntas SET texto = $1, alternativas = $2 WHERE id = $3',
+          [preg.texto, JSON.stringify(preg.alternativas), preg.id]
+        );
       }
     }
     res.json({ ok: true });

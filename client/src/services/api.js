@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 180000, // 3 min — Ollama puede tardar en generar
+  timeout: 660000, // 11 min — Ollama puede tardar en generar para PDFs grandes
 })
 
 // Agregar token automáticamente a cada request

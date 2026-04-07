@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
@@ -9,9 +9,11 @@ const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 
 const FORM_INICIAL = { curso_id:'', titulo:'', descripcion:'', fecha:'', hora_inicio:'', hora_fin:'' }
 
+
 export default function Practicos() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const puedeCrear = ['profesor','admin_sede'].includes(usuario?.rol)
 
   const hoy = new Date()
@@ -25,6 +27,12 @@ export default function Practicos() {
   const [diaSeleccionado, setDiaSeleccionado] = useState(null)
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
+  const [googleConectado, setGoogleConectado] = useState(false)
+  const [sincronizando, setSincronizando] = useState(null)
+  const [eventosGoogle, setEventosGoogle] = useState([])
+  const [mostrarModalEvento, setMostrarModalEvento] = useState(false)
+  const [formEvento, setFormEvento] = useState({ titulo:'', fecha:'', hora_inicio:'', hora_fin:'', descripcion:'', lugar:'' })
+  const [guardandoEvento, setGuardandoEvento] = useState(false)
 
   const cargar = () => {
     setCargando(true)
@@ -39,7 +47,76 @@ export default function Practicos() {
       .finally(() => setCargando(false))
   }
 
-  useEffect(() => { cargar() }, [])
+  const cargarEventosGoogle = (anioActual, mesActual) => {
+    api.get(`/google/calendar/events?year=${anioActual}&month=${mesActual + 1}`)
+      .then(r => setEventosGoogle(r.data))
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    cargar()
+    api.get('/google/status').then(r => {
+      setGoogleConectado(r.data.conectado)
+      if (r.data.conectado) cargarEventosGoogle(anio, mes)
+    }).catch(() => {})
+  }, [])
+
+  // Recargar eventos Google al cambiar de mes
+  useEffect(() => {
+    if (googleConectado) cargarEventosGoogle(anio, mes)
+  }, [mes, anio, googleConectado])
+
+  // Detectar retorno desde OAuth de Google
+  useEffect(() => {
+    const estado = searchParams.get('google')
+    if (estado === 'connected') {
+      setGoogleConectado(true)
+      setExito('Google Calendar conectado correctamente')
+      setSearchParams({})
+    } else if (estado === 'error') {
+      setError('No se pudo conectar con Google Calendar')
+      setSearchParams({})
+    }
+  }, [searchParams])
+
+  const conectarGoogle = () => {
+    const base = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+    window.location.href = `${base}/api/google/auth?token=` + localStorage.getItem('token')
+  }
+
+  const desconectarGoogle = async () => {
+    await api.delete('/google/disconnect')
+    setGoogleConectado(false)
+    setExito('Google Calendar desconectado')
+  }
+
+  const handleCrearEvento = async (e) => {
+    e.preventDefault()
+    setGuardandoEvento(true)
+    try {
+      await api.post('/google/calendar/custom-event', formEvento)
+      setExito('Evento creado en Google Calendar')
+      setFormEvento({ titulo:'', fecha:'', hora_inicio:'', hora_fin:'', descripcion:'', lugar:'' })
+      setMostrarModalEvento(false)
+      cargarEventosGoogle(anio, mes)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al crear el evento')
+    } finally {
+      setGuardandoEvento(false)
+    }
+  }
+
+  const agregarACalendario = async (practicoId) => {
+    setSincronizando(practicoId)
+    try {
+      await api.post('/google/calendar/events', { practico_id: practicoId })
+      setExito('Evento agregado a tu Google Calendar')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al agregar el evento')
+    } finally {
+      setSincronizando(null)
+    }
+  }
 
   // Calcular días del mes
   const primerDia = new Date(anio, mes, 1).getDay()
@@ -47,7 +124,9 @@ export default function Practicos() {
 
   const practicosPorDia = (dia) => {
     const fecha = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
-    return practicos.filter(p => p.fecha?.startsWith(fecha))
+    const locales = practicos.filter(p => p.fecha?.startsWith(fecha))
+    const google = eventosGoogle.filter(e => e.fecha === fecha)
+    return [...locales, ...google]
   }
 
   const practicosDelDia = diaSeleccionado ? practicosPorDia(diaSeleccionado) : []
@@ -125,11 +204,31 @@ export default function Practicos() {
               <div className="page-title">Prácticos programados</div>
               <div className="page-sub">Calendario de actividades prácticas por sede</div>
             </div>
-            {puedeCrear && (
-              <button className="btn-primary" onClick={() => { setMostrarForm(!mostrarForm); setError(''); setExito('') }}>
-                {mostrarForm ? '✕ Cancelar' : '+ Nuevo práctico'}
-              </button>
-            )}
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              {googleConectado ? (
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:12, color:'#1A7A45', background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:6, padding:'4px 10px' }}>
+                    ✓ Google Calendar conectado
+                  </span>
+                  <button className="btn-outline-dark" style={{ fontSize:12 }}
+                    onClick={() => { setMostrarModalEvento(true); setError(''); setExito('') }}>
+                    + Nuevo evento
+                  </button>
+                  <button className="btn-outline-dark" style={{ fontSize:12 }} onClick={desconectarGoogle}>
+                    Desconectar
+                  </button>
+                </div>
+              ) : (
+                <button className="btn-outline-dark" onClick={conectarGoogle}>
+                  📅 Conectar Google Calendar
+                </button>
+              )}
+              {puedeCrear && (
+                <button className="btn-primary" onClick={() => { setMostrarForm(!mostrarForm); setError(''); setExito('') }}>
+                  {mostrarForm ? '✕ Cancelar' : '+ Nuevo práctico'}
+                </button>
+              )}
+            </div>
           </div>
 
           {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}>✓ {exito}</div>}
@@ -213,10 +312,10 @@ export default function Practicos() {
                     <div key={dia}
                       onClick={() => setDiaSeleccionado(dia === diaSeleccionado ? null : dia)}
                       style={{
-                        minHeight: 56, padding: '4px 6px', borderRadius: 8, cursor: 'pointer',
+                        height: 72, padding: '4px 6px', borderRadius: 8, cursor: 'pointer',
                         border: `0.5px solid ${seleccionado ? '#2B4BA0' : esHoy ? '#2B4BA0' : '#E8E8E8'}`,
                         background: seleccionado ? '#EEF2FF' : esHoy ? '#F4F8FF' : 'white',
-                        position: 'relative'
+                        overflow: 'hidden', boxSizing: 'border-box'
                       }}
                     >
                       <div style={{
@@ -226,7 +325,7 @@ export default function Practicos() {
                       }}>{dia}</div>
                       {eventos.slice(0, 2).map((e, i) => (
                         <div key={i} style={{
-                          fontSize: 9, background: '#2B4BA0', color: 'white',
+                          fontSize: 9, background: e.origen === 'google' ? '#4285F4' : '#2B4BA0', color: 'white',
                           borderRadius: 3, padding: '1px 4px', marginBottom: 1,
                           overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
                         }}>
@@ -251,31 +350,48 @@ export default function Practicos() {
                   </div>
                   {practicosDelDia.length === 0 ? (
                     <div style={{ color:'#888', fontSize:13, textAlign:'center', padding:16 }}>
-                      Sin prácticos este día
+                      Sin eventos este día
                     </div>
                   ) : practicosDelDia.map(p => (
-                    <div key={p.id} style={{ border:'0.5px solid #E8E8E8', borderRadius:8, padding:12, marginBottom:8 }}>
+                    <div key={p.id} style={{ border:`0.5px solid ${p.origen === 'google' ? '#4285F4' : '#E8E8E8'}`, borderRadius:8, padding:12, marginBottom:8 }}>
+                      {p.origen === 'google' && (
+                        <div style={{ fontSize:10, color:'#4285F4', fontWeight:500, marginBottom:4 }}>📅 Google Calendar</div>
+                      )}
                       <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>{p.titulo}</div>
-                      <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>
-                        📋 {p.curso_nombre}
-                      </div>
-                      <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>
-                        🕐 {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}
-                      </div>
-                      <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>
-                        📍 {p.sede_nombre || 'ELEAM sede'}
-                      </div>
+                      {p.curso_nombre && (
+                        <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>📋 {p.curso_nombre}</div>
+                      )}
+                      {p.hora_inicio && (
+                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>
+                          🕐 {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}
+                        </div>
+                      )}
+                      {p.sede_nombre && (
+                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>📍 {p.sede_nombre}</div>
+                      )}
                       {p.descripcion && (
                         <div style={{ fontSize:11, color:'#888', marginTop:6, lineHeight:1.5 }}>{p.descripcion}</div>
                       )}
-                      <div style={{ fontSize:10, color:'#AAA', marginTop:6 }}>
-                        Creado por {p.creado_por_nombre}
-                      </div>
-                      {puedeCrear && (
-                        <button className="btn-rechazar" style={{ marginTop:8, fontSize:11 }}
-                          onClick={() => handleEliminar(p.id)}>
-                          Eliminar
-                        </button>
+                      {p.creado_por_nombre && (
+                        <div style={{ fontSize:10, color:'#AAA', marginTop:6 }}>Creado por {p.creado_por_nombre}</div>
+                      )}
+                      {p.origen !== 'google' && (
+                        <div style={{ display:'flex', gap:6, marginTop:8, flexWrap:'wrap' }}>
+                          {googleConectado && (
+                            <button
+                              onClick={() => agregarACalendario(p.id)}
+                              disabled={sincronizando === p.id}
+                              style={{ fontSize:11, padding:'4px 8px', borderRadius:6, border:'0.5px solid #4285F4', color:'#4285F4', background:'white', cursor:'pointer' }}>
+                              {sincronizando === p.id ? 'Agregando...' : '+ Agregar a mi calendario'}
+                            </button>
+                          )}
+                          {puedeCrear && (
+                            <button className="btn-rechazar" style={{ fontSize:11 }}
+                              onClick={() => handleEliminar(p.id)}>
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -322,6 +438,91 @@ export default function Practicos() {
           </div>
         </main>
       </div>
+
+      {/* Modal nuevo evento Google Calendar */}
+      {mostrarModalEvento && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.4)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
+        }} onClick={e => { if (e.target === e.currentTarget) setMostrarModalEvento(false) }}>
+          <div style={{
+            background:'white', borderRadius:12, padding:28, width:440,
+            boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:0
+          }}>
+            {/* Cabecera */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div>
+                <div style={{ fontSize:16, fontWeight:600, color:'#1a1a1a' }}>Nuevo evento</div>
+                <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Se agregará a tu Google Calendar</div>
+              </div>
+              <button onClick={() => setMostrarModalEvento(false)}
+                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', lineHeight:1 }}>✕</button>
+            </div>
+
+            <form onSubmit={handleCrearEvento} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              {/* Título */}
+              <div className="field">
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>Título *</label>
+                <input type="text" placeholder="Añadir título"
+                  style={{ fontSize:15, padding:'8px 12px', border:'none', borderBottom:'2px solid #4285F4', borderRadius:0, outline:'none', width:'100%', boxSizing:'border-box' }}
+                  value={formEvento.titulo} onChange={e => setFormEvento({...formEvento, titulo:e.target.value})} autoFocus />
+              </div>
+
+              {/* Fecha */}
+              <div className="field">
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>📅 Fecha *</label>
+                <input type="date"
+                  style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
+                  value={formEvento.fecha} onChange={e => setFormEvento({...formEvento, fecha:e.target.value})} />
+              </div>
+
+              {/* Horas */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div className="field">
+                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>🕐 Hora inicio *</label>
+                  <input type="time"
+                    style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
+                    value={formEvento.hora_inicio} onChange={e => setFormEvento({...formEvento, hora_inicio:e.target.value})} />
+                </div>
+                <div className="field">
+                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>🕐 Hora término</label>
+                  <input type="time"
+                    style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
+                    value={formEvento.hora_fin} onChange={e => setFormEvento({...formEvento, hora_fin:e.target.value})} />
+                </div>
+              </div>
+
+              {/* Ubicación */}
+              <div className="field">
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>📍 Ubicación</label>
+                <input type="text" placeholder="Añadir ubicación"
+                  style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
+                  value={formEvento.lugar} onChange={e => setFormEvento({...formEvento, lugar:e.target.value})} />
+              </div>
+
+              {/* Descripción */}
+              <div className="field">
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>☰ Descripción</label>
+                <textarea rows={3} placeholder="Añadir descripción"
+                  style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box', resize:'none' }}
+                  value={formEvento.descripcion} onChange={e => setFormEvento({...formEvento, descripcion:e.target.value})} />
+              </div>
+
+              {/* Acciones */}
+              <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:4 }}>
+                <button type="button" className="btn-outline-dark"
+                  onClick={() => setMostrarModalEvento(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={guardandoEvento}
+                  style={{ background:'#4285F4', borderColor:'#4285F4' }}>
+                  {guardandoEvento ? 'Guardando...' : 'Guardar evento'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

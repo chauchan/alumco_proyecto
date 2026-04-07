@@ -1,10 +1,8 @@
 node_modules/
-client/node_modules/
-server/node_modules/
+.env
+.env.local
+.env.production
 dist/
 build/
-.env
-*.env
 uploads/
 *.log
-.DS_Store
