@@ -79,7 +79,7 @@ export default function Profesor() {
       <div className="app-body">
 
         <Sidebar />
-
+        
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* Header */}
