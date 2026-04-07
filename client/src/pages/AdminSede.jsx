@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Topbar from '../components/Topbar'
+import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
@@ -42,15 +43,7 @@ export default function AdminSede() {
       <Topbar seccion={`Administración · ${usuario?.sede_nombre || 'Sede'}`} />
       <div className="app-body">
 
-        <aside className="sidebar">
-          <div className="nav-section-label">Gestión</div>
-          {navItems.map(item => (
-            <div key={item.label} className={`nav-item ${item.active?'active':''}`}>
-              <span style={{ flex:1 }}>{item.label}</span>
-              {item.badge && <span className="nav-badge">{item.badge}</span>}
-            </div>
-          ))}
-        </aside>
+        <Sidebar />
 
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 

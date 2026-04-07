@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 
 const ROLES = ['colaborador','profesor','admin_sede','jefatura']
@@ -68,21 +69,7 @@ export default function GestionUsuarios() {
     <div className="app-shell">
       <Topbar seccion="Jefatura — Gestión de usuarios" />
       <div className="app-body">
-        <aside className="sidebar">
-          <div className="nav-section-label">Global ONG</div>
-          {navItems.map(item => (
-            <div key={item.label}
-              className={`nav-item ${item.active ? 'active' : ''}`}
-              onClick={() => {
-                if (item.label === 'Resumen global') navigate('/jefatura')
-                if (item.label === 'Generador IA') navigate('/jefatura/ia')
-              }}
-            >
-              <span style={{ flex:1 }}>{item.label}</span>
-              {item.new && <span className="nav-new">Nuevo</span>}
-            </div>
-          ))}
-        </aside>
+        <Sidebar />
 
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
