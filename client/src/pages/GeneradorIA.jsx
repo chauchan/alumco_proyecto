@@ -26,6 +26,76 @@ function buildSlides(mod, pres) {
   return slides
 }
 
+// ── SlideEditor: edita el contenido de una diapositiva ───────────────────────
+function SlideEditor({ slide, onChange }) {
+  const upd = (key, val) => onChange({ ...slide, [key]: val })
+  const updArr = (key, idx, val) => {
+    const arr = [...(slide[key] || [])]
+    arr[idx] = val
+    onChange({ ...slide, [key]: arr })
+  }
+  const fld = { fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #CCC', width: '100%', boxSizing: 'border-box' }
+  const ta = { ...fld, resize: 'none' }
+  const lbl = { fontSize: 11, color: '#555', marginBottom: 4, display: 'block' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 20px', maxHeight: '55vh', overflowY: 'auto' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#2B4BA0', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+        Editando slide: {slide.tipo}
+      </div>
+
+      {slide.tipo === 'portada' && (<>
+        <div><label style={lbl}>Título</label>
+          <input style={fld} value={slide.titulo || ''} onChange={e => upd('titulo', e.target.value)} /></div>
+        <div><label style={lbl}>Subtítulo</label>
+          <textarea style={ta} rows={2} value={slide.subtitulo || ''} onChange={e => upd('subtitulo', e.target.value)} /></div>
+      </>)}
+
+      {slide.tipo === 'definicion' && (<>
+        <div><label style={lbl}>Concepto</label>
+          <input style={fld} value={slide.concepto || ''} onChange={e => upd('concepto', e.target.value)} /></div>
+        <div><label style={lbl}>Definición completa</label>
+          <textarea style={ta} rows={3} value={slide.definicion_completa || ''} onChange={e => upd('definicion_completa', e.target.value)} /></div>
+        <div><label style={lbl}>Ejemplo real</label>
+          <textarea style={ta} rows={2} value={slide.ejemplo_real || ''} onChange={e => upd('ejemplo_real', e.target.value)} /></div>
+      </>)}
+
+      {slide.tipo === 'caso' && (<>
+        <div><label style={lbl}>Título</label>
+          <input style={fld} value={slide.titulo || ''} onChange={e => upd('titulo', e.target.value)} /></div>
+        <div><label style={lbl}>Situación</label>
+          <textarea style={ta} rows={3} value={slide.situacion || ''} onChange={e => upd('situacion', e.target.value)} /></div>
+        <div><label style={lbl}>¿Cómo actuar? (un paso por campo)</label>
+          {(slide.como_actuar || []).map((paso, k) => (
+            <input key={k} style={{ ...fld, marginBottom: 4 }} value={paso} onChange={e => updArr('como_actuar', k, e.target.value)} />
+          ))}</div>
+      </>)}
+
+      {slide.tipo === 'importante' && (<>
+        <div><label style={lbl}>Título</label>
+          <input style={fld} value={slide.titulo || ''} onChange={e => upd('titulo', e.target.value)} /></div>
+        <div><label style={lbl}>Puntos importantes</label>
+          {(slide.puntos || []).map((punto, k) => (
+            <input key={k} style={{ ...fld, marginBottom: 4 }} value={punto} onChange={e => updArr('puntos', k, e.target.value)} />
+          ))}</div>
+      </>)}
+
+      {slide.tipo === 'reflexion' && (<>
+        <div><label style={lbl}>Pregunta de reflexión</label>
+          <textarea style={ta} rows={3} value={slide.pregunta || ''} onChange={e => upd('pregunta', e.target.value)} /></div>
+        <div><label style={lbl}>Pista</label>
+          <textarea style={ta} rows={2} value={slide.pista || ''} onChange={e => upd('pista', e.target.value)} /></div>
+      </>)}
+
+      {!['portada', 'definicion', 'caso', 'importante', 'reflexion'].includes(slide.tipo) && (
+        <div style={{ fontSize: 12, color: '#888', textAlign: 'center', padding: '2rem 0' }}>
+          El tipo "{slide.tipo}" no tiene campos editables en esta vista.
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Slide: renderiza cada tipo de diapositiva ─────────────────────────────────
 export function Slide({ slide, total, actual }) {
   const paletas = {
@@ -207,6 +277,8 @@ export default function GeneradorIA() {
   const [presentaciones, setPresentaciones] = useState({})   // índice → datos | 'cargando' | 'error'
   const [modoPPT, setModoPPT] = useState(false)
   const [slideActual, setSlideActual] = useState(0)
+  const [editandoPPT, setEditandoPPT] = useState(false)
+  const [pptEditData, setPptEditData] = useState({})  // módulo idx → presentacion editada
 
   const abrirPresentacion = async (i) => {
     setPresentacionActiva(i)
@@ -227,7 +299,7 @@ export default function GeneradorIA() {
     }
   }
 
-  const cerrarModal = () => { setPresentacionActiva(null); setModoPPT(false); setSlideActual(0) }
+  const cerrarModal = () => { setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false) }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -249,11 +321,27 @@ export default function GeneradorIA() {
   const guardarEdicion = async () => {
     setGuardando(true)
     try {
+      const preguntas = borradorEdit.modulos.flatMap(m => m.preguntas || [])
+      const modulos = borradorEdit.modulos.map((m, i) => {
+        const base = { id: m.id, titulo: m.titulo, descripcion: m.descripcion }
+        if (pptEditData[i]) base.contenido_presentacion = pptEditData[i]
+        return base
+      })
       await api.put(`/cursos/${resultado.curso_id}`, {
         nombre: borradorEdit.nombre,
-        modulos: borradorEdit.modulos.map(m => ({ id: m.id, titulo: m.titulo, descripcion: m.descripcion }))
+        descripcion: borradorEdit.descripcion,
+        modulos,
+        preguntas
       })
-      setResultado(prev => ({ ...prev, nombre: borradorEdit.nombre, modulos: borradorEdit.modulos }))
+      if (Object.keys(pptEditData).length > 0) {
+        setPresentaciones(prev => {
+          const next = { ...prev }
+          Object.entries(pptEditData).forEach(([i, pres]) => { next[Number(i)] = pres })
+          return next
+        })
+        setPptEditData({})
+      }
+      setResultado(prev => ({ ...prev, nombre: borradorEdit.nombre, descripcion: borradorEdit.descripcion, modulos: borradorEdit.modulos }))
       setModoEdicion(false)
     } catch {
       alert('Error al guardar los cambios')
@@ -273,8 +361,10 @@ export default function GeneradorIA() {
   // ── Slides activos para el módulo en el modal ──
   const pres = presentacionActiva !== null ? presentaciones[presentacionActiva] : null
   const mod  = presentacionActiva !== null ? resultado?.modulos?.[presentacionActiva] : null
-  const slides = (pres && pres !== 'cargando' && pres !== 'error' && mod)
-    ? buildSlides(mod, pres) : []
+  // Usa datos editados si existen, de lo contrario usa los originales
+  const activePres = (presentacionActiva !== null && pptEditData[presentacionActiva]) ? pptEditData[presentacionActiva] : pres
+  const slides = (activePres && activePres !== 'cargando' && activePres !== 'error' && mod)
+    ? buildSlides(mod, activePres) : []
 
   return (
     <div className="app-shell">
@@ -427,6 +517,27 @@ export default function GeneradorIA() {
                               }}>▶ Presentación</button>
                             </div>
                           )}
+                          {modoPPT && pres && pres !== 'cargando' && pres !== 'error' && (
+                            <button
+                              onClick={() => {
+                                if (!editandoPPT) {
+                                  setPptEditData(prev => ({
+                                    ...prev,
+                                    [presentacionActiva]: JSON.parse(JSON.stringify(presentaciones[presentacionActiva]))
+                                  }))
+                                }
+                                setEditandoPPT(e => !e)
+                              }}
+                              style={{
+                                fontSize: 11, padding: '4px 10px', borderRadius: 6,
+                                border: `1px solid ${editandoPPT ? '#2B4BA0' : '#CCC'}`,
+                                background: editandoPPT ? '#2B4BA0' : 'transparent',
+                                color: editandoPPT ? '#fff' : '#555',
+                                cursor: 'pointer', fontWeight: 500
+                              }}>
+                              {editandoPPT ? '← Vista previa' : '✎ Editar slides'}
+                            </button>
+                          )}
                           <button onClick={cerrarModal} style={{ background: 'none', border: 'none', fontSize: 18, color: '#AAA', cursor: 'pointer' }}>✕</button>
                         </div>
 
@@ -521,8 +632,22 @@ export default function GeneradorIA() {
                               </div>
 
                               {/* Slide */}
-                              <div style={{ padding: '24px 28px' }}>
-                                <Slide slide={slides[slideActual]} total={slides.length} actual={slideActual} />
+                              <div style={{ padding: editandoPPT ? '0' : '24px 28px' }}>
+                                {editandoPPT ? (
+                                  <SlideEditor
+                                    slide={(pptEditData[presentacionActiva]?.diapositivas || slides)[slideActual]}
+                                    onChange={newSlide => {
+                                      setPptEditData(prev => {
+                                        const base = prev[presentacionActiva] || JSON.parse(JSON.stringify(presentaciones[presentacionActiva]))
+                                        const diapositivas = [...(base.diapositivas || slides)]
+                                        diapositivas[slideActual] = newSlide
+                                        return { ...prev, [presentacionActiva]: { ...base, diapositivas } }
+                                      })
+                                    }}
+                                  />
+                                ) : (
+                                  <Slide slide={slides[slideActual]} total={slides.length} actual={slideActual} />
+                                )}
                               </div>
 
                               {/* Navegación */}
@@ -641,6 +766,12 @@ export default function GeneradorIA() {
                           onChange={e => setBorradorEdit(prev => ({ ...prev, nombre: e.target.value }))}
                           style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #CCC', width: '100%' }} />
                       </div>
+                      <div className="field" style={{ marginBottom: 10 }}>
+                        <label style={{ fontSize: 11 }}>Descripción general del curso</label>
+                        <textarea rows={3} value={borradorEdit.descripcion || ''}
+                          onChange={e => setBorradorEdit(prev => ({ ...prev, descripcion: e.target.value }))}
+                          style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', color: '#555' }} />
+                      </div>
                       {borradorEdit.modulos?.map((mod, i) => (
                         <div key={i} style={{ marginBottom: 8, background: '#fff', borderRadius: 8, padding: '10px 12px', border: '0.5px solid #E8E8E8' }}>
                           <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Módulo {i + 1}</div>
@@ -654,6 +785,53 @@ export default function GeneradorIA() {
                               const mods = [...prev.modulos]; mods[i] = { ...mods[i], descripcion: e.target.value }; return { ...prev, modulos: mods }
                             })}
                             style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', color: '#555' }} />
+                          {mod.preguntas?.length > 0 && (
+                            <div style={{ marginTop: 10 }}>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                                Preguntas de evaluación
+                              </div>
+                              {mod.preguntas.map((preg, j) => (
+                                <div key={j} style={{ marginBottom: 8, background: '#F0F4FF', borderRadius: 7, padding: '8px 10px' }}>
+                                  <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Pregunta {j + 1}</div>
+                                  <textarea rows={2} value={preg.texto}
+                                    onChange={e => setBorradorEdit(prev => {
+                                      const mods = [...prev.modulos]
+                                      const pregs = [...(mods[i].preguntas || [])]
+                                      pregs[j] = { ...pregs[j], texto: e.target.value }
+                                      mods[i] = { ...mods[i], preguntas: pregs }
+                                      return { ...prev, modulos: mods }
+                                    })}
+                                    style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', marginBottom: 6 }} />
+                                  <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Alternativas (● = correcta)</div>
+                                  {preg.alternativas?.map((alt, k) => (
+                                    <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                                      <input type="radio" name={`correcta-${i}-${j}`} checked={!!alt.correcta}
+                                        onChange={() => setBorradorEdit(prev => {
+                                          const mods = [...prev.modulos]
+                                          const pregs = [...(mods[i].preguntas || [])]
+                                          const alts = pregs[j].alternativas.map((a, ki) => ({ ...a, correcta: ki === k }))
+                                          pregs[j] = { ...pregs[j], alternativas: alts }
+                                          mods[i] = { ...mods[i], preguntas: pregs }
+                                          return { ...prev, modulos: mods }
+                                        })} />
+                                      <input type="text" value={alt.texto}
+                                        onChange={e => setBorradorEdit(prev => {
+                                          const mods = [...prev.modulos]
+                                          const pregs = [...(mods[i].preguntas || [])]
+                                          const alts = [...pregs[j].alternativas]
+                                          alts[k] = { ...alts[k], texto: e.target.value }
+                                          pregs[j] = { ...pregs[j], alternativas: alts }
+                                          mods[i] = { ...mods[i], preguntas: pregs }
+                                          return { ...prev, modulos: mods }
+                                        })}
+                                        style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid #CCC' }} />
+                                      {alt.correcta && <span style={{ fontSize: 10, color: '#1A7A45', fontWeight: 700 }}>✓</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

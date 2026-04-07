@@ -39,7 +39,7 @@ async function llamarOllama(prompt, timeoutMs = 180000) {
         format: 'json',
         options: {
           num_ctx: 8192,
-          num_predict: 4096,
+          num_predict: 6144,
           temperature: 0.2
         }
       })
@@ -77,8 +77,8 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const textoCompleto = pdfData.text.trim();
     const textoPdf  = textoCompleto.slice(0, 6000);
     const totalChars = textoCompleto.length;
-    const modulosMin = totalChars > 12000 ? 6 : totalChars > 6000 ? 5 : 4;
-    const modulosMax = totalChars > 12000 ? 9 : totalChars > 6000 ? 7 : 5;
+    const modulosMin = totalChars > 12000 ? 5 : totalChars > 6000 ? 4 : 3;
+    const modulosMax = totalChars > 12000 ? 7 : totalChars > 6000 ? 6 : 5;
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ usando:', textoPdf.length, '→ módulos:', modulosMin, '-', modulosMax);
 
     const prompt = `Eres un experto en diseño instruccional y evaluación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tienes experiencia en taxonomía de Bloom y en la creación de preguntas de opción múltiple de alta calidad.
@@ -120,8 +120,8 @@ Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código m
 PROTOCOLO:
 ${textoPdf}`;
 
-    console.log('[IA] Paso 3: llamando a Ollama (max 3 min)...');
-    const textoRespuesta = await llamarOllama(prompt, 180000);
+    console.log('[IA] Paso 3: llamando a Ollama (max 10 min)...');
+    const textoRespuesta = await llamarOllama(prompt, 600000);
     console.log('[IA] Paso 4: respuesta recibida, chars:', textoRespuesta?.length);
     console.log('[IA] Raw (300 chars):', textoRespuesta?.slice(0, 300));
 
@@ -172,7 +172,7 @@ ${textoPdf}`;
     console.error('[IA] Error completo:', err);
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
-      return res.status(504).json({ error: 'La IA tardó más de 10 minutos. Intenta con un PDF más pequeño o vuelve a intentarlo.' });
+      return res.status(504).json({ error: 'La IA tardó demasiado tiempo (más de 10 min). Intenta con un PDF más pequeño o vuelve a intentarlo.' });
     }
     res.status(500).json({ error: err.message || 'Error al generar el curso con IA.' });
   }
