@@ -1,7 +1,55 @@
 const express = require('express');
 const router = express.Router();
+const { google } = require('googleapis');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+
+async function sincronizarConGoogle(usuarioId, practico) {
+  try {
+    const userResult = await pool.query(
+      `SELECT google_access_token, google_refresh_token FROM usuarios WHERE id = ?`,
+      [usuarioId]
+    );
+    const user = userResult.rows[0];
+    if (!user?.google_refresh_token) return;
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    oauth2Client.setCredentials({
+      access_token: user.google_access_token,
+      refresh_token: user.google_refresh_token
+    });
+    oauth2Client.on('tokens', async (tokens) => {
+      if (tokens.access_token) {
+        await pool.query(
+          `UPDATE usuarios SET google_access_token = ? WHERE id = ?`,
+          [tokens.access_token, usuarioId]
+        );
+      }
+    });
+
+    const fecha = practico.fecha;
+    const inicio = `${fecha}T${practico.hora_inicio}`;
+    const fin = practico.hora_fin ? `${fecha}T${practico.hora_fin}` : `${fecha}T${practico.hora_inicio.slice(0,2)}:59:00`;
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: practico.titulo,
+        description: `Curso: ${practico.curso_nombre || ''}${practico.descripcion ? '\n' + practico.descripcion : ''}`,
+        location: practico.lugar || 'ALUMCO',
+        start: { dateTime: inicio, timeZone: 'America/Santiago' },
+        end: { dateTime: fin, timeZone: 'America/Santiago' }
+      }
+    });
+  } catch (err) {
+    console.error('Error sincronizando con Google Calendar:', err.message);
+  }
+}
 
 const PUEDE_CREAR = verificarRol('profesor', 'admin_sede', 'jefatura');
 
@@ -97,6 +145,13 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
         [u.id, practicoId, `Práctico programado: ${titulo}`, mensaje]
       );
     }
+
+    // Sincronizar con Google Calendar del creador si está conectado
+    const cursoResult = await pool.query(`SELECT nombre FROM cursos WHERE id = ?`, [curso_id]);
+    await sincronizarConGoogle(creado_por, {
+      titulo, descripcion, fecha, hora_inicio, hora_fin, lugar,
+      curso_nombre: cursoResult.rows[0]?.nombre || ''
+    });
 
     res.status(201).json({
       id: practicoId,

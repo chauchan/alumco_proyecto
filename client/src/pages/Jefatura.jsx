@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as XLSX from 'xlsx'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
@@ -27,6 +28,39 @@ export default function Jefatura() {
 
   const sedeColors = ['#2B4BA0','#7BC67A','#F5A623']
 
+  const exportarExcel = () => {
+    const wb = XLSX.utils.book_new()
+
+    // Hoja 1: Resumen global
+    const wsResumen = XLSX.utils.aoa_to_sheet([
+      ['Resumen Global ALUMCO'],
+      ['Generado el', new Date().toLocaleDateString('es-CL')],
+      [],
+      ['Indicador', 'Valor'],
+      ['Colaboradores totales', resumen?.total_colaboradores ?? 0],
+      ['Capacitados al día', resumen?.capacitados_al_dia ?? 0],
+      ['Certificados emitidos', resumen?.certificados_emitidos ?? 0],
+      ['Requieren atención', resumen?.requieren_atencion ?? 0],
+    ])
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen global')
+
+    // Hoja 2: Sedes
+    const wsSedes = XLSX.utils.aoa_to_sheet([
+      ['Sede', 'Colaboradores', 'Certificados', 'Cobertura (%)'],
+      ...sedes.map(s => [s.nombre, s.colaboradores, s.certificados, s.cobertura_pct || 0])
+    ])
+    XLSX.utils.book_append_sheet(wb, wsSedes, 'Sedes')
+
+    // Hoja 3: Cursos
+    const wsCursos = XLSX.utils.aoa_to_sheet([
+      ['Curso', 'Inscritos', 'Completaron', 'Cobertura (%)'],
+      ...cursos.map(c => [c.nombre, c.inscritos, c.completaron, c.pct_completado || 0])
+    ])
+    XLSX.utils.book_append_sheet(wb, wsCursos, 'Cursos')
+
+    XLSX.writeFile(wb, `reporte_alumco_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
   return (
     <div className="app-shell">
       <Topbar seccion="Panel de jefatura — vista global" />
@@ -43,7 +77,7 @@ export default function Jefatura() {
               <div className="page-sub">Vista global de todas las sedes · {new Date().toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
             </div>
             <div style={{ display:'flex', gap:8 }}>
-              <button className="btn-outline-dark">↓ Exportar reporte</button>
+              <button className="btn-outline-dark" onClick={exportarExcel}>↓ Exportar a Excel</button>
               <button className="btn-primary" onClick={() => navigate('/jefatura/ia')}>✨ Generador IA</button>
             </div>
           </div>
