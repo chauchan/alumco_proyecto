@@ -34,29 +34,31 @@ router.get('/', verificarToken, SOLO_ADMIN, async (req, res) => {
 
 // POST /api/usuarios — crear usuario
 router.post('/', verificarToken, SOLO_ADMIN, async (req, res) => {
-  const { nombre, identificador, password, rol, tipo_contrato, sede_id, estamento } = req.body;
-  if (!nombre || !identificador || !password || !rol) {
-    return res.status(400).json({ error: 'Nombre, identificador, contraseña y rol son requeridos' });
+  const { nombre, rut, correo, password, rol, tipo_contrato, sede_id, estamento } = req.body;
+  if (!nombre || !rut || !password || !rol) {
+    return res.status(400).json({ error: 'Nombre, RUT, contraseña y rol son requeridos' });
   }
   const rolesValidos = ['colaborador', 'profesor', 'admin_sede', 'jefatura'];
   if (!rolesValidos.includes(rol)) {
     return res.status(400).json({ error: 'Rol no válido' });
   }
+  // Username = RUT sin puntos ni guión
+  const identificador = rut.replace(/\./g, '').replace(/-/g, '');
   const sedeAsignada = req.usuario.rol === 'admin_sede' ? req.usuario.sede_id : (sede_id || null);
   try {
     const { rows: existe } = await pool.query(
       'SELECT id FROM usuarios WHERE identificador = ?', [identificador]
     );
-    if (existe.length > 0) return res.status(409).json({ error: 'El identificador ya está en uso' });
+    if (existe.length > 0) return res.status(409).json({ error: 'El RUT ya está registrado' });
 
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
-      `INSERT INTO usuarios (nombre, identificador, password_hash, rol, tipo_contrato, sede_id, estamento)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [nombre, identificador, hash, rol, tipo_contrato || null, sedeAsignada, estamento || null]
+      `INSERT INTO usuarios (nombre, identificador, rut, email, password_hash, rol, tipo_contrato, sede_id, estamento)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [nombre, identificador, rut, correo || null, hash, rol, tipo_contrato || null, sedeAsignada, estamento || null]
     );
     const { rows: nuevo } = await pool.query(
-      `SELECT id, nombre, identificador, rol, tipo_contrato, sede_id, estamento, activo, created_at
+      `SELECT id, nombre, identificador, rut, email, rol, tipo_contrato, sede_id, estamento, activo, created_at
        FROM usuarios WHERE identificador = ?`,
       [identificador]
     );

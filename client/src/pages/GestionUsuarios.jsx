@@ -25,9 +25,11 @@ const ROL_COLOR = {
 }
 
 const FORM_INICIAL = {
-  nombre: '', identificador: '', rol: 'colaborador',
+  nombre: '', rut: '', correo: '', rol: 'colaborador',
   tipo_contrato: 'fijo', sede_id: '', estamento: ''
 }
+
+const limpiarRut = (rut) => rut.replace(/\./g, '').replace(/-/g, '')
 
 export default function GestionUsuarios() {
   const navigate = useNavigate()
@@ -55,12 +57,13 @@ export default function GestionUsuarios() {
   const handleCrear = async (e) => {
     e.preventDefault()
     setError(''); setExito('')
-    if (!form.nombre || !form.identificador || !form.rol) {
-      return setError('Nombre, identificador y rol son obligatorios')
+    if (!form.nombre || !form.rut || !form.rol) {
+      return setError('Nombre, RUT y rol son obligatorios')
     }
     try {
       await api.post('/usuarios', { ...form, password: 'alumco2026' })
-      setExito(`Usuario "${form.nombre}" creado correctamente. Contraseña inicial: alumco2026`)
+      const username = limpiarRut(form.rut)
+      setExito(`Usuario "${form.nombre}" creado correctamente. Usuario: ${username} · Contraseña inicial: alumco2026`)
       setForm(FORM_INICIAL)
       setMostrarForm(false)
       cargar()
@@ -142,9 +145,19 @@ export default function GestionUsuarios() {
                       value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
                   </div>
                   <div className="field">
-                    <label>RUT o correo *</label>
+                    <label>RUT *</label>
                     <input type="text" placeholder="Ej: 12.345.678-9"
-                      value={form.identificador} onChange={e => setForm({ ...form, identificador: e.target.value })} />
+                      value={form.rut} onChange={e => setForm({ ...form, rut: e.target.value })} />
+                    {form.rut && (
+                      <span style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'block' }}>
+                        Usuario de ingreso: <strong>{limpiarRut(form.rut)}</strong>
+                      </span>
+                    )}
+                  </div>
+                  <div className="field">
+                    <label>Correo electrónico</label>
+                    <input type="email" placeholder="Ej: maria@alumco.cl"
+                      value={form.correo} onChange={e => setForm({ ...form, correo: e.target.value })} />
                   </div>
                   <div className="field">
                     <label>Rol *</label>
@@ -159,23 +172,21 @@ export default function GestionUsuarios() {
                       {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                     </select>
                   </div>
+                  <div className="field">
+                    <label>Estamento</label>
+                    <select value={form.estamento} onChange={e => setForm({ ...form, estamento: e.target.value })}>
+                      <option value="">Seleccionar estamento</option>
+                      {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                  </div>
                   {form.rol === 'colaborador' && (
-                    <>
-                      <div className="field">
-                        <label>Estamento</label>
-                        <select value={form.estamento} onChange={e => setForm({ ...form, estamento: e.target.value })}>
-                          <option value="">Seleccionar estamento</option>
-                          {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
-                        </select>
-                      </div>
-                      <div className="field">
-                        <label>Tipo de contrato</label>
-                        <select value={form.tipo_contrato} onChange={e => setForm({ ...form, tipo_contrato: e.target.value })}>
-                          <option value="fijo">Fijo</option>
-                          <option value="reemplazo">Reemplazo</option>
-                        </select>
-                      </div>
-                    </>
+                    <div className="field">
+                      <label>Tipo de contrato</label>
+                      <select value={form.tipo_contrato} onChange={e => setForm({ ...form, tipo_contrato: e.target.value })}>
+                        <option value="fijo">Fijo</option>
+                        <option value="reemplazo">Reemplazo</option>
+                      </select>
+                    </div>
                   )}
                 </div>
                 <div className="notice" style={{ marginBottom: 12 }}>
