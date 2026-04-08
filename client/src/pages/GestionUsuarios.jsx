@@ -172,23 +172,21 @@ export default function GestionUsuarios() {
                       {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                     </select>
                   </div>
+                  <div className="field">
+                    <label>Estamento</label>
+                    <select value={form.estamento} onChange={e => setForm({ ...form, estamento: e.target.value })}>
+                      <option value="">Seleccionar estamento</option>
+                      {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                  </div>
                   {form.rol === 'colaborador' && (
-                    <>
-                      <div className="field">
-                        <label>Estamento</label>
-                        <select value={form.estamento} onChange={e => setForm({ ...form, estamento: e.target.value })}>
-                          <option value="">Seleccionar estamento</option>
-                          {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
-                        </select>
-                      </div>
-                      <div className="field">
-                        <label>Tipo de contrato</label>
-                        <select value={form.tipo_contrato} onChange={e => setForm({ ...form, tipo_contrato: e.target.value })}>
-                          <option value="fijo">Fijo</option>
-                          <option value="reemplazo">Reemplazo</option>
-                        </select>
-                      </div>
-                    </>
+                    <div className="field">
+                      <label>Tipo de contrato</label>
+                      <select value={form.tipo_contrato} onChange={e => setForm({ ...form, tipo_contrato: e.target.value })}>
+                        <option value="fijo">Fijo</option>
+                        <option value="reemplazo">Reemplazo</option>
+                      </select>
+                    </div>
                   )}
                 </div>
                 <div className="notice" style={{ marginBottom: 12 }}>
