@@ -23,19 +23,21 @@ const upload = multer({ storage, fileFilter, limits: { fileSize: 100 * 1024 * 10
 
 // GET /api/cursos — listar cursos
 router.get('/', verificarToken, async (req, res) => {
-  const { rol, id } = req.usuario;
+  const { rol, id, estamento } = req.usuario;
   try {
     let query, params = [];
     if (rol === 'colaborador') {
-      // Solo cursos asignados
-      query = `SELECT c.*, u.nombre as profesor_nombre, a.obligatorio, a.fecha_limite,
+      // Cursos visibles: dirigidos a su estamento O dirigidos a todos (NULL)
+      query = `SELECT c.*, u.nombre as profesor_nombre, c.obligatorio as obligatorio, a.fecha_limite,
                COALESCE(p.porcentaje, 0) as progreso, COALESCE(p.completado, false) as completado
                FROM cursos c
-               JOIN asignaciones a ON a.curso_id = c.id AND a.usuario_id = $1
+               LEFT JOIN asignaciones a ON a.curso_id = c.id AND a.usuario_id = $1
                LEFT JOIN usuarios u ON c.profesor_id = u.id
                LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
-               WHERE c.publicado = true ORDER BY c.nombre`;
-      params = [id];
+               WHERE c.publicado = 1
+                 AND (c.estamento_objetivo IS NULL OR c.estamento_objetivo = $2)
+               ORDER BY c.obligatorio DESC, c.nombre`;
+      params = [id, estamento || ''];
     } else if (rol === 'profesor') {
       query = `SELECT c.*, COUNT(DISTINCT a.usuario_id) as inscritos
                FROM cursos c LEFT JOIN asignaciones a ON a.curso_id = c.id
@@ -214,13 +216,36 @@ router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'je
   }
 });
 
-// PUT /api/cursos/:id — actualiza nombre, descripción, módulos, preguntas y PPT de un curso borrador
-router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { nombre, descripcion, modulos, preguntas } = req.body;
+// PATCH /api/cursos/:id/targeting — actualiza estamento_objetivo y obligatorio
+router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const { estamento_objetivo, obligatorio } = req.body;
   try {
     await pool.query(
-      'UPDATE cursos SET nombre = COALESCE($1, nombre), descripcion = COALESCE($2, descripcion), updated_at = NOW() WHERE id = $3',
-      [nombre || null, descripcion !== undefined ? descripcion : null, req.params.id]
+      'UPDATE cursos SET estamento_objetivo = $1, obligatorio = $2, updated_at = NOW() WHERE id = $3',
+      [estamento_objetivo || null, obligatorio ? 1 : 0, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar targeting' });
+  }
+});
+
+// PUT /api/cursos/:id — actualiza nombre, descripción, módulos, preguntas y PPT de un curso borrador
+router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const { nombre, descripcion, modulos, preguntas, estamento_objetivo, obligatorio } = req.body;
+  try {
+    await pool.query(
+      `UPDATE cursos SET
+        nombre = COALESCE($1, nombre),
+        descripcion = COALESCE($2, descripcion),
+        estamento_objetivo = CASE WHEN $3 IS NOT NULL THEN $3 ELSE estamento_objetivo END,
+        obligatorio = CASE WHEN $4 IS NOT NULL THEN $4 ELSE obligatorio END,
+        updated_at = NOW()
+       WHERE id = $5`,
+      [nombre || null, descripcion !== undefined ? descripcion : null,
+       estamento_objetivo !== undefined ? (estamento_objetivo || null) : null,
+       obligatorio !== undefined ? (obligatorio ? 1 : 0) : null,
+       req.params.id]
     );
     if (modulos?.length) {
       for (const mod of modulos) {

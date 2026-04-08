@@ -4,6 +4,17 @@ import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { Slide, SlideEditor } from './GeneradorIA'
 
+const ESTAMENTOS = [
+  'Equipo Directivo',
+  'Personal de Administración',
+  'Profesionales de Salud',
+  'Equipo de Atención Directa No Profesional',
+  'TENS Intermedios',
+  'Auxiliares de Servicio',
+  'Manipuladoras de Alimento',
+  'Personal No Contratado',
+]
+
 function buildSlidesProfesor(mod, pres) {
   if (Array.isArray(pres?.diapositivas) && pres.diapositivas.length > 0) return pres.diapositivas
   const r = pres?.resumen && typeof pres.resumen === 'object' ? pres.resumen : pres
@@ -33,6 +44,9 @@ export default function Profesor() {
   const [pptEditando, setPptEditando] = useState(false)
   const [pptEditData, setPptEditData] = useState({})   // idx → slides[]
   const [pptGuardando, setPptGuardando] = useState(false)
+  // targeting (estamento + obligatorio)
+  const [targeting, setTargeting] = useState({ estamento_objetivo: null, obligatorio: false })
+  const [guardandoTargeting, setGuardandoTargeting] = useState(false)
   // edición de módulos
   const [editandoModulos, setEditandoModulos] = useState(false)
   const [modulosEdit, setModulosEdit] = useState([])
@@ -77,6 +91,16 @@ export default function Profesor() {
     setPptEditando(false); setPptEditData({})
     setEditandoModulos(false); setModulosEdit([])
     setEditandoPreguntas(false); setPreguntasEdit([])
+    setTargeting({ estamento_objetivo: null, obligatorio: false })
+  }
+
+  const guardarTargeting = async () => {
+    setGuardandoTargeting(true)
+    try {
+      await api.patch(`/cursos/${cursoDetalle.id}/targeting`, targeting)
+      setCursoDetalle(prev => ({ ...prev, ...targeting }))
+    } catch { alert('Error al guardar la configuración') }
+    finally { setGuardandoTargeting(false) }
   }
 
   const guardarModulos = async () => {
@@ -214,7 +238,7 @@ export default function Profesor() {
                   </div>
                   {/* Tabs */}
                   <div style={{ display:'flex', gap:4, marginTop:14 }}>
-                    {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT']].map(([key, label]) => (
+                    {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT'],['audiencia','Audiencia']].map(([key, label]) => (
                       <button key={key} onClick={() => { setTabDetalle(key); setPptModuloIdx(null); setPptEditando(false) }} style={{
                         fontSize:12, padding:'5px 14px', borderRadius:6, border:'none', cursor:'pointer',
                         background: tabDetalle === key ? '#fff' : 'rgba(255,255,255,0.12)',
@@ -468,6 +492,76 @@ export default function Profesor() {
                       })()}
                     </>
                   )}
+                  {/* ── TAB AUDIENCIA ── */}
+                  {tabDetalle === 'audiencia' && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+                      {/* Obligatorio */}
+                      <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                          <div>
+                            <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:3 }}>Curso obligatorio</div>
+                            <div style={{ fontSize:11, color:'#888', lineHeight:1.5 }}>
+                              Los colaboradores verán una etiqueta de obligatorio y tendrá prioridad en su lista.
+                            </div>
+                          </div>
+                          <div onClick={() => setTargeting(t => ({ ...t, obligatorio: !t.obligatorio }))}
+                            style={{ width:44, height:24, borderRadius:12, background: targeting.obligatorio ? '#E8505B' : '#CCC', cursor:'pointer', position:'relative', transition:'background 0.2s', flexShrink:0 }}>
+                            <div style={{ width:18, height:18, borderRadius:'50%', background:'#fff', position:'absolute', top:3, left: targeting.obligatorio ? 23 : 3, transition:'left 0.2s', boxShadow:'0 1px 4px rgba(0,0,0,0.2)' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Audiencia */}
+                      <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:6 }}>¿A quién va dirigido?</div>
+                        <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>
+                          Elige un estamento específico o déjalo en "Todos" para que todos los colaboradores lo vean.
+                        </div>
+
+                        {/* Opción Todos */}
+                        <div onClick={() => setTargeting(t => ({ ...t, estamento_objetivo: null }))}
+                          style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:6, cursor:'pointer',
+                            border: targeting.estamento_objetivo === null ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                            background: targeting.estamento_objetivo === null ? '#F0F4FF' : '#FAFAFA' }}>
+                          <div style={{ width:16, height:16, borderRadius:'50%', border: targeting.estamento_objetivo === null ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: targeting.estamento_objetivo === null ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            {targeting.estamento_objetivo === null && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
+                          </div>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight: targeting.estamento_objetivo === null ? 600 : 400, color:'#222' }}>Todos los colaboradores</div>
+                            <div style={{ fontSize:10, color:'#888' }}>Curso global — visible para todos los estamentos</div>
+                          </div>
+                        </div>
+
+                        {/* Estamentos específicos */}
+                        {ESTAMENTOS.map(est => (
+                          <div key={est} onClick={() => setTargeting(t => ({ ...t, estamento_objetivo: est }))}
+                            style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:4, cursor:'pointer',
+                              border: targeting.estamento_objetivo === est ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                              background: targeting.estamento_objetivo === est ? '#F0F4FF' : '#FAFAFA' }}>
+                            <div style={{ width:16, height:16, borderRadius:'50%', border: targeting.estamento_objetivo === est ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: targeting.estamento_objetivo === est ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              {targeting.estamento_objetivo === est && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
+                            </div>
+                            <span style={{ fontSize:12, fontWeight: targeting.estamento_objetivo === est ? 600 : 400, color:'#222' }}>{est}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Resumen + Guardar */}
+                      <div style={{ background:'#F4F5F7', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+                        <div style={{ fontSize:12, color:'#555' }}>
+                          {targeting.estamento_objetivo
+                            ? <>Dirigido a: <strong>{targeting.estamento_objetivo}</strong></>
+                            : <><strong>Todos</strong> los colaboradores</>}
+                          {targeting.obligatorio && <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:4, fontSize:10, padding:'2px 7px', fontWeight:600 }}>OBLIGATORIO</span>}
+                        </div>
+                        <button onClick={guardarTargeting} disabled={guardandoTargeting}
+                          style={{ fontSize:12, padding:'6px 16px', borderRadius:7, border:'none', background:'#1E3A6E', color:'#fff', cursor:'pointer', fontWeight:500, flexShrink:0 }}>
+                          {guardandoTargeting ? 'Guardando...' : '✓ Guardar configuración'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Botones aprobar/rechazar */}
@@ -515,6 +609,7 @@ export default function Profesor() {
                     onClick={async () => {
                       const detalle = await api.get(`/cursos/${curso.id}`)
                       setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [] })
+                      setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
                       setTabDetalle('modulos')
                     }}>
                     Revisar
@@ -567,11 +662,15 @@ export default function Profesor() {
                     {!modoSeleccion && <div style={{ width:28, height:28, background:'#FFEEEC', borderRadius:6, flexShrink:0 }} />}
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.nombre}</div>
-                      <div style={{ display:'flex', gap:6, marginTop:4 }}>
-                        <span className="format-tag tag-pdf">PDF</span>
+                      <div style={{ display:'flex', gap:6, marginTop:4, flexWrap:'wrap' }}>
                         <span className={`format-tag ${c.publicado ? 'tag-publicado' : 'tag-borrador'}`}>
                           {c.publicado ? 'Publicado' : 'Borrador'}
                         </span>
+                        {c.obligatorio ? <span style={{ fontSize:9, background:'#E8505B', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span> : null}
+                        {c.estamento_objetivo
+                          ? <span style={{ fontSize:9, background:'#EEF2FF', color:'#2B4BA0', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>{c.estamento_objetivo.split(' ').slice(0,2).join(' ')}</span>
+                          : <span style={{ fontSize:9, background:'#F0FBF4', color:'#1A7A45', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>Todos</span>
+                        }
                       </div>
                     </div>
                     {!modoSeleccion && (
