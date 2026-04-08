@@ -179,8 +179,18 @@ function parsearJSON(texto) {
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
 // Paso 1: genera SOLO estructura de módulos + preguntas (rápido ~30-60s)
 router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.single('protocolo'), async (req, res) => {
+  const { nombre_curso, area, profesor_id, contexto, num_modulos, protocolo_id } = req.body;
+
+  // Permite usar protocolo guardado en lugar de subir un nuevo PDF
+  if (!req.file && protocolo_id) {
+    const mysql = require('../config/db');
+    const [rows] = await mysql.query('SELECT * FROM protocolos WHERE id = ?', [protocolo_id]);
+    if (!rows.length) return res.status(404).json({ error: 'Protocolo no encontrado' });
+    req.file = { path: rows[0].archivo_path, originalname: rows[0].archivo_nombre, _fromLib: true };
+  }
+
   if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
-  const { nombre_curso, area, profesor_id, contexto, num_modulos } = req.body;
+
   if (!nombre_curso) return res.status(400).json({ error: 'El nombre del curso es requerido' });
 
   try {
@@ -299,7 +309,8 @@ ${textoParaOllama}`;
     // Extraer imágenes embebidas del PDF y guardarlas permanentemente
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
 
-    fs.unlinkSync(pdfPathGuardado);
+    // Solo borrar el PDF si fue un upload temporal (no de la biblioteca)
+    if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 
     res.status(201).json({
       curso_id: cursoId,
@@ -315,7 +326,7 @@ ${textoParaOllama}`;
 
   } catch (err) {
     console.error('[IA] Error completo:', err);
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
@@ -424,6 +435,56 @@ router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'adm
   } catch (err) {
     console.error('[MAIL] Error:', err.message);
     res.status(500).json({ error: 'No se pudo enviar el correo. Verifica la configuración de email.' });
+  }
+});
+
+// ─── POST /api/ia/generar-contenido ───────────────────────────────────────────
+// Genera contenido de aprendizaje para un módulo específico
+router.post('/generar-contenido', verificarToken, verificarRol('jefatura', 'admin_sede', 'profesor'), async (req, res) => {
+  const { modulo_id, titulo, descripcion, contexto } = req.body;
+  if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
+
+  const prompt = `Genera contenido educativo detallado en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+El contenido debe ser claro, práctico y adaptado a personal sin formación técnica universitaria.
+
+Responde SOLO con este JSON exacto, sin texto adicional:
+
+{
+  "introduccion": "párrafo de 3-4 oraciones que contextualice el tema y su importancia en el trabajo diario",
+  "secciones": [
+    {
+      "titulo": "título de la sección",
+      "texto": "explicación clara de 3-5 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
+    }
+  ],
+  "caso_practico": {
+    "descripcion": "descripción de una situación real que puede ocurrir en el ELEAM",
+    "pasos": ["paso 1 de cómo actuar", "paso 2", "paso 3", "paso 4"]
+  },
+  "recuerda": ["punto clave 1 para recordar", "punto clave 2", "punto clave 3"]
+}
+
+Módulo: ${titulo}
+Descripción: ${descripcion || titulo}
+Contexto: ${contexto || 'cuidado del adulto mayor en ELEAM'}
+
+Genera entre 3 y 4 secciones con temas distintos del módulo.
+Usa lenguaje simple, ejemplos concretos del trabajo diario. Responde SOLO el JSON.`;
+
+  try {
+    const textoRespuesta = await llamarIA(prompt, 300000);
+    const contenido = parsearJSON(textoRespuesta);
+
+    if (modulo_id) {
+      await pool.query('UPDATE modulos SET contenido_aprendizaje = ? WHERE id = ?',
+        [JSON.stringify(contenido), modulo_id]);
+    }
+
+    res.json({ contenido });
+  } catch (err) {
+    if (err.name === 'AbortError') return res.status(504).json({ error: 'La IA tardó demasiado.' });
+    res.status(500).json({ error: err.message });
   }
 });
 

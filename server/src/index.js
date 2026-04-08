@@ -14,6 +14,7 @@ const sedesRoutes         = require('./routes/sedes');
 const practicosRoutes     = require('./routes/practicos');
 const notificacionesRoutes = require('./routes/notificaciones');
 const googleRoutes         = require('./routes/google');
+const protocolosRoutes     = require('./routes/protocolos');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/sedes',          sedesRoutes);
 app.use('/api/practicos',      practicosRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/google',        googleRoutes);
+app.use('/api/protocolos',   protocolosRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));

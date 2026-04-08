@@ -239,6 +239,9 @@ export default function GeneradorIA() {
   const navigate = useNavigate()
   const [archivo, setArchivo] = useState(null)
   const [form, setForm] = useState({ nombre_curso: '', area: '', contexto: '', num_modulos: '' })
+  const [fuentePDF, setFuentePDF] = useState('subir')   // 'subir' | 'biblioteca'
+  const [protocolos, setProtocolos] = useState([])
+  const [protocoloSeleccionado, setProtocoloSeleccionado] = useState(null)
   const [resultado, setResultado] = useState(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
@@ -259,6 +262,8 @@ export default function GeneradorIA() {
   const [slideActual, setSlideActual] = useState(0)
   const [editandoPPT, setEditandoPPT] = useState(false)
   const [pptEditData, setPptEditData] = useState({})  // módulo idx → presentacion editada
+  const [contenidos, setContenidos] = useState({})    // módulo idx → contenido | 'cargando' | 'error'
+  const [contenidoActivo, setContenidoActivo] = useState(null)
 
   const abrirPresentacion = async (i) => {
     setPresentacionActiva(i)
@@ -281,17 +286,47 @@ export default function GeneradorIA() {
 
   const cerrarModal = () => { setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false) }
 
+  const abrirContenido = async (i) => {
+    setContenidoActivo(i)
+    if (contenidos[i]) return
+    setContenidos(prev => ({ ...prev, [i]: 'cargando' }))
+    try {
+      const mod = resultado.modulos[i]
+      const res = await api.post('/ia/generar-contenido', {
+        modulo_id: mod.id,
+        titulo: mod.titulo,
+        descripcion: mod.descripcion,
+        contexto: form.contexto
+      })
+      setContenidos(prev => ({ ...prev, [i]: res.data.contenido }))
+    } catch {
+      setContenidos(prev => ({ ...prev, [i]: 'error' }))
+    }
+  }
+  const cerrarContenido = () => setContenidoActivo(null)
+
+  // Cargar biblioteca de protocolos al montar
+  useState(() => {
+    api.get('/protocolos').then(r => setProtocolos(r.data)).catch(() => {})
+  })
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!archivo || !form.nombre_curso) return setError('El PDF y el nombre del curso son obligatorios')
+    if (fuentePDF === 'subir' && !archivo) return setError('Selecciona un archivo PDF')
+    if (fuentePDF === 'biblioteca' && !protocoloSeleccionado) return setError('Selecciona un protocolo de la biblioteca')
+    if (!form.nombre_curso) return setError('El nombre del curso es obligatorio')
     setCargando(true); setError('')
     try {
       const data = new FormData()
-      data.append('protocolo', archivo)
       data.append('nombre_curso', form.nombre_curso)
       data.append('area', form.area)
       data.append('contexto', form.contexto)
       if (form.num_modulos) data.append('num_modulos', form.num_modulos)
+      if (fuentePDF === 'subir') {
+        data.append('protocolo', archivo)
+      } else {
+        data.append('protocolo_id', protocoloSeleccionado.id)
+      }
       const res = await api.post('/ia/generar-curso', data, { headers: { 'Content-Type': 'multipart/form-data' } })
       setResultado(res.data)
     } catch (err) {
@@ -395,21 +430,57 @@ export default function GeneradorIA() {
             <div className="card">
               <div className="card-title" style={{ marginBottom: 16 }}>Subir protocolo</div>
               <form onSubmit={handleSubmit}>
-                <div className="upload-zone" style={{ marginBottom: 16 }} onClick={() => document.getElementById('input-pdf').click()}>
-                  <input id="input-pdf" type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => setArchivo(e.target.files[0])} />
-                  {archivo ? (
-                    <>
-                      <div style={{ fontSize: 20, marginBottom: 4 }}>✓</div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div>
-                      <span className="format-tag tag-pdf" style={{ marginTop: 6, display: 'inline-block' }}>PDF</span>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Arrastra o selecciona un PDF</div>
-                      <div style={{ fontSize: 11, color: '#888' }}>Protocolo institucional en formato PDF</div>
-                    </>
-                  )}
+                {/* Toggle fuente PDF */}
+                <div style={{ display: 'flex', background: '#F0F2F5', borderRadius: 8, padding: 3, gap: 2, marginBottom: 14 }}>
+                  {[['subir','📤 Subir PDF'],['biblioteca','📁 Desde biblioteca']].map(([val, lbl]) => (
+                    <button key={val} type="button" onClick={() => setFuentePDF(val)} style={{
+                      flex: 1, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: fuentePDF === val ? 600 : 400,
+                      background: fuentePDF === val ? '#fff' : 'transparent',
+                      color: fuentePDF === val ? '#1E3A6E' : '#888',
+                      boxShadow: fuentePDF === val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }}>{lbl}</button>
+                  ))}
                 </div>
+
+                {fuentePDF === 'subir' ? (
+                  <div className="upload-zone" style={{ marginBottom: 16 }} onClick={() => document.getElementById('input-pdf').click()}>
+                    <input id="input-pdf" type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => setArchivo(e.target.files[0])} />
+                    {archivo ? (
+                      <><div style={{ fontSize: 20, marginBottom: 4 }}>✓</div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div>
+                        <span className="format-tag tag-pdf" style={{ marginTop: 6, display: 'inline-block' }}>PDF</span></>
+                    ) : (
+                      <><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Arrastra o selecciona un PDF</div>
+                        <div style={{ fontSize: 11, color: '#888' }}>Protocolo institucional en formato PDF</div></>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: 16 }}>
+                    {protocolos.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F4F5F7', borderRadius: 8, fontSize: 12, color: '#888' }}>
+                        No hay protocolos guardados. <a href="/jefatura/protocolos" style={{ color: '#1E3A6E' }}>Ir a la biblioteca →</a>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                        {protocolos.map(p => (
+                          <div key={p.id} onClick={() => setProtocoloSeleccionado(p)} style={{
+                            padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                            border: `1.5px solid ${protocoloSeleccionado?.id === p.id ? '#1E3A6E' : '#E8E8E8'}`,
+                            background: protocoloSeleccionado?.id === p.id ? '#F0F4FF' : '#fff',
+                            display: 'flex', alignItems: 'center', gap: 10
+                          }}>
+                            <span style={{ fontSize: 16 }}>📄</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: '#222' }}>{p.nombre}</div>
+                              {p.descripcion && <div style={{ fontSize: 10, color: '#888' }}>{p.descripcion}</div>}
+                            </div>
+                            {protocoloSeleccionado?.id === p.id && <span style={{ color: '#1E3A6E', fontSize: 14 }}>✓</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="field">
                   <label>Nombre del curso *</label>
                   <input type="text" placeholder="Ej: Alimentación del adulto mayor en cama"
@@ -474,6 +545,90 @@ export default function GeneradorIA() {
 
               {resultado && (
                 <>
+                  {/* ── MODAL CONTENIDO DE APRENDIZAJE ────────────── */}
+                  {contenidoActivo !== null && resultado?.modulos?.[contenidoActivo] && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={cerrarContenido}>
+                      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ background: '#F4F5F7', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #E8E8E8' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>📖 {resultado.modulos[contenidoActivo].titulo}</div>
+                            <div style={{ fontSize: 11, color: '#888' }}>Contenido de aprendizaje</div>
+                          </div>
+                          {contenidos[contenidoActivo] && contenidos[contenidoActivo] !== 'cargando' && contenidos[contenidoActivo] !== 'error' && (
+                            <button onClick={() => { setContenidos(prev => { const n={...prev}; delete n[contenidoActivo]; return n }) }} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, border: '0.5px solid #CCC', background: 'none', cursor: 'pointer', color: '#888' }}>↺ Regenerar</button>
+                          )}
+                          <button onClick={cerrarContenido} style={{ background: 'none', border: 'none', fontSize: 18, color: '#AAA', cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <div style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                          {contenidos[contenidoActivo] === 'cargando' && (
+                            <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
+                              <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+                              <div style={{ fontSize: 13 }}>Generando contenido educativo...</div>
+                              <div style={{ fontSize: 11, marginTop: 4, color: '#AAA' }}>Puede tomar hasta 2 minutos</div>
+                            </div>
+                          )}
+                          {contenidos[contenidoActivo] === 'error' && (
+                            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                              <div style={{ fontSize: 13, color: '#E8505B', marginBottom: 10 }}>No se pudo generar el contenido</div>
+                              <button onClick={() => { setContenidos(prev => { const n={...prev}; delete n[contenidoActivo]; return n }); abrirContenido(contenidoActivo) }} style={{ fontSize: 12, background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>Reintentar</button>
+                            </div>
+                          )}
+                          {contenidos[contenidoActivo] && contenidos[contenidoActivo] !== 'cargando' && contenidos[contenidoActivo] !== 'error' && (() => {
+                            const c = contenidos[contenidoActivo]
+                            return (<>
+                              {c.introduccion && (
+                                <div style={{ background: '#EFEDE3', borderRadius: 8, padding: '12px 16px', borderLeft: '4px solid #F26B43', fontSize: 13, color: '#191B0E', lineHeight: 1.7 }}>
+                                  {c.introduccion}
+                                </div>
+                              )}
+                              {c.secciones?.map((sec, k) => (
+                                <div key={k}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1E3A6E', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1E3A6E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, flexShrink: 0 }}>{k+1}</div>
+                                    {sec.titulo}
+                                  </div>
+                                  <div style={{ fontSize: 13, color: '#444', lineHeight: 1.7, marginBottom: 10 }}>{sec.texto}</div>
+                                  {sec.puntos?.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                      {sec.puntos.map((p, j) => (
+                                        <div key={j} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#333' }}>
+                                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#8DAB8E', flexShrink: 0, marginTop: 5 }} />
+                                          {p}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {c.caso_practico && (
+                                <div style={{ background: '#F0F4FF', borderRadius: 8, padding: '12px 16px' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Caso práctico</div>
+                                  <div style={{ fontSize: 13, color: '#333', lineHeight: 1.6, marginBottom: 10 }}>{c.caso_practico.descripcion}</div>
+                                  {c.caso_practico.pasos?.map((p, k) => (
+                                    <div key={k} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#333', marginBottom: 6 }}>
+                                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#1E3A6E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{k+1}</span>
+                                      {p}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {c.recuerda?.length > 0 && (
+                                <div style={{ background: '#191B0E', borderRadius: 8, padding: '12px 16px' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#E6C069', marginBottom: 8 }}>Recuerda</div>
+                                  {c.recuerda.map((p, k) => (
+                                    <div key={k} style={{ fontSize: 12, color: '#EFEDE3', padding: '3px 0', display: 'flex', gap: 8 }}>
+                                      <span style={{ color: '#F26B43', fontWeight: 700 }}>!</span> {p}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>)
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── MODAL PRESENTACIÓN ────────────────────────── */}
                   {presentacionActiva !== null && mod && (
                     <div style={{
@@ -750,9 +905,12 @@ export default function GeneradorIA() {
                           fontSize: 10, background: '#1E3A6E', color: '#fff', border: 'none',
                           borderRadius: 5, padding: '3px 8px', cursor: 'pointer', flexShrink: 0,
                           display: 'flex', alignItems: 'center', gap: 4
-                        }}>
-                          ▶ PPT
-                        </button>
+                        }}>▶ PPT</button>
+                        <button onClick={e => { e.stopPropagation(); abrirContenido(i) }} style={{
+                          fontSize: 10, background: '#7BC67A', color: '#fff', border: 'none',
+                          borderRadius: 5, padding: '3px 8px', cursor: 'pointer', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', gap: 4
+                        }}>📖 Contenido</button>
                         <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{m.preguntas?.length || 0} preg.</span>
                         <span className="format-tag tag-borrador" style={{ flexShrink: 0 }}>Módulo</span>
                         <span style={{ fontSize: 12, color: '#AAA', flexShrink: 0 }}>{moduloExpandido === i ? '▲' : '▼'}</span>
