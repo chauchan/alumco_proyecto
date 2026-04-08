@@ -9,6 +9,9 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
 
+const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+
 const ollamaAgent = new Agent({ headersTimeout: 600000, bodyTimeout: 600000, connectTimeout: 30000 });
 
 const upload = multer({
@@ -20,10 +23,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
-
-async function llamarOllama(prompt, timeoutMs = 180000) {
+async function llamarIA(prompt, timeoutMs = 480000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -38,9 +38,10 @@ async function llamarOllama(prompt, timeoutMs = 180000) {
         stream: false,
         format: 'json',
         options: {
-          num_ctx: 8192,
-          num_predict: 6144,
-          temperature: 0.2
+          num_ctx: 6144,
+          num_predict: 4096,
+          temperature: 0.1,
+          repeat_penalty: 1.1
         }
       })
     });
@@ -75,10 +76,10 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const pdfBuffer = fs.readFileSync(req.file.path);
     const pdfData   = await pdfParse(pdfBuffer);
     const textoCompleto = pdfData.text.trim();
-    const textoPdf  = textoCompleto.slice(0, 6000);
+    const textoPdf  = textoCompleto.slice(0, 4000);
     const totalChars = textoCompleto.length;
-    const modulosMin = totalChars > 12000 ? 5 : totalChars > 6000 ? 4 : 3;
-    const modulosMax = totalChars > 12000 ? 7 : totalChars > 6000 ? 6 : 5;
+    const modulosMin = totalChars > 10000 ? 4 : 3;
+    const modulosMax = totalChars > 10000 ? 6 : 5;
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ usando:', textoPdf.length, '→ módulos:', modulosMin, '-', modulosMax);
 
     const prompt = `Eres un experto en diseño instruccional y evaluación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tienes experiencia en taxonomía de Bloom y en la creación de preguntas de opción múltiple de alta calidad.
@@ -120,8 +121,8 @@ Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código m
 PROTOCOLO:
 ${textoPdf}`;
 
-    console.log('[IA] Paso 3: llamando a Ollama (max 10 min)...');
-    const textoRespuesta = await llamarOllama(prompt, 600000);
+    console.log('[IA] Paso 3: llamando a Ollama (max 8 min)...');
+    const textoRespuesta = await llamarIA(prompt);
     console.log('[IA] Paso 4: respuesta recibida, chars:', textoRespuesta?.length);
     console.log('[IA] Raw (300 chars):', textoRespuesta?.slice(0, 300));
 
@@ -172,7 +173,7 @@ ${textoPdf}`;
     console.error('[IA] Error completo:', err);
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
-      return res.status(504).json({ error: 'La IA tardó demasiado tiempo (más de 10 min). Intenta con un PDF más pequeño o vuelve a intentarlo.' });
+      return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
     res.status(500).json({ error: err.message || 'Error al generar el curso con IA.' });
   }
@@ -243,13 +244,13 @@ Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código m
 
   try {
     console.log('[IA] Generando presentación para:', titulo);
-    const textoRespuesta = await llamarOllama(prompt, 600000);
+    const textoRespuesta = await llamarIA(prompt);
     const presentacion = parsearJSON(textoRespuesta);
     res.json({ presentacion });
   } catch (err) {
     console.error('[IA] Error presentación:', err.message);
     if (err.name === 'AbortError') {
-      return res.status(504).json({ error: 'La IA tardó demasiado. Intenta de nuevo.' });
+      return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
     res.status(500).json({ error: 'Error al generar la presentación.' });
   }
