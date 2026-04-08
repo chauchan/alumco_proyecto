@@ -7,6 +7,7 @@ import Profesor             from './pages/Profesor'
 import AdminSede            from './pages/AdminSede'
 import Jefatura             from './pages/Jefatura'
 import GeneradorIA          from './pages/GeneradorIA'
+import Protocolos           from './pages/Protocolos'
 import GestionUsuarios      from './pages/GestionUsuarios'
 import NuevoCurso           from './pages/NuevoCurso'
 import CambiarPassword      from './pages/CambiarPassword'
@@ -50,7 +51,8 @@ export default function App() {
           <Route path="/admin"         element={<ProtectedRoute roles={['admin_sede']}><AdminSede /></ProtectedRoute>} />
           <Route path="/jefatura"      element={<ProtectedRoute roles={['jefatura']}><Jefatura /></ProtectedRoute>} />
           <Route path="/jefatura/usuarios" element={<ProtectedRoute roles={['jefatura']}><GestionUsuarios /></ProtectedRoute>} />
-          <Route path="/jefatura/ia"   element={<ProtectedRoute roles={['jefatura','admin_sede']}><GeneradorIA /></ProtectedRoute>} />
+          <Route path="/jefatura/ia"          element={<ProtectedRoute roles={['jefatura','admin_sede']}><GeneradorIA /></ProtectedRoute>} />
+          <Route path="/jefatura/protocolos"  element={<ProtectedRoute roles={['jefatura','admin_sede']}><Protocolos /></ProtectedRoute>} />
 
           <Route path="/capacitaciones"        element={<ProtectedRoute roles={TODOS}><Capacitaciones /></ProtectedRoute>} />
           <Route path="/practicos"             element={<ProtectedRoute roles={TODOS}><Practicos /></ProtectedRoute>} />

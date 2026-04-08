@@ -31,8 +31,12 @@ export function AuthProvider({ children }) {
     setUsuario(null)
   }
 
+  const simularRol = (rol) => {
+    if (usuario) setUsuario({ ...usuario, rol })
+  }
+
   return (
-    <AuthContext.Provider value={{ usuario, cargando, login, logout }}>
+    <AuthContext.Provider value={{ usuario, cargando, login, logout, simularRol }}>
       {children}
     </AuthContext.Provider>
   )

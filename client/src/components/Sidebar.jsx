@@ -23,6 +23,7 @@ const NAV_ITEMS = {
     { label: 'Certificados sede', path: '/certificados-globales' },
     { label: 'Prácticos',         path: '/practicos' },
     { label: 'Generador IA',      path: '/jefatura/ia', new: true },
+    { label: 'Protocolos',        path: '/jefatura/protocolos' },
   ],
   jefatura: [
     { label: 'Resumen global',    path: '/jefatura' },
@@ -32,6 +33,7 @@ const NAV_ITEMS = {
     { label: 'Certificados ONG',  path: '/certificados-globales' },
     { label: 'Prácticos',         path: '/practicos' },
     { label: 'Generador IA',      path: '/jefatura/ia', new: true },
+    { label: 'Protocolos',        path: '/jefatura/protocolos' },
   ],
 }
 

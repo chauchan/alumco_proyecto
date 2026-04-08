@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 
@@ -78,7 +79,16 @@ router.get('/:id', verificarToken, async (req, res) => {
     if (curso.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
     const modulos = await pool.query('SELECT * FROM modulos WHERE curso_id = $1 ORDER BY orden', [req.params.id]);
     const preguntas = await pool.query('SELECT * FROM preguntas WHERE curso_id = $1', [req.params.id]);
-    res.json({ ...curso.rows[0], modulos: modulos.rows, preguntas: preguntas.rows });
+    // Imágenes del protocolo asociadas al curso
+    const imagenesDir = path.join(__dirname, '../../uploads/imagenes', String(req.params.id));
+    let imagenes_protocolo = [];
+    if (fs.existsSync(imagenesDir)) {
+      imagenes_protocolo = fs.readdirSync(imagenesDir)
+        .filter(f => f.endsWith('.png') || f.endsWith('.jpg'))
+        .sort()
+        .map(f => `/uploads/imagenes/${req.params.id}/${f}`);
+    }
+    res.json({ ...curso.rows[0], modulos: modulos.rows, preguntas: preguntas.rows, imagenes_protocolo });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener curso' });
   }

@@ -5,12 +5,125 @@ const path = require('path');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const { Agent, fetch: undiciFetch } = require('undici');
+const { execFile } = require('child_process');
+const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'moondream';
+
+// ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
+function pdfToImages(pdfPath, outDir, maxPages = 4) {
+  return new Promise((resolve, reject) => {
+    execFile('pdftoppm', ['-png', '-r', '96', '-l', String(maxPages), pdfPath, path.join(outDir, 'page')],
+      (err) => {
+        if (err) return reject(err);
+        const files = fs.readdirSync(outDir)
+          .filter(f => f.endsWith('.png'))
+          .sort()
+          .map(f => path.join(outDir, f));
+        resolve(files);
+      }
+    );
+  });
+}
+
+// ── Describe una imagen con moondream vía Ollama ──────────────────────────────
+async function describirImagen(imagePath) {
+  const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+  const response = await undiciFetch(`${OLLAMA_URL}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    dispatcher: ollamaAgent,
+    body: JSON.stringify({
+      model: VISION_MODEL,
+      prompt: 'Describe detalladamente el contenido de esta imagen de un protocolo médico o de cuidado. Incluye: texto visible, tablas, posiciones corporales mostradas en fotos, procedimientos, horarios o esquemas. Responde en español.',
+      images: [imageBase64],
+      stream: false
+    })
+  });
+  const data = await response.json();
+  return data.response || '';
+}
+
+// ── Extrae imágenes embebidas del PDF, filtra las pequeñas y guarda las útiles
+async function extraerImagenesPDF(pdfPath, cursoId) {
+  const sharp = require('sharp');
+  const outDir = path.join(__dirname, '../../uploads/imagenes', String(cursoId));
+  fs.mkdirSync(outDir, { recursive: true });
+  const outPrefix = path.join(outDir, 'img');
+
+  await new Promise((resolve, reject) => {
+    execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+
+  // Filtrar imágenes por tamaño mínimo (ancho y alto >= 150px, archivo >= 15KB)
+  const archivos = fs.readdirSync(outDir)
+    .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
+    .sort();
+
+  const utiles = [];
+  for (const archivo of archivos) {
+    const fullPath = path.join(outDir, archivo);
+    const stat = fs.statSync(fullPath);
+    if (stat.size < 15 * 1024) continue; // descartar < 15KB
+
+    try {
+      // Convertir PPM a PNG si es necesario
+      let finalPath = fullPath;
+      if (archivo.endsWith('.ppm')) {
+        finalPath = fullPath.replace('.ppm', '.png');
+        await sharp(fullPath).png().toFile(finalPath);
+        fs.unlinkSync(fullPath);
+      }
+
+      const meta = await sharp(finalPath).metadata();
+      if ((meta.width || 0) < 150 || (meta.height || 0) < 150) {
+        fs.unlinkSync(finalPath);
+        continue;
+      }
+
+      // Escalar imágenes pequeñas a mínimo 1200px de ancho para que el texto sea legible
+      if ((meta.width || 0) < 1200) {
+        const escaladoPath = finalPath.replace('.png', '_hd.png');
+        await sharp(finalPath)
+          .resize({ width: 1200, withoutEnlargement: false })
+          .png({ compressionLevel: 8 })
+          .toFile(escaladoPath);
+        fs.unlinkSync(finalPath);
+        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(escaladoPath)}`);
+      } else {
+        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
+      }
+    } catch {
+      // ignorar archivos corruptos
+    }
+  }
+
+  console.log('[IA] Imágenes útiles extraídas del PDF:', utiles.length);
+  return utiles;
+}
+
+// ── Extrae contenido completo del PDF: descripción visual de páginas ──────────
+async function extraerContenidoPDF(pdfBuffer, pdfPath) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'alumco-pdf-'));
+  try {
+    const imagePaths = await pdfToImages(pdfPath, tmpDir, 5);
+    console.log('[IA] Páginas convertidas a imagen:', imagePaths.length);
+    const descripciones = await Promise.all(imagePaths.map((img, i) =>
+      describirImagen(img).then(desc => `--- Página ${i + 1} ---\n${desc}`)
+    ));
+    return descripciones.join('\n\n');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
 
 const ollamaAgent = new Agent({ headersTimeout: 600000, bodyTimeout: 600000, connectTimeout: 30000 });
 
@@ -66,21 +179,43 @@ function parsearJSON(texto) {
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
 // Paso 1: genera SOLO estructura de módulos + preguntas (rápido ~30-60s)
 router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.single('protocolo'), async (req, res) => {
+  const { nombre_curso, area, profesor_id, contexto, num_modulos, protocolo_id } = req.body;
+
+  // Permite usar protocolo guardado en lugar de subir un nuevo PDF
+  if (!req.file && protocolo_id) {
+    const result = await pool.query('SELECT * FROM protocolos WHERE id = $1', [protocolo_id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Protocolo no encontrado' });
+    req.file = { path: result.rows[0].archivo_path, originalname: result.rows[0].archivo_nombre, _fromLib: true };
+  }
+
   if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
-  const { nombre_curso, area, profesor_id, contexto } = req.body;
+
   if (!nombre_curso) return res.status(400).json({ error: 'El nombre del curso es requerido' });
 
   try {
     console.log('[IA] Paso 1: archivo recibido', req.file.originalname);
 
     const pdfBuffer = fs.readFileSync(req.file.path);
-    const pdfData   = await pdfParse(pdfBuffer);
-    const textoCompleto = pdfData.text.trim();
-    const textoPdf  = textoCompleto.slice(0, 4000);
-    const totalChars = textoCompleto.length;
-    const modulosMin = totalChars > 10000 ? 4 : 3;
-    const modulosMax = totalChars > 10000 ? 6 : 5;
-    console.log('[IA] Paso 2: chars totales:', totalChars, '→ usando:', textoPdf.length, '→ módulos:', modulosMin, '-', modulosMax);
+
+    // ── Paso 2: moondream describe páginas del PDF (texto + imágenes) ──
+    let textoPdf;
+    console.log('[IA] Paso 2: convirtiendo PDF a imágenes y describiendo con moondream...');
+    try {
+      textoPdf = await extraerContenidoPDF(pdfBuffer, req.file.path);
+      console.log('[IA] Paso 2 OK: moondream extrajo', textoPdf.length, 'chars');
+    } catch (visionErr) {
+      console.warn('[IA] Visión local falló, usando pdf-parse como fallback:', visionErr.message);
+      const pdfData = await pdfParse(pdfBuffer);
+      textoPdf = pdfData.text.trim();
+      console.log('[IA] Fallback pdf-parse:', textoPdf.length, 'chars');
+    }
+
+    const totalChars = textoPdf.length;
+    const modulosFijo = num_modulos ? parseInt(num_modulos) : null;
+    const modulosMin = modulosFijo || (totalChars > 15000 ? 5 : totalChars > 8000 ? 4 : 3);
+    const modulosMax = modulosFijo || (totalChars > 15000 ? 7 : totalChars > 8000 ? 6 : 4);
+    const textoParaOllama = textoPdf.slice(0, 6000);
+    console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando a Ollama:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
 
     const prompt = `Eres un experto en diseño instruccional y evaluación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tienes experiencia en taxonomía de Bloom y en la creación de preguntas de opción múltiple de alta calidad.
 
@@ -107,7 +242,8 @@ Analiza el protocolo y genera un curso completo en formato JSON:
 }
 
 Reglas:
-- Entre ${modulosMin} y ${modulosMax} módulos con los temas principales del protocolo
+- ${modulosFijo ? `Genera EXACTAMENTE ${modulosFijo} módulos, ni más ni menos.` : `Genera entre ${modulosMin} y ${modulosMax} módulos según la cantidad de temas del protocolo. NO generes menos de ${modulosMin}.`}
+- Cada módulo cubre un tema diferente del protocolo (no repitas temas)
 - Cada módulo: exactamente 4 preguntas de alternativas
 - Preguntas variadas: comprensión, aplicación práctica y análisis
 - Alternativas incorrectas plausibles (errores reales del personal, no respuestas absurdas)
@@ -119,7 +255,7 @@ Reglas:
 Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código markdown.
 
 PROTOCOLO:
-${textoPdf}`;
+${textoParaOllama}`;
 
     console.log('[IA] Paso 3: llamando a Ollama (max 8 min)...');
     const textoRespuesta = await llamarIA(prompt);
@@ -132,7 +268,32 @@ ${textoPdf}`;
       console.error('[IA] Respuesta completa:', textoRespuesta);
       throw new Error('La IA no generó módulos válidos');
     }
-    console.log('[IA] Paso 5: módulos generados:', borrador.modulos.length);
+    const modulosGenerados = borrador.modulos.length;
+    console.log('[IA] Paso 5: módulos generados:', modulosGenerados);
+
+    // ── Avisos sobre cantidad de módulos ──────────────────────────────────────
+    // Estimación de cuántos módulos "aguanta" el contenido según longitud del texto
+    const modulosOptimo = totalChars > 12000 ? 7
+      : totalChars > 6000  ? 6
+      : totalChars > 3500  ? 5
+      : totalChars > 2000  ? 4
+      : totalChars > 1000  ? 3
+      : 2;
+    console.log(`[IA] totalChars=${totalChars}, modulosOptimo=${modulosOptimo}, modulosFijo=${modulosFijo}, modulosGenerados=${modulosGenerados}`);
+    let aviso = null;
+    if (modulosFijo) {
+      if (modulosFijo > modulosOptimo) {
+        aviso = {
+          tipo: 'menos',
+          mensaje: `Pediste ${modulosFijo} módulos pero el protocolo tiene contenido para ${modulosOptimo} como máximo. Algunos módulos pueden quedar con información escasa o repetida. Considera usar un documento más extenso.`
+        };
+      } else if (modulosFijo < modulosOptimo - 1) {
+        aviso = {
+          tipo: 'mas',
+          mensaje: `El protocolo tiene información suficiente para hasta ${modulosOptimo} módulos. Genera nuevamente eligiendo un número mayor para aprovechar mejor el material.`
+        };
+      }
+    }
 
     const cursoResult = await pool.query(
       'INSERT INTO cursos (nombre, descripcion, area, profesor_id, publicado, generado_por_ia) VALUES ($1,$2,$3,$4,0,1)',
@@ -157,7 +318,13 @@ ${textoPdf}`;
 
     const totalPreguntas = borrador.modulos.reduce((acc, m) => acc + (m.preguntas?.length || 0), 0);
     const nombreArchivo = req.file.originalname;
-    fs.unlinkSync(req.file.path);
+    const pdfPathGuardado = req.file.path;
+
+    // Extraer imágenes embebidas del PDF y guardarlas permanentemente
+    const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
+
+    // Solo borrar el PDF si fue un upload temporal (no de la biblioteca)
+    if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 
     res.status(201).json({
       curso_id: cursoId,
@@ -166,12 +333,16 @@ ${textoPdf}`;
       modulos: borrador.modulos,
       preguntas_count: totalPreguntas,
       nombre_archivo: nombreArchivo,
+      imagenes_protocolo: imagenesProtocolo,
+      aviso,
+      modulosOptimo,
+      totalChars,
       message: 'Borrador generado. Debe ser revisado por el profesor antes de publicarse.'
     });
 
   } catch (err) {
     console.error('[IA] Error completo:', err);
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
@@ -185,67 +356,84 @@ router.post('/generar-presentacion', verificarToken, verificarRol('jefatura', 'a
   const { titulo, descripcion, contexto } = req.body;
   if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
 
-  const prompt = `Eres un experto en diseño instruccional y comunicación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tu objetivo es crear material de aprendizaje claro, práctico y memorable.
+  const prompt = `Genera una presentación educativa COMPLETA en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+Incluye objetivos, contenido educativo detallado y cierre. Usa lenguaje simple y ejemplos del trabajo diario.
 
-Para el módulo indicado genera un JSON con DOS secciones:
+Responde SOLO con este JSON exacto, sin texto adicional:
 
 {
-  "resumen": {
-    "objetivo": "string (oración completa: al terminar este módulo el trabajador será capaz de...)",
-    "puntos_clave": ["string x5-6 (ideas principales, redactadas como aprendizajes concretos, no solo temas)"],
-    "conceptos_importantes": [
-      { "termino": "string", "definicion": "string (definición completa en 2-3 oraciones, con ejemplo de uso real en el ELEAM)" }
-    ],
-    "procedimientos": ["string (pasos numerados y detallados, comenzando con verbo de acción: Verificar, Registrar, Informar...)"],
-    "advertencias": ["string (errores frecuentes del personal y sus consecuencias reales para el residente)"],
-    "cierre": "string (3-4 oraciones que refuercen la importancia del tema y motiven al trabajador a aplicar lo aprendido)"
-  },
   "diapositivas": [
     {
-      "tipo": "portada",
-      "titulo": "string (nombre del módulo)",
-      "subtitulo": "string (pregunta provocadora o dato impactante que genere interés inmediato)"
+      "tipo": "objetivos",
+      "titulo": "Objetivos de aprendizaje",
+      "lista": ["Al finalizar podrás... 1", "Al finalizar podrás... 2", "Al finalizar podrás... 3"]
     },
     {
-      "tipo": "definicion",
-      "concepto": "string (término central del módulo)",
-      "definicion_completa": "string (explicación completa en lenguaje simple, sin jerga técnica, 3-4 oraciones)",
-      "ejemplo_real": "string (escena concreta del trabajo diario en el ELEAM, con nombres ficticios si ayuda: 'Cuando doña Rosa...', '...el auxiliar Pedro notó que...')"
+      "tipo": "desempeno",
+      "titulo": "Objetivo de desempeño",
+      "descripcion": "Al finalizar este módulo, el trabajador será capaz de [acción concreta y medible]"
     },
     {
-      "tipo": "caso",
-      "titulo": "string (título descriptivo del caso)",
-      "situacion": "string (narrativa detallada de una situación real que puede ocurrir, 3-4 oraciones con contexto específico)",
-      "como_actuar": ["string x4-5 (pasos concretos y ordenados, comenzando con verbo de acción)"]
+      "tipo": "introduccion",
+      "titulo": "Introducción",
+      "texto": "párrafo de 3-4 oraciones que contextualice el tema y su importancia en el ELEAM"
+    },
+    {
+      "tipo": "seccion",
+      "titulo": "título del primer tema de contenido",
+      "texto": "explicación clara en 3-4 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
+    },
+    {
+      "tipo": "seccion",
+      "titulo": "título del segundo tema de contenido",
+      "texto": "explicación clara en 3-4 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
+    },
+    {
+      "tipo": "seccion",
+      "titulo": "título del tercer tema de contenido",
+      "texto": "explicación clara en 3-4 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2"]
+    },
+    {
+      "tipo": "caso_practico",
+      "titulo": "Caso práctico",
+      "descripcion": "descripción de una situación real que puede ocurrir en el ELEAM",
+      "pasos": ["paso 1 de cómo actuar", "paso 2", "paso 3", "paso 4"]
+    },
+    {
+      "tipo": "puntos_clave",
+      "titulo": "Puntos claves del protocolo",
+      "puntos": ["punto clave 1", "punto clave 2", "punto clave 3", "punto clave 4"]
     },
     {
       "tipo": "importante",
-      "titulo": "string (título que resuma la idea central)",
-      "puntos": ["string x4-5 (alertas críticas, consecuencias de no cumplir, obligaciones legales o éticas relevantes)"]
+      "titulo": "Cosas importantes",
+      "puntos": ["cosa importante 1", "cosa importante 2", "cosa importante 3"]
     },
     {
-      "tipo": "reflexion",
-      "pregunta": "string (pregunta abierta que conecte el tema con la experiencia personal del trabajador)",
-      "pista": "string (2-3 oraciones que guíen hacia la respuesta correcta sin darla directamente)"
+      "tipo": "conclusion",
+      "titulo": "Conclusión",
+      "texto": "párrafo de cierre que refuerce la importancia del tema",
+      "mensaje": "frase motivacional corta para el trabajador"
     }
   ]
 }
 
 Módulo: ${titulo}
-Descripción: ${descripcion || ''}
-Contexto: ${contexto || 'protocolo de cuidado del adulto mayor'}
+Descripción: ${descripcion || titulo}
+Contexto: ${contexto || 'cuidado del adulto mayor en ELEAM'}
 
-Reglas:
-- Cada sección debe tener contenido DISTINTO y complementario, no repetir la misma información
-- Usa lenguaje accesible, directo y empático para personal con educación media
-- Los ejemplos deben ser situaciones reales y específicas del trabajo en ELEAM chilenos
-- Los procedimientos deben ser ejecutables tal como están escritos, sin necesitar explicación adicional
-Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código markdown.`;
+Responde SOLO el JSON.`;
 
   try {
     console.log('[IA] Generando presentación para:', titulo);
     const textoRespuesta = await llamarIA(prompt);
     const presentacion = parsearJSON(textoRespuesta);
+    // Normalizar: asegurar que diapositivas sea un array válido
+    if (!Array.isArray(presentacion.diapositivas)) presentacion.diapositivas = []
+    if (!presentacion.resumen || typeof presentacion.resumen !== 'object') presentacion.resumen = {}
     res.json({ presentacion });
   } catch (err) {
     console.error('[IA] Error presentación:', err.message);
@@ -287,6 +475,56 @@ router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'adm
   } catch (err) {
     console.error('[MAIL] Error:', err.message);
     res.status(500).json({ error: 'No se pudo enviar el correo. Verifica la configuración de email.' });
+  }
+});
+
+// ─── POST /api/ia/generar-contenido ───────────────────────────────────────────
+// Genera contenido de aprendizaje para un módulo específico
+router.post('/generar-contenido', verificarToken, verificarRol('jefatura', 'admin_sede', 'profesor'), async (req, res) => {
+  const { modulo_id, titulo, descripcion, contexto } = req.body;
+  if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
+
+  const prompt = `Genera contenido educativo detallado en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+El contenido debe ser claro, práctico y adaptado a personal sin formación técnica universitaria.
+
+Responde SOLO con este JSON exacto, sin texto adicional:
+
+{
+  "introduccion": "párrafo de 3-4 oraciones que contextualice el tema y su importancia en el trabajo diario",
+  "secciones": [
+    {
+      "titulo": "título de la sección",
+      "texto": "explicación clara de 3-5 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
+    }
+  ],
+  "caso_practico": {
+    "descripcion": "descripción de una situación real que puede ocurrir en el ELEAM",
+    "pasos": ["paso 1 de cómo actuar", "paso 2", "paso 3", "paso 4"]
+  },
+  "recuerda": ["punto clave 1 para recordar", "punto clave 2", "punto clave 3"]
+}
+
+Módulo: ${titulo}
+Descripción: ${descripcion || titulo}
+Contexto: ${contexto || 'cuidado del adulto mayor en ELEAM'}
+
+Genera entre 3 y 4 secciones con temas distintos del módulo.
+Usa lenguaje simple, ejemplos concretos del trabajo diario. Responde SOLO el JSON.`;
+
+  try {
+    const textoRespuesta = await llamarIA(prompt, 300000);
+    const contenido = parsearJSON(textoRespuesta);
+
+    if (modulo_id) {
+      await pool.query('UPDATE modulos SET contenido_aprendizaje = ? WHERE id = ?',
+        [JSON.stringify(contenido), modulo_id]);
+    }
+
+    res.json({ contenido });
+  } catch (err) {
+    if (err.name === 'AbortError') return res.status(504).json({ error: 'La IA tardó demasiado.' });
+    res.status(500).json({ error: err.message });
   }
 });
 

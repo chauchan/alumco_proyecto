@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
-import { Slide } from './GeneradorIA'
+import { Slide, SlideEditor } from './GeneradorIA'
 
 function buildSlidesProfesor(mod, pres) {
   if (Array.isArray(pres?.diapositivas) && pres.diapositivas.length > 0) return pres.diapositivas
@@ -30,6 +30,21 @@ export default function Profesor() {
   const [pptModuloIdx, setPptModuloIdx] = useState(null)
   const [pptPresentaciones, setPptPresentaciones] = useState({})  // id_modulo → datos | 'cargando' | 'error'
   const [pptSlide, setPptSlide] = useState(0)
+  const [pptEditando, setPptEditando] = useState(false)
+  const [pptEditData, setPptEditData] = useState({})   // idx → slides[]
+  const [pptGuardando, setPptGuardando] = useState(false)
+  // edición de módulos
+  const [editandoModulos, setEditandoModulos] = useState(false)
+  const [modulosEdit, setModulosEdit] = useState([])
+  const [guardandoModulos, setGuardandoModulos] = useState(false)
+  // edición de preguntas
+  const [editandoPreguntas, setEditandoPreguntas] = useState(false)
+  const [preguntasEdit, setPreguntasEdit] = useState([])
+  const [guardandoPreguntas, setGuardandoPreguntas] = useState(false)
+  // selección masiva de cursos
+  const [modoSeleccion, setModoSeleccion] = useState(false)
+  const [seleccionados, setSeleccionados] = useState(new Set())
+  const [eliminandoMasivo, setEliminandoMasivo] = useState(false)
 
   useEffect(() => {
     Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
@@ -59,6 +74,79 @@ export default function Profesor() {
   const cerrarDetalle = () => {
     setCursoDetalle(null); setTabDetalle('modulos'); setPregExpandida(null)
     setPptModuloIdx(null); setPptPresentaciones({}); setPptSlide(0)
+    setPptEditando(false); setPptEditData({})
+    setEditandoModulos(false); setModulosEdit([])
+    setEditandoPreguntas(false); setPreguntasEdit([])
+  }
+
+  const guardarModulos = async () => {
+    setGuardandoModulos(true)
+    try {
+      await api.put(`/cursos/${cursoDetalle.id}`, { modulos: modulosEdit.map(m => ({ id: m.id, titulo: m.titulo, descripcion: m.descripcion })) })
+      setCursoDetalle(prev => ({ ...prev, modulos: modulosEdit }))
+      setEditandoModulos(false)
+    } catch { alert('Error al guardar módulos') }
+    finally { setGuardandoModulos(false) }
+  }
+
+  const guardarPreguntas = async () => {
+    setGuardandoPreguntas(true)
+    try {
+      await api.put(`/cursos/${cursoDetalle.id}`, { preguntas: preguntasEdit })
+      setCursoDetalle(prev => ({ ...prev, preguntas: preguntasEdit }))
+      setEditandoPreguntas(false)
+    } catch { alert('Error al guardar preguntas') }
+    finally { setGuardandoPreguntas(false) }
+  }
+
+  const iniciarEdicion = (idx, slides) => {
+    setPptEditData(prev => ({ ...prev, [idx]: JSON.parse(JSON.stringify(slides)) }))
+    setPptEditando(true)
+  }
+
+  const guardarEdicion = async (idx, mod) => {
+    const slides = pptEditData[idx]
+    if (!slides || !cursoDetalle) return
+    setPptGuardando(true)
+    try {
+      await api.put(`/cursos/${cursoDetalle.id}`, {
+        modulos: [{ id: mod.id, contenido_presentacion: { diapositivas: slides } }]
+      })
+      // actualizar la presentación en memoria
+      setPptPresentaciones(prev => ({
+        ...prev,
+        [idx]: { ...(prev[idx] || {}), diapositivas: slides }
+      }))
+      setPptEditando(false)
+    } catch {
+      alert('Error al guardar los cambios')
+    } finally {
+      setPptGuardando(false)
+    }
+  }
+
+  const eliminarMasivo = async () => {
+    if (!seleccionados.size) return
+    if (!confirm(`¿Eliminar ${seleccionados.size} curso(s)? Esta acción no se puede deshacer.`)) return
+    setEliminandoMasivo(true)
+    try {
+      await Promise.all([...seleccionados].map(id => api.delete(`/cursos/${id}`)))
+      setSeleccionados(new Set())
+      setModoSeleccion(false)
+      recargar()
+    } catch {
+      alert('Error al eliminar algunos cursos')
+    } finally {
+      setEliminandoMasivo(false)
+    }
+  }
+
+  const toggleSeleccion = (id) => {
+    setSeleccionados(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
   }
 
   const pendientes = certificados.filter(c => c.estado === 'pendiente')
@@ -127,7 +215,7 @@ export default function Profesor() {
                   {/* Tabs */}
                   <div style={{ display:'flex', gap:4, marginTop:14 }}>
                     {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT']].map(([key, label]) => (
-                      <button key={key} onClick={() => { setTabDetalle(key); setPptModuloIdx(null) }} style={{
+                      <button key={key} onClick={() => { setTabDetalle(key); setPptModuloIdx(null); setPptEditando(false) }} style={{
                         fontSize:12, padding:'5px 14px', borderRadius:6, border:'none', cursor:'pointer',
                         background: tabDetalle === key ? '#fff' : 'rgba(255,255,255,0.12)',
                         color: tabDetalle === key ? '#1E3A6E' : 'rgba(255,255,255,0.8)',
@@ -143,14 +231,39 @@ export default function Profesor() {
                   {/* ── TAB MÓDULOS ── */}
                   {tabDetalle === 'modulos' && (
                     <>
-                      <div style={{ fontSize:12, color:'#555', marginBottom:14, lineHeight:1.6 }}>{cursoDetalle.descripcion}</div>
-                      {cursoDetalle.modulos?.map((mod, i) => (
-                        <div key={i} style={{ border:'0.5px solid #E8E8E8', borderRadius:8, padding:'10px 14px', marginBottom:8 }}>
-                          <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
-                            <div style={{ width:20, height:20, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{i+1}</div>
-                            <span style={{ fontSize:12, fontWeight:500, flex:1 }}>{mod.titulo}</span>
+                      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, gap:6 }}>
+                        {editandoModulos ? (
+                          <>
+                            <button onClick={() => setEditandoModulos(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
+                            <button onClick={guardarModulos} disabled={guardandoModulos} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
+                              {guardandoModulos ? 'Guardando...' : '✓ Guardar cambios'}
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => { setModulosEdit(JSON.parse(JSON.stringify(cursoDetalle.modulos))); setEditandoModulos(true) }}
+                            style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
+                            ✎ Editar módulos
+                          </button>
+                        )}
+                      </div>
+                      {(editandoModulos ? modulosEdit : cursoDetalle.modulos)?.map((mod, i) => (
+                        <div key={i} style={{ border: editandoModulos ? '1px solid #C5D3F0' : '0.5px solid #E8E8E8', borderRadius:8, padding:'10px 14px', marginBottom:8, background: editandoModulos ? '#F7F9FF' : '#fff' }}>
+                          <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom: editandoModulos ? 8 : 4 }}>
+                            <div style={{ width:20, height:20, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0, marginTop:2 }}>{i+1}</div>
+                            {editandoModulos ? (
+                              <input value={mod.titulo} onChange={e => { const arr=[...modulosEdit]; arr[i]={...arr[i],titulo:e.target.value}; setModulosEdit(arr) }}
+                                style={{ flex:1, fontSize:12, fontWeight:500, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', outline:'none' }} />
+                            ) : (
+                              <span style={{ fontSize:12, fontWeight:500, flex:1 }}>{mod.titulo}</span>
+                            )}
                           </div>
-                          <div style={{ fontSize:11, color:'#888', lineHeight:1.5, paddingLeft:28 }}>{mod.descripcion}</div>
+                          {editandoModulos ? (
+                            <textarea value={mod.descripcion || ''} rows={3}
+                              onChange={e => { const arr=[...modulosEdit]; arr[i]={...arr[i],descripcion:e.target.value}; setModulosEdit(arr) }}
+                              style={{ width:'100%', fontSize:11, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', resize:'none', lineHeight:1.5, boxSizing:'border-box', marginLeft:28 }} />
+                          ) : (
+                            <div style={{ fontSize:11, color:'#888', lineHeight:1.5, paddingLeft:28 }}>{mod.descripcion}</div>
+                          )}
                         </div>
                       ))}
                     </>
@@ -159,12 +272,61 @@ export default function Profesor() {
                   {/* ── TAB PREGUNTAS ── */}
                   {tabDetalle === 'preguntas' && (
                     <>
+                      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, gap:6 }}>
+                        {editandoPreguntas ? (
+                          <>
+                            <button onClick={() => setEditandoPreguntas(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
+                            <button onClick={guardarPreguntas} disabled={guardandoPreguntas} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
+                              {guardandoPreguntas ? 'Guardando...' : '✓ Guardar cambios'}
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => {
+                            setPreguntasEdit(cursoDetalle.preguntas.map(p => ({
+                              ...p,
+                              alternativas: typeof p.alternativas === 'string' ? JSON.parse(p.alternativas) : p.alternativas
+                            })))
+                            setEditandoPreguntas(true)
+                          }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
+                            ✎ Editar preguntas
+                          </button>
+                        )}
+                      </div>
+
                       {cursoDetalle.preguntas?.length === 0 && (
                         <div style={{ textAlign:'center', color:'#888', padding:32, fontSize:13 }}>No hay preguntas cargadas</div>
                       )}
-                      {cursoDetalle.preguntas?.map((preg, j) => {
+
+                      {(editandoPreguntas ? preguntasEdit : cursoDetalle.preguntas)?.map((preg, j) => {
                         const alts = typeof preg.alternativas === 'string' ? JSON.parse(preg.alternativas) : preg.alternativas
-                        return (
+                        return editandoPreguntas ? (
+                          <div key={j} style={{ border:'1px solid #C5D3F0', borderRadius:8, marginBottom:10, padding:'10px 12px', background:'#F7F9FF' }}>
+                            <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:8 }}>
+                              <span style={{ width:18, height:18, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', flexShrink:0, marginTop:3 }}>{j+1}</span>
+                              <textarea value={preg.texto} rows={2}
+                                onChange={e => { const arr=[...preguntasEdit]; arr[j]={...arr[j],texto:e.target.value}; setPreguntasEdit(arr) }}
+                                style={{ flex:1, fontSize:12, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', resize:'none', lineHeight:1.5, boxSizing:'border-box' }} />
+                            </div>
+                            <div style={{ paddingLeft:26, display:'flex', flexDirection:'column', gap:6 }}>
+                              {alts?.map((alt, k) => (
+                                <div key={k} style={{ display:'flex', gap:8, alignItems:'center' }}>
+                                  <div onClick={() => {
+                                    const arr = JSON.parse(JSON.stringify(preguntasEdit))
+                                    arr[j].alternativas = arr[j].alternativas.map((a, ki) => ({ ...a, correcta: ki === k }))
+                                    setPreguntasEdit(arr)
+                                  }} style={{ width:16, height:16, borderRadius:'50%', border: alt.correcta ? '2px solid #1A7A45' : '1.5px solid #CCC', background: alt.correcta ? '#E8F5ED' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                                    {alt.correcta && <div style={{ width:8, height:8, borderRadius:'50%', background:'#1A7A45' }} />}
+                                  </div>
+                                  <input value={alt.texto} onChange={e => {
+                                    const arr = JSON.parse(JSON.stringify(preguntasEdit))
+                                    arr[j].alternativas[k].texto = e.target.value
+                                    setPreguntasEdit(arr)
+                                  }} style={{ flex:1, fontSize:11, padding:'4px 7px', borderRadius:5, border:'1px solid #CCC', color: alt.correcta ? '#1A7A45' : '#333' }} />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
                           <div key={j} style={{ border:'0.5px solid #EEE', borderRadius:8, marginBottom:8, overflow:'hidden' }}>
                             <div style={{ display:'flex', gap:8, padding:'9px 12px', cursor:'pointer', background: pregExpandida === j ? '#F7F8FF' : '#FAFAFA' }}
                               onClick={() => setPregExpandida(pregExpandida === j ? null : j)}>
@@ -215,7 +377,7 @@ export default function Profesor() {
                           ? buildSlidesProfesor(mod, ppres) : []
                         return (
                           <div>
-                            <button onClick={() => { setPptModuloIdx(null); setPptSlide(0) }}
+                            <button onClick={() => { setPptModuloIdx(null); setPptSlide(0); setPptEditando(false) }}
                               style={{ fontSize:11, color:'#1E3A6E', background:'none', border:'none', cursor:'pointer', marginBottom:12, display:'flex', alignItems:'center', gap:4 }}>
                               ← Volver a módulos
                             </button>
@@ -234,31 +396,73 @@ export default function Profesor() {
                                 </button>
                               </div>
                             )}
-                            {slides.length > 0 && (
-                              <>
-                                <div style={{ height:3, background:'#E8E8E8', marginBottom:0 }}>
-                                  <div style={{ height:3, background:'#1E3A6E', width:`${((pptSlide+1)/slides.length)*100}%`, transition:'width 0.3s' }} />
-                                </div>
-                                <div style={{ padding:'16px 0' }}>
-                                  <Slide slide={slides[pptSlide]} total={slides.length} actual={pptSlide} />
-                                </div>
-                                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                                  <button onClick={() => setPptSlide(s => Math.max(0,s-1))} disabled={pptSlide===0}
-                                    style={{ height:34, padding:'0 14px', borderRadius:8, border:'1px solid #E8E8E8', background: pptSlide===0?'#F4F5F7':'#fff', color: pptSlide===0?'#CCC':'#333', fontSize:12, cursor: pptSlide===0?'default':'pointer' }}>
-                                    ← Anterior
-                                  </button>
-                                  <div style={{ display:'flex', gap:5 }}>
-                                    {slides.map((_,k) => (
-                                      <div key={k} onClick={() => setPptSlide(k)} style={{ width: k===pptSlide?18:7, height:7, borderRadius:4, background: k===pptSlide?'#1E3A6E':'#D0D5E0', cursor:'pointer', transition:'all 0.2s' }} />
-                                    ))}
+                            {slides.length > 0 && (() => {
+                              const editSlides = pptEditData[pptModuloIdx] || slides
+                              const curSlide = editSlides[pptSlide]
+                              return (
+                                <>
+                                  {/* Barra de edición */}
+                                  <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginBottom:8 }}>
+                                    {pptEditando ? (
+                                      <>
+                                        <button onClick={() => setPptEditando(false)}
+                                          style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>
+                                          Cancelar
+                                        </button>
+                                        <button onClick={() => guardarEdicion(pptModuloIdx, mod)} disabled={pptGuardando}
+                                          style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
+                                          {pptGuardando ? 'Guardando...' : '✓ Guardar'}
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button onClick={() => iniciarEdicion(pptModuloIdx, slides)}
+                                        style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
+                                        ✎ Editar slides
+                                      </button>
+                                    )}
                                   </div>
-                                  <button onClick={() => setPptSlide(s => Math.min(slides.length-1,s+1))} disabled={pptSlide===slides.length-1}
-                                    style={{ height:34, padding:'0 14px', borderRadius:8, border:'none', background: pptSlide===slides.length-1?'#CCC':'#1E3A6E', color:'#fff', fontSize:12, cursor: pptSlide===slides.length-1?'default':'pointer' }}>
-                                    Siguiente →
-                                  </button>
-                                </div>
-                              </>
-                            )}
+
+                                  {/* Barra de progreso */}
+                                  <div style={{ height:3, background:'#E8E8E8', marginBottom:0 }}>
+                                    <div style={{ height:3, background:'#1E3A6E', width:`${((pptSlide+1)/editSlides.length)*100}%`, transition:'width 0.3s' }} />
+                                  </div>
+
+                                  {/* Slide o Editor */}
+                                  {pptEditando ? (
+                                    <SlideEditor
+                                      slide={curSlide}
+                                      imagenes={cursoDetalle.imagenes_protocolo || []}
+                                      onChange={updated => {
+                                        const arr = [...editSlides]
+                                        arr[pptSlide] = updated
+                                        setPptEditData(prev => ({ ...prev, [pptModuloIdx]: arr }))
+                                      }}
+                                    />
+                                  ) : (
+                                    <div style={{ padding:'16px 0' }}>
+                                      <Slide slide={curSlide} total={editSlides.length} actual={pptSlide} />
+                                    </div>
+                                  )}
+
+                                  {/* Navegación */}
+                                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                                    <button onClick={() => setPptSlide(s => Math.max(0,s-1))} disabled={pptSlide===0}
+                                      style={{ height:34, padding:'0 14px', borderRadius:8, border:'1px solid #E8E8E8', background: pptSlide===0?'#F4F5F7':'#fff', color: pptSlide===0?'#CCC':'#333', fontSize:12, cursor: pptSlide===0?'default':'pointer' }}>
+                                      ← Anterior
+                                    </button>
+                                    <div style={{ display:'flex', gap:5 }}>
+                                      {editSlides.map((_,k) => (
+                                        <div key={k} onClick={() => setPptSlide(k)} style={{ width: k===pptSlide?18:7, height:7, borderRadius:4, background: k===pptSlide?'#1E3A6E':'#D0D5E0', cursor:'pointer', transition:'all 0.2s' }} />
+                                      ))}
+                                    </div>
+                                    <button onClick={() => setPptSlide(s => Math.min(editSlides.length-1,s+1))} disabled={pptSlide===editSlides.length-1}
+                                      style={{ height:34, padding:'0 14px', borderRadius:8, border:'none', background: pptSlide===editSlides.length-1?'#CCC':'#1E3A6E', color:'#fff', fontSize:12, cursor: pptSlide===editSlides.length-1?'default':'pointer' }}>
+                                      Siguiente →
+                                    </button>
+                                  </div>
+                                </>
+                              )
+                            })()}
                           </div>
                         )
                       })()}
@@ -310,7 +514,7 @@ export default function Profesor() {
                     style={{ height: 32, padding: '0 14px', background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
                     onClick={async () => {
                       const detalle = await api.get(`/cursos/${curso.id}`)
-                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas })
+                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [] })
                       setTabDetalle('modulos')
                     }}>
                     Revisar
@@ -323,28 +527,67 @@ export default function Profesor() {
           <div className="two-col">
             {/* Mis cursos */}
             <div className="card">
-              <div className="card-header">
-                <span className="card-title">Mis cursos</span>
-                <span className="card-link">Ver todos →</span>
-              </div>
-              {cursos.slice(0,4).map(c => (
-                <div key={c.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
-                  <div style={{ width:28, height:28, background:'#FFEEEC', borderRadius:6, flexShrink:0 }} />
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:12, fontWeight:500 }}>{c.nombre}</div>
-                    <div style={{ display:'flex', gap:6, marginTop:4 }}>
-                      <span className={`format-tag tag-pdf`}>PDF</span>
-                      <span className={`format-tag ${c.publicado ? 'tag-publicado' : 'tag-borrador'}`}>
-                        {c.publicado ? 'Publicado' : 'Borrador'}
-                      </span>
-                    </div>
-                  </div>
-                  {!c.publicado
-                    ? <button className="btn-sm btn-sm-primary" onClick={() => api.patch(`/cursos/${c.id}/publicar`, { publicado:true }).then(() => window.location.reload())}>Publicar</button>
-                    : <button className="btn-sm btn-sm-outline">Editar</button>
-                  }
+              <div className="card-header" style={{ flexWrap:'wrap', gap:6 }}>
+                <span className="card-title">Mis cursos ({cursos.length})</span>
+                <div style={{ display:'flex', gap:6, marginLeft:'auto' }}>
+                  {modoSeleccion ? (
+                    <>
+                      <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}
+                        onClick={() => { setModoSeleccion(false); setSeleccionados(new Set()) }}>
+                        Cancelar
+                      </button>
+                      <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background: seleccionados.size===cursos.length?'#555':'#EEE', color: seleccionados.size===cursos.length?'#fff':'#333', cursor:'pointer' }}
+                        onClick={() => setSeleccionados(seleccionados.size===cursos.length ? new Set() : new Set(cursos.map(c=>c.id)))}>
+                        {seleccionados.size===cursos.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                      </button>
+                      {seleccionados.size > 0 && (
+                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background:'#E8505B', color:'#fff', cursor:'pointer', fontWeight:500 }}
+                          onClick={eliminarMasivo} disabled={eliminandoMasivo}>
+                          {eliminandoMasivo ? 'Eliminando...' : `Eliminar (${seleccionados.size})`}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #E8E8E8', background:'#fff', cursor:'pointer', color:'#666' }}
+                      onClick={() => setModoSeleccion(true)}>
+                      Seleccionar
+                    </button>
+                  )}
                 </div>
-              ))}
+              </div>
+              <div style={{ maxHeight: modoSeleccion ? 340 : 'none', overflowY: modoSeleccion ? 'auto' : 'visible' }}>
+                {(modoSeleccion ? cursos : cursos.slice(0,4)).map(c => (
+                  <div key={c.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', cursor: modoSeleccion ? 'pointer' : 'default' }}
+                    onClick={modoSeleccion ? () => toggleSeleccion(c.id) : undefined}>
+                    {modoSeleccion && (
+                      <div style={{ width:18, height:18, borderRadius:4, border: seleccionados.has(c.id) ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: seleccionados.has(c.id) ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {seleccionados.has(c.id) && <span style={{ color:'#fff', fontSize:11, lineHeight:1 }}>✓</span>}
+                      </div>
+                    )}
+                    {!modoSeleccion && <div style={{ width:28, height:28, background:'#FFEEEC', borderRadius:6, flexShrink:0 }} />}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.nombre}</div>
+                      <div style={{ display:'flex', gap:6, marginTop:4 }}>
+                        <span className="format-tag tag-pdf">PDF</span>
+                        <span className={`format-tag ${c.publicado ? 'tag-publicado' : 'tag-borrador'}`}>
+                          {c.publicado ? 'Publicado' : 'Borrador'}
+                        </span>
+                      </div>
+                    </div>
+                    {!modoSeleccion && (
+                      !c.publicado
+                        ? <button className="btn-sm btn-sm-primary" onClick={() => api.patch(`/cursos/${c.id}/publicar`, { publicado:true }).then(recargar)}>Publicar</button>
+                        : <button className="btn-sm btn-sm-outline">Editar</button>
+                    )}
+                  </div>
+                ))}
+                {!modoSeleccion && cursos.length > 4 && (
+                  <div style={{ fontSize:11, color:'#888', textAlign:'center', paddingTop:8, cursor:'pointer' }}
+                    onClick={() => setModoSeleccion(true)}>
+                    +{cursos.length - 4} más · Ver todos
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Certificados por validar */}
