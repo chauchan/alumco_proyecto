@@ -11,9 +11,12 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
 
-const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
-const VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'moondream';
+const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
+const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
+const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
+const OPENROUTER_KEY    = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL  = process.env.OPENROUTER_MODEL  || 'nvidia/nemotron-3-super-120b-a12b:free';
+const OPENROUTER_URL    = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
 function pdfToImages(pdfPath, outDir, maxPages = 4) {
@@ -136,7 +139,57 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-async function llamarIA(prompt, timeoutMs = 480000) {
+async function llamarOpenRouter(prompt, timeoutMs = 180000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await undiciFetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://alumco.cl',
+        'X-Title': 'ALUMCO - Generador de Cursos'
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un experto en diseño instruccional. Tu tarea es SOLO generar el JSON solicitado. NO expliques tu razonamiento. NO agregues texto antes o después. Responde ÚNICAMENTE con el objeto JSON.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 12000,
+        stream: false
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`OpenRouter HTTP ${response.status}: ${body}`);
+    }
+    const data = await response.json();
+    const finishReason = data.choices?.[0]?.finish_reason;
+    const content = data.choices?.[0]?.message?.content || '';
+    const reasoning = data.choices?.[0]?.message?.reasoning || '';
+    console.log(`[IA] OpenRouter finish_reason=${finishReason} tokens=${data.usage?.total_tokens || '?'}`);
+
+    // El modelo de razonamiento puede poner el JSON dentro de su campo reasoning
+    // Intentar ambos campos — primero content, luego reasoning
+    const candidato = content.includes('{') ? content : (reasoning.includes('{') ? reasoning : '');
+    if (!candidato) throw new Error(`OpenRouter no devolvió JSON (finish_reason: ${finishReason})`);
+    if (finishReason === 'length') {
+      console.warn('[IA] OpenRouter cortó la respuesta por longitud — puede estar incompleta');
+    }
+    return candidato;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function llamarOllama(prompt, timeoutMs = 480000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -150,12 +203,7 @@ async function llamarIA(prompt, timeoutMs = 480000) {
         prompt,
         stream: false,
         format: 'json',
-        options: {
-          num_ctx: 6144,
-          num_predict: 4096,
-          temperature: 0.1,
-          repeat_penalty: 1.1
-        }
+        options: { num_ctx: 6144, num_predict: 4096, temperature: 0.1, repeat_penalty: 1.1 }
       })
     });
     if (!response.ok) {
@@ -169,10 +217,29 @@ async function llamarIA(prompt, timeoutMs = 480000) {
   }
 }
 
+async function llamarIA(prompt, timeoutMs = 480000) {
+  if (OPENROUTER_KEY) {
+    console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
+    try {
+      return await llamarOpenRouter(prompt, timeoutMs);
+    } catch (err) {
+      console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`);
+    }
+  }
+  console.log(`[IA] Usando Ollama local → ${OLLAMA_MODEL}`);
+  return await llamarOllama(prompt, timeoutMs);
+}
+
 function parsearJSON(texto) {
-  try { return JSON.parse(texto); } catch {}
-  const match = texto?.match(/\{[\s\S]*\}/);
-  if (match) { try { return JSON.parse(match[0]); } catch {} }
+  if (!texto) throw new Error('La IA no devolvió contenido');
+  // Intento directo
+  try { return JSON.parse(texto.trim()); } catch {}
+  // El modelo puede incluir razonamiento antes del JSON — extraer el bloque más grande
+  const candidatos = texto.match(/\{[\s\S]*\}/);
+  if (candidatos) { try { return JSON.parse(candidatos[0]); } catch {} }
+  // Bloque de código markdown ```json ... ```
+  const mdMatch = texto.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (mdMatch) { try { return JSON.parse(mdMatch[1].trim()); } catch {} }
   throw new Error('La IA no devolvió un JSON válido');
 }
 
@@ -214,60 +281,62 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const modulosFijo = num_modulos ? parseInt(num_modulos) : null;
     const modulosMin = modulosFijo || (totalChars > 15000 ? 5 : totalChars > 8000 ? 4 : 3);
     const modulosMax = modulosFijo || (totalChars > 15000 ? 7 : totalChars > 8000 ? 6 : 4);
-    const textoParaOllama = textoPdf.slice(0, 6000);
-    console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando a Ollama:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
+    // OpenRouter soporta contexto largo; Ollama limitado a ~6000 chars
+    const limiteChars = OPENROUTER_KEY ? 40000 : 6000;
+    const textoParaOllama = textoPdf.slice(0, limiteChars);
+    console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
 
-    const prompt = `Eres un experto en diseño instruccional y evaluación educativa para trabajadores de hogares de adultos mayores (ELEAM) en Chile. Tienes experiencia en taxonomía de Bloom y en la creación de preguntas de opción múltiple de alta calidad.
+    // ── Paso 3a: generar solo los módulos (sin preguntas) ────────────────────
+    // Separado para no exceder el contexto del modelo con protocolo + preguntas juntos
+    const promptModulos = `Analiza el siguiente protocolo de cuidado del adulto mayor y genera los módulos de un curso de capacitación.
 
-Analiza el protocolo y genera un curso completo en formato JSON:
-
-{
-  "modulos": [
-    {
-      "titulo": "string (título claro y específico del tema)",
-      "descripcion": "string (4-6 oraciones: qué cubre el módulo, por qué es importante para el cuidado del adulto mayor, qué habilidades desarrollará el trabajador y cómo aplicarlo en su trabajo diario)",
-      "preguntas": [
-        {
-          "texto": "string (pregunta clara, sin ambigüedades, que evalúe comprensión real o aplicación práctica)",
-          "alternativas": [
-            { "texto": "string", "correcta": false },
-            { "texto": "string", "correcta": true },
-            { "texto": "string", "correcta": false },
-            { "texto": "string", "correcta": false }
-          ]
-        }
-      ]
-    }
-  ]
-}
+Responde ÚNICAMENTE con este JSON (sin texto adicional):
+{"modulos":[{"titulo":"string","descripcion":"string (2-3 oraciones claras)"}]}
 
 Reglas:
-- ${modulosFijo ? `Genera EXACTAMENTE ${modulosFijo} módulos, ni más ni menos.` : `Genera entre ${modulosMin} y ${modulosMax} módulos según la cantidad de temas del protocolo. NO generes menos de ${modulosMin}.`}
-- Cada módulo cubre un tema diferente del protocolo (no repitas temas)
-- Cada módulo: exactamente 4 preguntas de alternativas
-- Preguntas variadas: comprensión, aplicación práctica y análisis
-- Alternativas incorrectas plausibles (errores reales del personal, no respuestas absurdas)
-- Sin "todas las anteriores" ni "ninguna de las anteriores"
-- Descripciones de módulo: 3 oraciones claras para personal sin formación técnica
-- Nombre del curso: ${nombre_curso}
-- Contexto: ${contexto || 'protocolo de cuidado del adulto mayor'}
-
-Responde SOLO con el JSON válido, sin texto adicional, sin bloques de código markdown.
+- ${modulosFijo ? `EXACTAMENTE ${modulosFijo} módulos.` : `Entre ${modulosMin} y ${modulosMax} módulos según los temas del protocolo.`}
+- Cada módulo cubre un tema distinto, sin repetir.
+- Títulos claros y específicos.
+- Contexto: ${contexto || 'protocolo de cuidado del adulto mayor en ELEAM Chile'}
+- Curso: ${nombre_curso}
 
 PROTOCOLO:
 ${textoParaOllama}`;
 
-    console.log('[IA] Paso 3: llamando a Ollama (max 8 min)...');
-    const textoRespuesta = await llamarIA(prompt);
-    console.log('[IA] Paso 4: respuesta recibida, chars:', textoRespuesta?.length);
-    console.log('[IA] Raw (300 chars):', textoRespuesta?.slice(0, 300));
-
-    const borrador = parsearJSON(textoRespuesta);
-    if (!borrador.modulos && borrador.modules) borrador.modulos = borrador.modules;
-    if (!Array.isArray(borrador.modulos) || borrador.modulos.length === 0) {
-      console.error('[IA] Respuesta completa:', textoRespuesta);
+    console.log('[IA] Paso 3: generando módulos...');
+    const respModulos = await llamarIA(promptModulos);
+    console.log('[IA] Raw módulos (200 chars):', respModulos?.slice(0, 200));
+    const borradorModulos = parsearJSON(respModulos);
+    if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0) {
       throw new Error('La IA no generó módulos válidos');
     }
+
+    // ── Paso 3b: generar preguntas para cada módulo ───────────────────────────
+    console.log('[IA] Paso 3b: generando preguntas para', borradorModulos.modulos.length, 'módulos...');
+    const modulos = await Promise.all(borradorModulos.modulos.map(async (mod) => {
+      const promptPreguntas = `Genera 4 preguntas de opción múltiple para el módulo "${mod.titulo}" de un curso sobre: ${mod.descripcion}
+
+Responde ÚNICAMENTE con este JSON:
+{"preguntas":[{"texto":"string","alternativas":[{"texto":"string","correcta":false},{"texto":"string","correcta":true},{"texto":"string","correcta":false},{"texto":"string","correcta":false}]}]}
+
+Reglas:
+- Exactamente 4 preguntas, cada una con exactamente 4 alternativas.
+- Solo una alternativa correcta por pregunta.
+- Preguntas de comprensión y aplicación práctica para personal de cuidado.
+- Alternativas incorrectas plausibles (errores reales del personal).
+- Sin "todas las anteriores" ni "ninguna de las anteriores".`;
+
+      try {
+        const respPreg = await llamarIA(promptPreguntas);
+        const parsed = parsearJSON(respPreg);
+        return { ...mod, preguntas: parsed.preguntas || [] };
+      } catch (e) {
+        console.warn(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
+        return { ...mod, preguntas: [] };
+      }
+    }));
+
+    const borrador = { modulos };
     const modulosGenerados = borrador.modulos.length;
     console.log('[IA] Paso 5: módulos generados:', modulosGenerados);
 

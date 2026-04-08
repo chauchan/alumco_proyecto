@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -291,17 +291,35 @@ export function Slide({ slide, total, actual }) {
   )
 }
 
+// ── Carga/guarda resultado en sessionStorage para sobrevivir navegación ────────
+const STORAGE_KEY = 'generadorIA_resultado'
+const FORM_KEY    = 'generadorIA_form'
+
+function leerStorage() {
+  try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)) } catch { return null }
+}
+function guardarStorage(data) {
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data)) } catch {}
+}
+function leerFormStorage() {
+  try { return JSON.parse(sessionStorage.getItem(FORM_KEY)) } catch { return null }
+}
+function guardarFormStorage(data) {
+  try { sessionStorage.setItem(FORM_KEY, JSON.stringify(data)) } catch {}
+}
+
 // ── Componente principal ───────────────────────────────────────────────────────
 export default function GeneradorIA() {
   const navigate = useNavigate()
   const [archivo, setArchivo] = useState(null)
-  const [form, setForm] = useState({ nombre_curso: '', area: '', contexto: '', num_modulos: '' })
+  const [form, setForm] = useState(() => leerFormStorage() || { nombre_curso: '', area: '', contexto: '', num_modulos: '' })
   const [fuentePDF, setFuentePDF] = useState('subir')   // 'subir' | 'biblioteca'
   const [protocolos, setProtocolos] = useState([])
   const [protocoloSeleccionado, setProtocoloSeleccionado] = useState(null)
-  const [resultado, setResultado] = useState(null)
+  const [resultado, setResultado] = useState(() => leerStorage())
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
+  const abortRef = useRef(null)   // controla la petición en curso
 
   const [modoEdicion, setModoEdicion] = useState(false)
   const [borradorEdit, setBorradorEdit] = useState(null)
@@ -342,17 +360,35 @@ export default function GeneradorIA() {
   const cerrarModal = () => { setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false) }
 
 
+  // Persistir resultado en sessionStorage cuando cambia
+  useEffect(() => { guardarStorage(resultado) }, [resultado])
+  // Persistir form cuando cambia
+  useEffect(() => { guardarFormStorage(form) }, [form])
+
   // Cargar biblioteca de protocolos al montar
-  useState(() => {
+  useEffect(() => {
     api.get('/protocolos').then(r => setProtocolos(r.data)).catch(() => {})
-  })
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (fuentePDF === 'subir' && !archivo) return setError('Selecciona un archivo PDF')
     if (fuentePDF === 'biblioteca' && !protocoloSeleccionado) return setError('Selecciona un protocolo de la biblioteca')
     if (!form.nombre_curso) return setError('El nombre del curso es obligatorio')
-    setCargando(true); setError('')
+
+    // Cancelar cualquier petición previa en curso
+    if (abortRef.current) abortRef.current.abort()
+    abortRef.current = new AbortController()
+
+    // Limpiar resultado anterior para evitar stacking visual
+    setResultado(null)
+    guardarStorage(null)
+    setModoEdicion(false)
+    setEnviado(false)
+    setPresentaciones({})
+    setCargando(true)
+    setError('')
+
     try {
       const data = new FormData()
       data.append('nombre_curso', form.nombre_curso)
@@ -364,9 +400,13 @@ export default function GeneradorIA() {
       } else {
         data.append('protocolo_id', protocoloSeleccionado.id)
       }
-      const res = await api.post('/ia/generar-curso', data, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const res = await api.post('/ia/generar-curso', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        signal: abortRef.current.signal
+      })
       setResultado(res.data)
     } catch (err) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return // cancelado intencionalmente
       setError(err.response?.data?.error || 'Error al generar el curso')
     } finally { setCargando(false) }
   }
@@ -406,6 +446,10 @@ export default function GeneradorIA() {
     try {
       await api.delete(`/cursos/${resultado.curso_id}`)
       setResultado(null)
+      guardarStorage(null)
+      setPresentaciones({})
+      setModoEdicion(false)
+      setEnviado(false)
     } catch {
       alert('Error al descartar el borrador')
     }
@@ -1062,6 +1106,8 @@ export default function GeneradorIA() {
                               nombre_archivo: resultado.nombre_archivo
                             })
                             setEnviado(true)
+                            guardarStorage(null)
+                            guardarFormStorage(null)
                             setTimeout(() => navigate('/jefatura'), 1500)
                           } catch {
                             alert('No se pudo enviar la notificación. Verifica la configuración de email.')
