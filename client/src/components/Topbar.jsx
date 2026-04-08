@@ -17,11 +17,19 @@ const rutaInicio = {
   admin_sede: '/admin', jefatura: '/jefatura',
 }
 
+const ROLES_VISTA = [
+  { rol: 'colaborador', label: 'Colaborador', color: '#F5A623', ruta: '/colaborador' },
+  { rol: 'profesor',    label: 'Profesor',    color: '#E8505B', ruta: '/profesor' },
+  { rol: 'admin_sede',  label: 'Admin sede',  color: '#7BC67A', ruta: '/admin' },
+  { rol: 'jefatura',    label: 'Jefatura',    color: '#2B4BA0', ruta: '/jefatura' },
+]
+
 export default function Topbar({ seccion }) {
-  const { usuario, logout } = useAuth()
+  const { usuario, logout, simularRol } = useAuth()
   const navigate = useNavigate()
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [notifAbierto, setNotifAbierto] = useState(false)
+  const [vistaAbierto, setVistaAbierto] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
   const [noLeidas, setNoLeidas] = useState(0)
 
@@ -141,6 +149,53 @@ export default function Topbar({ seccion }) {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Switcher de vista rápida */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setVistaAbierto(!vistaAbierto); setMenuAbierto(false); setNotifAbierto(false) }}
+            title="Cambiar vista"
+            style={{
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 7, padding: '4px 10px', cursor: 'pointer', color: '#fff',
+              fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5,
+              letterSpacing: '0.03em'
+            }}>
+            <span style={{ fontSize: 13 }}>⇄</span> Vista
+          </button>
+          {vistaAbierto && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setVistaAbierto(false)} />
+              <div style={{
+                position: 'absolute', top: 42, right: 0, zIndex: 100,
+                background: 'white', borderRadius: 10, border: '0.5px solid #E8E8E8',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.14)', minWidth: 170, overflow: 'hidden'
+              }}>
+                <div style={{ padding: '9px 14px', borderBottom: '0.5px solid #EEE', fontSize: 10, fontWeight: 700, color: '#AAA', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Cambiar vista
+                </div>
+                {ROLES_VISTA.map(r => (
+                  <div key={r.rol}
+                    onClick={() => { simularRol(r.rol); navigate(r.ruta); setVistaAbierto(false) }}
+                    style={{
+                      padding: '9px 14px', fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 9,
+                      background: usuario?.rol === r.rol ? '#F4F5F7' : 'transparent',
+                      fontWeight: usuario?.rol === r.rol ? 600 : 400,
+                      color: '#1a1a1a'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#F4F5F7'}
+                    onMouseLeave={e => e.currentTarget.style.background = usuario?.rol === r.rol ? '#F4F5F7' : 'transparent'}
+                  >
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: r.color, flexShrink: 0 }} />
+                    {r.label}
+                    {usuario?.rol === r.rol && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#AAA' }}>actual</span>}
+                  </div>
+                ))}
               </div>
             </>
           )}

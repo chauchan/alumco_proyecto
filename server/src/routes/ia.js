@@ -272,12 +272,27 @@ ${textoParaOllama}`;
     console.log('[IA] Paso 5: módulos generados:', modulosGenerados);
 
     // ── Avisos sobre cantidad de módulos ──────────────────────────────────────
-    const modulosAutomatico = totalChars > 15000 ? 6 : totalChars > 8000 ? 5 : 3;
+    // Estimación de cuántos módulos "aguanta" el contenido según longitud del texto
+    const modulosOptimo = totalChars > 12000 ? 7
+      : totalChars > 6000  ? 6
+      : totalChars > 3500  ? 5
+      : totalChars > 2000  ? 4
+      : totalChars > 1000  ? 3
+      : 2;
+    console.log(`[IA] totalChars=${totalChars}, modulosOptimo=${modulosOptimo}, modulosFijo=${modulosFijo}, modulosGenerados=${modulosGenerados}`);
     let aviso = null;
-    if (modulosFijo && modulosGenerados < modulosFijo) {
-      aviso = { tipo: 'menos', mensaje: `La IA generó ${modulosGenerados} módulo${modulosGenerados !== 1 ? 's' : ''} en lugar de ${modulosFijo} porque el protocolo no tiene suficiente contenido diferenciado para más. Considera subir un protocolo más extenso.` };
-    } else if (modulosFijo && modulosFijo < modulosAutomatico - 1) {
-      aviso = { tipo: 'mas', mensaje: `El protocolo tiene contenido para hasta ${modulosAutomatico} módulos. Si quieres aprovechar más el material, genera nuevamente con un número mayor.` };
+    if (modulosFijo) {
+      if (modulosFijo > modulosOptimo) {
+        aviso = {
+          tipo: 'menos',
+          mensaje: `Pediste ${modulosFijo} módulos pero el protocolo tiene contenido para ${modulosOptimo} como máximo. Algunos módulos pueden quedar con información escasa o repetida. Considera usar un documento más extenso.`
+        };
+      } else if (modulosFijo < modulosOptimo - 1) {
+        aviso = {
+          tipo: 'mas',
+          mensaje: `El protocolo tiene información suficiente para hasta ${modulosOptimo} módulos. Genera nuevamente eligiendo un número mayor para aprovechar mejor el material.`
+        };
+      }
     }
 
     const cursoResult = await pool.query(
@@ -320,6 +335,8 @@ ${textoParaOllama}`;
       nombre_archivo: nombreArchivo,
       imagenes_protocolo: imagenesProtocolo,
       aviso,
+      modulosOptimo,
+      totalChars,
       message: 'Borrador generado. Debe ser revisado por el profesor antes de publicarse.'
     });
 
@@ -339,7 +356,8 @@ router.post('/generar-presentacion', verificarToken, verificarRol('jefatura', 'a
   const { titulo, descripcion, contexto } = req.body;
   if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
 
-  const prompt = `Genera una presentación educativa en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+  const prompt = `Genera una presentación educativa COMPLETA en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+Incluye objetivos, contenido educativo detallado y cierre. Usa lenguaje simple y ejemplos del trabajo diario.
 
 Responde SOLO con este JSON exacto, sin texto adicional:
 
@@ -348,22 +366,46 @@ Responde SOLO con este JSON exacto, sin texto adicional:
     {
       "tipo": "objetivos",
       "titulo": "Objetivos de aprendizaje",
-      "lista": ["objetivo 1", "objetivo 2", "objetivo 3"]
+      "lista": ["Al finalizar podrás... 1", "Al finalizar podrás... 2", "Al finalizar podrás... 3"]
     },
     {
       "tipo": "desempeno",
       "titulo": "Objetivo de desempeño",
-      "descripcion": "Al finalizar este módulo, el trabajador será capaz de [acción concreta relacionada al módulo]"
+      "descripcion": "Al finalizar este módulo, el trabajador será capaz de [acción concreta y medible]"
     },
     {
       "tipo": "introduccion",
       "titulo": "Introducción",
-      "texto": "párrafo introductorio de 3-4 oraciones que contextualice el tema para el personal del ELEAM"
+      "texto": "párrafo de 3-4 oraciones que contextualice el tema y su importancia en el ELEAM"
+    },
+    {
+      "tipo": "seccion",
+      "titulo": "título del primer tema de contenido",
+      "texto": "explicación clara en 3-4 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
+    },
+    {
+      "tipo": "seccion",
+      "titulo": "título del segundo tema de contenido",
+      "texto": "explicación clara en 3-4 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
+    },
+    {
+      "tipo": "seccion",
+      "titulo": "título del tercer tema de contenido",
+      "texto": "explicación clara en 3-4 oraciones",
+      "puntos": ["punto práctico 1", "punto práctico 2"]
+    },
+    {
+      "tipo": "caso_practico",
+      "titulo": "Caso práctico",
+      "descripcion": "descripción de una situación real que puede ocurrir en el ELEAM",
+      "pasos": ["paso 1 de cómo actuar", "paso 2", "paso 3", "paso 4"]
     },
     {
       "tipo": "puntos_clave",
       "titulo": "Puntos claves del protocolo",
-      "puntos": ["punto clave 1", "punto clave 2", "punto clave 3", "punto clave 4", "punto clave 5"]
+      "puntos": ["punto clave 1", "punto clave 2", "punto clave 3", "punto clave 4"]
     },
     {
       "tipo": "importante",
@@ -373,7 +415,7 @@ Responde SOLO con este JSON exacto, sin texto adicional:
     {
       "tipo": "conclusion",
       "titulo": "Conclusión",
-      "texto": "párrafo de cierre que refuerce la importancia del tema para el cuidado del adulto mayor",
+      "texto": "párrafo de cierre que refuerce la importancia del tema",
       "mensaje": "frase motivacional corta para el trabajador"
     }
   ]
@@ -383,7 +425,6 @@ Módulo: ${titulo}
 Descripción: ${descripcion || titulo}
 Contexto: ${contexto || 'cuidado del adulto mayor en ELEAM'}
 
-Usa lenguaje simple y ejemplos reales del trabajo en hogares de adultos mayores.
 Responde SOLO el JSON.`;
 
   try {
