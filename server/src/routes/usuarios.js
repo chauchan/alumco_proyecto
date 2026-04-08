@@ -53,9 +53,9 @@ router.post('/', verificarToken, SOLO_ADMIN, async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
-      `INSERT INTO usuarios (nombre, identificador, rut, email, password_hash, rol, tipo_contrato, sede_id, estamento, area)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [nombre, identificador, rut, correo || null, hash, rol, tipo_contrato || null, sedeAsignada, estamento || null, area || null]
+      `INSERT INTO usuarios (nombre, identificador, rut, email, password_hash, rol, tipo_contrato, sede_id, estamento)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [nombre, identificador, rut, correo || null, hash, rol, tipo_contrato || null, sedeAsignada, estamento || null]
     );
     const { rows: nuevo } = await pool.query(
       `SELECT id, nombre, identificador, rut, email, rol, tipo_contrato, sede_id, estamento, activo, created_at
