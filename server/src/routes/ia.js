@@ -183,10 +183,9 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
 
   // Permite usar protocolo guardado en lugar de subir un nuevo PDF
   if (!req.file && protocolo_id) {
-    const mysql = require('../config/db');
-    const [rows] = await mysql.query('SELECT * FROM protocolos WHERE id = ?', [protocolo_id]);
-    if (!rows.length) return res.status(404).json({ error: 'Protocolo no encontrado' });
-    req.file = { path: rows[0].archivo_path, originalname: rows[0].archivo_nombre, _fromLib: true };
+    const result = await pool.query('SELECT * FROM protocolos WHERE id = $1', [protocolo_id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Protocolo no encontrado' });
+    req.file = { path: result.rows[0].archivo_path, originalname: result.rows[0].archivo_nombre, _fromLib: true };
   }
 
   if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
