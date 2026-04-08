@@ -98,18 +98,20 @@ function SlideEditor({ slide, onChange }) {
 
 // ── Slide: renderiza cada tipo de diapositiva ─────────────────────────────────
 export function Slide({ slide, total, actual }) {
+  // Paleta basada en el diseño institucional de la ONG (tema "Crop")
+  // Colores: crema #EFEDE3 · oscuro #191B0E · naranja #F26B43 · dorado #E6C069 · verde salvia #8DAB8E · azul acero #77A2BB
   const paletas = {
-    portada:        { bg: '#1E3A6E', color: '#fff',    accent: 'rgba(255,255,255,0.15)' },
-    puntos:         { bg: '#F0F4FF', color: '#1E3A6E', accent: '#2B4BA0' },
-    conceptos:      { bg: '#fff',    color: '#222',    accent: '#1E3A6E' },
-    procedimientos: { bg: '#EAF6EE', color: '#1A4A2A', accent: '#1A7A45' },
-    advertencias:   { bg: '#FFF8E8', color: '#7A5C00', accent: '#F5A623' },
-    cierre:         { bg: '#1E3A6E', color: '#fff',    accent: 'rgba(255,255,255,0.2)' },
+    portada:        { bg: '#191B0E', color: '#EFEDE3', accent: '#F26B43' },
+    puntos:         { bg: '#EFEDE3', color: '#191B0E', accent: '#F26B43' },
+    conceptos:      { bg: '#fff',    color: '#191B0E', accent: '#897B61' },
+    procedimientos: { bg: '#EFEDE3', color: '#191B0E', accent: '#8DAB8E' },
+    advertencias:   { bg: '#FFF8E0', color: '#191B0E', accent: '#E6C069' },
+    cierre:         { bg: '#F26B43', color: '#fff',    accent: 'rgba(255,255,255,0.2)' },
     // nuevos
-    definicion:     { bg: '#fff',    color: '#222',    accent: '#2B4BA0' },
-    caso:           { bg: '#EAF6EE', color: '#1A4A2A', accent: '#1A7A45' },
-    importante:     { bg: '#F0F4FF', color: '#1E3A6E', accent: '#1E3A6E' },
-    reflexion:      { bg: '#2B1A6E', color: '#fff',    accent: 'rgba(255,255,255,0.12)' },
+    definicion:     { bg: '#fff',    color: '#191B0E', accent: '#F26B43' },
+    caso:           { bg: '#EFEDE3', color: '#191B0E', accent: '#8DAB8E' },
+    importante:     { bg: '#191B0E', color: '#EFEDE3', accent: '#E6C069' },
+    reflexion:      { bg: '#F26B43', color: '#fff',    accent: 'rgba(255,255,255,0.18)' },
   }
   const p = paletas[slide.tipo] || paletas.puntos
 
@@ -571,53 +573,53 @@ export default function GeneradorIA() {
                             return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
                               {r.objetivo && (
-                                <div style={{ background: '#F0F4FF', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#1E3A6E', lineHeight: 1.6 }}>
+                                <div style={{ background: '#EFEDE3', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#191B0E', lineHeight: 1.6, borderLeft: '4px solid #F26B43' }}>
                                   <strong>Objetivo:</strong> {r.objetivo}
                                 </div>
                               )}
                               {r.puntos_clave?.length > 0 && (
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Puntos clave</div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#F26B43', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Puntos clave</div>
                                   {r.puntos_clave.map((pt, k) => (
-                                    <div key={k} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#333', background: '#F0F4FF', borderRadius: 6, padding: '7px 10px', marginBottom: 5 }}>
-                                      <span style={{ color: '#2B4BA0', fontWeight: 700 }}>→</span> {pt}
+                                    <div key={k} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#191B0E', background: '#EFEDE3', borderRadius: 6, padding: '7px 10px', marginBottom: 5 }}>
+                                      <span style={{ color: '#F26B43', fontWeight: 700 }}>→</span> {pt}
                                     </div>
                                   ))}
                                 </div>
                               )}
                               {r.conceptos_importantes?.length > 0 && (
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Conceptos importantes</div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#F26B43', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Conceptos importantes</div>
                                   {r.conceptos_importantes.map((c, k) => (
-                                    <div key={k} style={{ fontSize: 12, borderLeft: '3px solid #2B4BA0', paddingLeft: 10, paddingTop: 3, paddingBottom: 3, marginBottom: 6 }}>
-                                      <strong style={{ color: '#1E3A6E' }}>{c.termino}:</strong> <span style={{ color: '#555' }}>{c.definicion}</span>
+                                    <div key={k} style={{ fontSize: 12, borderLeft: '3px solid #897B61', paddingLeft: 10, paddingTop: 3, paddingBottom: 3, marginBottom: 6 }}>
+                                      <strong style={{ color: '#191B0E' }}>{c.termino}:</strong> <span style={{ color: '#555' }}>{c.definicion}</span>
                                     </div>
                                   ))}
                                 </div>
                               )}
                               {r.procedimientos?.length > 0 && (
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Procedimiento</div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#F26B43', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Procedimiento</div>
                                   {r.procedimientos.map((paso, k) => (
-                                    <div key={k} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#333', marginBottom: 6 }}>
-                                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#1A7A45', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{k + 1}</span>
+                                    <div key={k} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#191B0E', marginBottom: 6 }}>
+                                      <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#8DAB8E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{k + 1}</span>
                                       {paso}
                                     </div>
                                   ))}
                                 </div>
                               )}
                               {r.advertencias?.length > 0 && (
-                                <div style={{ background: '#FFF8E8', borderRadius: 8, padding: '10px 14px', border: '0.5px solid #F5C842' }}>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#B8860B', marginBottom: 6 }}>⚠ Puntos críticos</div>
+                                <div style={{ background: '#FFF8E0', borderRadius: 8, padding: '10px 14px', border: '0.5px solid #E6C069' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#897B61', marginBottom: 6 }}>⚠ Puntos críticos</div>
                                   {r.advertencias.map((adv, k) => (
-                                    <div key={k} style={{ fontSize: 12, color: '#7A5C00', padding: '2px 0' }}>• {adv}</div>
+                                    <div key={k} style={{ fontSize: 12, color: '#191B0E', padding: '2px 0' }}>• {adv}</div>
                                   ))}
                                 </div>
                               )}
                               {(r.cierre || r.resumen) && typeof (r.cierre || r.resumen) === 'string' && (
-                                <div style={{ background: '#F4F5F7', borderRadius: 8, padding: '10px 14px' }}>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#555', marginBottom: 4 }}>Cierre</div>
-                                  <div style={{ fontSize: 12, color: '#333', lineHeight: 1.6 }}>{r.cierre || r.resumen}</div>
+                                <div style={{ background: '#F26B43', borderRadius: 8, padding: '10px 14px' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>Cierre</div>
+                                  <div style={{ fontSize: 12, color: '#fff', lineHeight: 1.6 }}>{r.cierre || r.resumen}</div>
                                 </div>
                               )}
                             </div>
