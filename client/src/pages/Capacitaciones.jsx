@@ -4,8 +4,8 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
+import ModalCurso from '../components/ModalCurso'
 
-const FORMATO_ICON = { pdf: '📄', video: '🎥', ppt: '📊' }
 const FORMATO_CLASS = { pdf: 'tag-pdf', video: 'tag-video', ppt: 'tag-ppt' }
 
 export default function Capacitaciones() {
@@ -15,13 +15,16 @@ export default function Capacitaciones() {
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroArea, setFiltroArea] = useState('')
+  const [cursoAbierto, setCursoAbierto] = useState(null)
 
-  useEffect(() => {
+  const cargarCursos = () => {
     api.get('/cursos')
       .then(res => setCursos(res.data))
       .catch(() => {})
       .finally(() => setCargando(false))
-  }, [])
+  }
+
+  useEffect(() => { cargarCursos() }, [])
 
   const areas = [...new Set(cursos.map(c => c.area).filter(Boolean))]
 
@@ -137,7 +140,8 @@ export default function Capacitaciones() {
                   {/* Acciones según rol */}
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     {usuario?.rol === 'colaborador' && (
-                      <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}>
+                      <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
+                        onClick={() => setCursoAbierto(curso.id)}>
                         {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
                       </button>
                     )}
@@ -148,7 +152,7 @@ export default function Capacitaciones() {
                         </button>
                         {!curso.publicado ? (
                           <button className="btn-sm btn-sm-primary"
-                            onClick={() => api.patch(`/cursos/${curso.id}/publicar`, { publicado: true }).then(cargar)}>
+                            onClick={() => api.patch(`/cursos/${curso.id}/publicar`, { publicado: true }).then(cargarCursos)}>
                             Publicar
                           </button>
                         ) : (
@@ -168,6 +172,16 @@ export default function Capacitaciones() {
           )}
         </main>
       </div>
+
+      {cursoAbierto && (
+        <ModalCurso
+          cursoId={cursoAbierto}
+          onClose={() => setCursoAbierto(null)}
+          onProgreso={(id, pct) => {
+            setCursos(prev => prev.map(c => c.id === id ? { ...c, progreso: pct, completado: pct >= 100 } : c))
+          }}
+        />
+      )}
     </div>
   )
 }
