@@ -3,6 +3,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
+import ModalCurso from '../components/ModalCurso'
 
 const NavIcon = ({ d }) => (
   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -15,6 +16,7 @@ export default function Colaborador() {
   const [cursos, setCursos] = useState([])
   const [certificados, setCertificados] = useState([])
   const [cargando, setCargando] = useState(true)
+  const [cursoAbierto, setCursoAbierto] = useState(null)
 
   useEffect(() => {
     Promise.all([api.get('/cursos'), api.get('/certificados')])
@@ -94,7 +96,8 @@ export default function Colaborador() {
                     <div className="progress-bar-fill" style={{ width:`${curso.progreso||0}%` }} />
                   </div>
                 </div>
-                <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}>
+                <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}
+                  onClick={() => setCursoAbierto(curso.id)}>
                   {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
                 </button>
               </div>
@@ -125,6 +128,16 @@ export default function Colaborador() {
           </div>
         </main>
       </div>
+
+      {cursoAbierto && (
+        <ModalCurso
+          cursoId={cursoAbierto}
+          onClose={() => setCursoAbierto(null)}
+          onProgreso={(id, pct) => {
+            setCursos(prev => prev.map(c => c.id === id ? { ...c, progreso: pct, completado: pct >= 100 } : c))
+          }}
+        />
+      )}
     </div>
   )
 }
