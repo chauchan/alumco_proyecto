@@ -22,7 +22,7 @@ const NAV_ITEMS = {
     { label: 'Mis certificados',  path: '/mis-certificados' },
     { label: 'Certificados sede', path: '/certificados-globales' },
     { label: 'Prácticos',         path: '/practicos' },
-    { label: 'Generador IA',      path: '/jefatura/ia', new: true },
+    { label: 'Generador IA',      path: '/jefatura/ia'},
     { label: 'Protocolos',        path: '/jefatura/protocolos' },
   ],
   jefatura: [
@@ -32,7 +32,7 @@ const NAV_ITEMS = {
     { label: 'Mis certificados',  path: '/mis-certificados' },
     { label: 'Certificados ONG',  path: '/certificados-globales' },
     { label: 'Prácticos',         path: '/practicos' },
-    { label: 'Generador IA',      path: '/jefatura/ia', new: true },
+    { label: 'Generador IA',      path: '/jefatura/ia'},
     { label: 'Protocolos',        path: '/jefatura/protocolos' },
   ],
 }
@@ -64,7 +64,6 @@ export default function Sidebar() {
             onClick={() => navigate(item.path)}
           >
             <span style={{ flex: 1 }}>{item.label}</span>
-            {item.new && <span className="nav-new">Nuevo</span>}
           </div>
         )
       })}

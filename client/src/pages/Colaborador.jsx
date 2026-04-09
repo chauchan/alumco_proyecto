@@ -47,9 +47,7 @@ export default function Colaborador() {
               <div className="greeting-name" style={{ fontSize:17, fontWeight:500, color:'#fff' }}>
                 Hola, {usuario?.nombre?.split(' ')[0]}
               </div>
-              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:3 }}>
-                {usuario?.sede_nombre} · {usuario?.tipo_contrato === 'fijo' ? 'Funcionaria/o fija/o' : 'Reemplazo'}
-              </div>
+              
             </div>
             <div className="greeting-badge">
               <div style={{ fontSize:22, fontWeight:500, color:'#F5A623' }}>{pendientes.length}</div>
