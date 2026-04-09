@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -92,7 +93,7 @@ export default function Capacitaciones() {
             <div className="card" style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando capacitaciones...</div>
           ) : cursosFiltrados.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', color: '#888', padding: 40 }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>📚</div>
+              <Icon icon="lucide:book-open" width={32} style={{marginBottom:12,display:"block",color:"#CCC"}} />
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
                 {busqueda || filtroArea ? 'No se encontraron cursos con ese criterio' : 'No hay cursos disponibles aún'}
               </div>
@@ -109,9 +110,9 @@ export default function Capacitaciones() {
                   <div style={{
                     width: 44, height: 44, borderRadius: 10, flexShrink: 0,
                     background: '#EEF2FF', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontSize: 20
+                    justifyContent: 'center'
                   }}>
-                    📋
+                    <Icon icon="lucide:clipboard-list" width={22} style={{color:'#2B4BA0'}} />
                   </div>
 
                   {/* Info */}
@@ -119,7 +120,7 @@ export default function Capacitaciones() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</span>
                       {!curso.publicado && <span className="format-tag tag-borrador">Borrador</span>}
-                      {curso.generado_por_ia && <span style={{ fontSize: 10, background: '#F4F0FF', color: '#6B4DC4', borderRadius: 20, padding: '2px 7px' }}>✨ IA</span>}
+                      {curso.generado_por_ia && <span style={{ fontSize: 10, background: '#F4F0FF', color: '#6B4DC4', borderRadius: 20, padding: '2px 7px', display:'inline-flex', alignItems:'center', gap:3 }}><Icon icon="lucide:sparkles" width={10} /> IA</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#888' }}>
                       {curso.area && <span>{curso.area}</span>}
