@@ -29,21 +29,69 @@ export default function Login() {
 
       {/* Panel izquierdo */}
       <div style={{
-        width:'44%', background:'#2B4BA0', display:'flex', flexDirection:'column',
-        justifyContent:'space-between', padding:'2.5rem 2rem', position:'relative', overflow:'hidden'
+        width:'44%',
+        background: 'linear-gradient(160deg, #5A7ED6 0%, #4060BC 55%, #2B4BA0 100%)',
+        display:'flex', flexDirection:'column',
+        justifyContent:'center', alignItems:'center',
+        padding:'3rem 2.5rem', position:'relative', overflow:'hidden',
+        gap: 0,
       }}>
-        {/* Logo */}
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:24 }}>
-            <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 56 }} />
-            <img src={LOGO_LETRAS} alt="alumco" style={{ height: 28, filter: 'brightness(0) invert(1)' }} />
-          </div>
-        </div>
 
-        {/* Deco geométrica fondo */}
-        <svg style={{ position:'absolute', bottom:-30, right:-30, opacity:0.12 }} width="180" height="180" viewBox="0 0 100 100">
+        {/* Decoración superior derecha */}
+        <div style={{
+          position:'absolute', top:-60, right:-60,
+          width:220, height:220, borderRadius:'50%',
+          background:'rgba(255,255,255,0.06)'
+        }} />
+        <div style={{
+          position:'absolute', top:30, right:30,
+          width:90, height:90, borderRadius:'50%',
+          background:'rgba(255,255,255,0.06)'
+        }} />
+
+        {/* Decoración inferior izquierda */}
+        <div style={{
+          position:'absolute', bottom:-80, left:-50,
+          width:260, height:260, borderRadius:'50%',
+          background:'rgba(255,255,255,0.05)'
+        }} />
+        <svg style={{ position:'absolute', bottom:32, right:32, opacity:0.08 }} width="140" height="140" viewBox="0 0 100 100">
           <polygon points="50,5 95,50 50,95 5,50" fill="white"/>
         </svg>
+
+        {/* Logo centrado */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:20, zIndex:1 }}>
+          <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 100 }} />
+
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <img src={LOGO_LETRAS} alt="alumco" style={{ height: 32, filter: 'brightness(0) invert(1)' }} />
+              <div style={{
+                width: 1, height: 28, background: 'rgba(255,255,255,0.35)'
+              }} />
+              <span style={{
+                fontSize: 18, fontWeight: 300, color: '#fff',
+                letterSpacing: '0.18em', textTransform: 'uppercase'
+              }}>Capacitaciones</span>
+            </div>
+          </div>
+
+          {/* Slogan */}
+          <div style={{
+            marginTop: 28,
+            maxWidth: 300,
+            textAlign: 'center',
+            fontSize: 15,
+            fontWeight: 400,
+            color: 'rgba(255,255,255,0.75)',
+            lineHeight: 1.65,
+            fontStyle: 'italic',
+            borderTop: '1px solid rgba(255,255,255,0.18)',
+            paddingTop: 24,
+          }}>
+            "Nuestros Cuidados son el reflejo de la Empatía."
+          </div>
+        </div>
       </div>
 
       {/* Panel derecho */}
