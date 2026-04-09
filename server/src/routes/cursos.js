@@ -101,11 +101,12 @@ router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatur
   const { nombre, descripcion, area } = req.body;
   if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
   try {
-    const result = await pool.query(
-      'INSERT INTO cursos (nombre, descripcion, area, profesor_id) VALUES ($1,$2,$3,$4) RETURNING *',
+    const ins = await pool.query(
+      'INSERT INTO cursos (nombre, descripcion, area, profesor_id) VALUES ($1,$2,$3,$4)',
       [nombre, descripcion, area, req.usuario.id]
     );
-    res.status(201).json(result.rows[0]);
+    const nuevo = await pool.query('SELECT * FROM cursos WHERE id = $1', [ins.lastID]);
+    res.status(201).json(nuevo.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al crear curso' });
   }
@@ -115,11 +116,11 @@ router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatur
 router.patch('/:id/publicar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { publicado } = req.body;
   try {
-    const result = await pool.query(
-      'UPDATE cursos SET publicado = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nombre, publicado',
+    await pool.query(
+      'UPDATE cursos SET publicado = $1, updated_at = NOW() WHERE id = $2',
       [publicado, req.params.id]
     );
-    res.json(result.rows[0]);
+    res.json({ id: req.params.id, publicado });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar estado del curso' });
   }
@@ -132,11 +133,12 @@ router.post('/:id/modulos', verificarToken, verificarRol('profesor', 'admin_sede
   const tipo = req.file.mimetype.startsWith('video') ? 'video'
     : req.file.mimetype === 'application/pdf' ? 'pdf' : 'ppt';
   try {
-    const result = await pool.query(
-      'INSERT INTO modulos (curso_id, titulo, descripcion, tipo, archivo_url, orden) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+    const ins = await pool.query(
+      'INSERT INTO modulos (curso_id, titulo, descripcion, tipo, archivo_url, orden) VALUES ($1,$2,$3,$4,$5,$6)',
       [req.params.id, titulo, descripcion, tipo, `/uploads/${req.file.filename}`, orden || 1]
     );
-    res.status(201).json(result.rows[0]);
+    const nuevo = await pool.query('SELECT * FROM modulos WHERE id = $1', [ins.lastID]);
+    res.status(201).json(nuevo.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al subir módulo' });
   }
@@ -182,11 +184,12 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
   const { texto, alternativas } = req.body;
   if (!texto || !alternativas?.length) return res.status(400).json({ error: 'Texto y alternativas son requeridos' });
   try {
-    const result = await pool.query(
-      'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1, $2, $3) RETURNING *',
+    const ins = await pool.query(
+      'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1, $2, $3)',
       [req.params.id, texto, JSON.stringify(alternativas)]
     );
-    res.status(201).json(result.rows[0]);
+    const nueva = await pool.query('SELECT * FROM preguntas WHERE id = $1', [ins.lastID]);
+    res.status(201).json(nueva.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar pregunta' });
   }
@@ -195,12 +198,13 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
 // PATCH /api/cursos/:id/aprobar — profesor aprueba y publica el curso
 router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   try {
-    const result = await pool.query(
-      'UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nombre, publicado',
+    const r = await pool.query('SELECT id FROM cursos WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
+    await pool.query(
+      'UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2',
       [req.usuario.id, req.params.id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
-    res.json(result.rows[0]);
+    res.json({ id: req.params.id, publicado: 1 });
   } catch (err) {
     res.status(500).json({ error: 'Error al aprobar curso' });
   }
