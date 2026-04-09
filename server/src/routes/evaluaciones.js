@@ -67,7 +67,7 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
     // Si aprobó, crear certificado pendiente de validación
     if (cursoAprobado) {
       await pool.query(
-        'INSERT INTO certificados (usuario_id, curso_id, intento_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+        'INSERT IGNORE INTO certificados (usuario_id, curso_id, intento_id) VALUES ($1,$2,$3)',
         [usuario_id, curso_id, intentoResult.rows[0].id]
       );
     }

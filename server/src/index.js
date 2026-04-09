@@ -2,6 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const pool = require('./config/db');
+
+// Auto-migrar columnas críticas al iniciar (idempotente)
+pool.query(`ALTER TABLE progreso ADD COLUMN IF NOT EXISTS intentos_fallidos INT DEFAULT 0`).catch(() => {});
+pool.query(`ALTER TABLE progreso ADD COLUMN IF NOT EXISTS bloqueado_hasta DATETIME DEFAULT NULL`).catch(() => {});
 
 const authRoutes          = require('./routes/auth');
 const usuariosRoutes      = require('./routes/usuarios');
@@ -44,4 +49,10 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
+const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
+
+// Timeout amplio para peticiones largas (generación IA con múltiples módulos)
+// 15 min = margen sobre el peor caso de generación secuencial
+server.setTimeout(900000);       // 15 min socket timeout
+server.keepAliveTimeout = 905000; // mayor que socket timeout
+server.headersTimeout = 910000;

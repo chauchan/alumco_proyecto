@@ -765,6 +765,16 @@ export default function Profesor() {
                       setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
                       setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
                       setVideoIntroUrl(detalle.data.video_intro_url || null)
+                      // Pre-cargar PPTs de todos los módulos que ya tienen contenido guardado
+                      const presMap = {}
+                      ;(detalle.data.modulos || []).forEach((mod, i) => {
+                        if (!mod.contenido_presentacion) return
+                        let cp = mod.contenido_presentacion
+                        if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { return } }
+                        const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+                        if (slides.length > 0) presMap[i] = { diapositivas: slides }
+                      })
+                      if (Object.keys(presMap).length > 0) setPptPresentaciones(presMap)
                       setTabDetalle('modulos')
                     }}>
                     Revisar

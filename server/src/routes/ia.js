@@ -52,64 +52,64 @@ async function describirImagen(imagePath) {
   return data.response || '';
 }
 
-// ── Extrae imágenes embebidas del PDF, filtra las pequeñas y guarda las útiles
+// ── Extrae imágenes embebidas del PDF filtrando logos repetidos (por MD5) ──────
 async function extraerImagenesPDF(pdfPath, cursoId) {
+  const crypto = require('crypto');
   const sharp = require('sharp');
   const outDir = path.join(__dirname, '../../uploads/imagenes', String(cursoId));
   fs.mkdirSync(outDir, { recursive: true });
-  const outPrefix = path.join(outDir, 'img');
 
-  await new Promise((resolve, reject) => {
+  // Limpiar imágenes anteriores
+  fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
+
+  const outPrefix = path.join(outDir, 'img');
+  await new Promise((resolve) => {
     execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
-      if (err) return reject(err);
+      if (err) console.warn('[IA] pdfimages error:', err.message);
       resolve();
     });
   });
 
-  // Filtrar imágenes por tamaño mínimo (ancho y alto >= 150px, archivo >= 15KB)
   const archivos = fs.readdirSync(outDir)
     .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
     .sort();
 
+  // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
+  const hashCount = {};
+  const fileHashes = {};
+  for (const archivo of archivos) {
+    try {
+      const buf = fs.readFileSync(path.join(outDir, archivo));
+      const h = crypto.createHash('md5').update(buf).digest('hex');
+      fileHashes[archivo] = h;
+      hashCount[h] = (hashCount[h] || 0) + 1;
+    } catch {}
+  }
+
   const utiles = [];
   for (const archivo of archivos) {
     const fullPath = path.join(outDir, archivo);
-    const stat = fs.statSync(fullPath);
-    if (stat.size < 15 * 1024) continue; // descartar < 15KB
-
     try {
-      // Convertir PPM a PNG si es necesario
+      const stat = fs.statSync(fullPath);
+      // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
+      if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
+        fs.unlinkSync(fullPath); continue;
+      }
       let finalPath = fullPath;
       if (archivo.endsWith('.ppm')) {
         finalPath = fullPath.replace('.ppm', '.png');
         await sharp(fullPath).png().toFile(finalPath);
         fs.unlinkSync(fullPath);
       }
-
       const meta = await sharp(finalPath).metadata();
-      if ((meta.width || 0) < 150 || (meta.height || 0) < 150) {
-        fs.unlinkSync(finalPath);
-        continue;
+      if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
+        fs.unlinkSync(finalPath); continue;
       }
-
-      // Escalar imágenes pequeñas a mínimo 1200px de ancho para que el texto sea legible
-      if ((meta.width || 0) < 1200) {
-        const escaladoPath = finalPath.replace('.png', '_hd.png');
-        await sharp(finalPath)
-          .resize({ width: 1200, withoutEnlargement: false })
-          .png({ compressionLevel: 8 })
-          .toFile(escaladoPath);
-        fs.unlinkSync(finalPath);
-        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(escaladoPath)}`);
-      } else {
-        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-      }
-    } catch {
-      // ignorar archivos corruptos
-    }
+      utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
+    } catch {}
   }
 
-  console.log('[IA] Imágenes útiles extraídas del PDF:', utiles.length);
+  console.log('[IA] Imágenes útiles del PDF (sin logos duplicados):', utiles.length);
   return utiles;
 }
 
@@ -232,14 +232,16 @@ async function llamarIA(prompt, timeoutMs = 480000) {
 
 function parsearJSON(texto) {
   if (!texto) throw new Error('La IA no devolvió contenido');
+  // Eliminar bloques <think>...</think> de modelos de razonamiento
+  let t = texto.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   // Intento directo
-  try { return JSON.parse(texto.trim()); } catch {}
-  // El modelo puede incluir razonamiento antes del JSON — extraer el bloque más grande
-  const candidatos = texto.match(/\{[\s\S]*\}/);
-  if (candidatos) { try { return JSON.parse(candidatos[0]); } catch {} }
+  try { return JSON.parse(t); } catch {}
   // Bloque de código markdown ```json ... ```
-  const mdMatch = texto.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const mdMatch = t.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (mdMatch) { try { return JSON.parse(mdMatch[1].trim()); } catch {} }
+  // Extraer el bloque JSON más grande (puede haber texto antes/después)
+  const candidatos = [...t.matchAll(/\{[\s\S]*?\}/g)].map(m => m[0]).sort((a,b) => b.length - a.length);
+  for (const c of candidatos) { try { return JSON.parse(c); } catch {} }
   throw new Error('La IA no devolvió un JSON válido');
 }
 
@@ -261,15 +263,19 @@ Responde SOLO con este JSON exacto, sin texto adicional:
 Módulo: ${titulo}
 Descripción: ${descripcion || titulo}
 Responde SOLO el JSON.`;
-  try {
-    const resp = await llamarIA(prompt);
-    const parsed = parsearJSON(resp);
-    if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) return null;
-    return parsed;
-  } catch (e) {
-    console.warn(`[IA] Error generando PPT para "${titulo}":`, e.message);
-    return null;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      // 90s por intento: suficiente para OpenRouter (~20-45s real), evita colgarse en fallos
+      const resp = await llamarIA(prompt, 90000);
+      const parsed = parsearJSON(resp);
+      if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
+      return parsed;
+    } catch (e) {
+      console.warn(`[IA] Error generando PPT para "${titulo}" (intento ${intento}/2):`, e.message);
+      if (intento < 2) await new Promise(r => setTimeout(r, 2000)); // 2s antes del reintento
+    }
   }
+  return null;
 }
 
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
@@ -365,12 +371,14 @@ Reglas:
       }
     }));
 
-    // ── Paso 3c: generar PPT para cada módulo ────────────────────────────────
+    // ── Paso 3c: generar PPT para cada módulo (secuencial para evitar rate limit) ─
     console.log('[IA] Paso 3c: generando presentaciones PPT...');
-    const modulosConPPT = await Promise.all(modulos.map(async (mod) => {
+    const modulosConPPT = [];
+    for (const mod of modulos) {
+      console.log(`[IA] Generando PPT: "${mod.titulo}"`);
       const presentacion = await generarPPTModulo(mod.titulo, mod.descripcion);
-      return { ...mod, presentacion };
-    }));
+      modulosConPPT.push({ ...mod, presentacion });
+    }
 
     const borrador = { modulos: modulosConPPT };
     const modulosGenerados = borrador.modulos.length;
@@ -407,14 +415,16 @@ Reglas:
     const cursoId = cursoResult.lastID;
     console.log('[IA] Paso 6: curso insertado, id:', cursoId);
 
+    const modulosConId = [];
     for (let i = 0; i < borrador.modulos.length; i++) {
       const mod = borrador.modulos[i];
-      await pool.query(
+      const insM = await pool.query(
         'INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, orden) VALUES ($1,$2,$3,$4,$5,$6)',
         [cursoId, mod.titulo, mod.descripcion,
          mod.presentacion ? JSON.stringify(mod.presentacion) : null,
          'ppt', i + 1]
       );
+      modulosConId.push({ ...mod, id: insM.lastID });
       for (const pregunta of (mod.preguntas || [])) {
         await pool.query(
           'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1,$2,$3)',
@@ -437,7 +447,7 @@ Reglas:
       curso_id: cursoId,
       nombre: nombre_curso,
       generado_por_ia: true,
-      modulos: borrador.modulos,
+      modulos: modulosConId,
       preguntas_count: totalPreguntas,
       nombre_archivo: nombreArchivo,
       imagenes_protocolo: imagenesProtocolo,

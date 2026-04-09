@@ -378,6 +378,21 @@ export default function GeneradorIA() {
 
   // Persistir resultado en sessionStorage cuando cambia
   useEffect(() => { guardarStorage(resultado) }, [resultado])
+
+  // Si resultado viene de session storage sin IDs de módulos, obtenerlos del servidor
+  useEffect(() => {
+    if (!resultado?.curso_id) return
+    if (resultado.modulos?.every(m => m.id)) return
+    api.get(`/cursos/${resultado.curso_id}`).then(r => {
+      const apiModulos = r.data.modulos || []
+      const modulos = resultado.modulos.map(m => {
+        if (m.id) return m
+        const found = apiModulos.find(am => am.titulo === m.titulo)
+        return { ...m, id: found?.id }
+      })
+      setResultado(prev => ({ ...prev, modulos }))
+    }).catch(() => {})
+  }, [resultado?.curso_id])
   // Persistir form cuando cambia
   useEffect(() => { guardarFormStorage(form) }, [form])
 
@@ -734,10 +749,28 @@ export default function GeneradorIA() {
                             <button
                               onClick={() => {
                                 if (!editandoPPT) {
+                                  // Entrando a modo edición: copiar estado actual
                                   setPptEditData(prev => ({
                                     ...prev,
                                     [presentacionActiva]: JSON.parse(JSON.stringify(presentaciones[presentacionActiva]))
                                   }))
+                                } else if (pptEditData[presentacionActiva]) {
+                                  // Saliendo de edición: guardar inmediatamente en DB y en memoria
+                                  const editedPres = pptEditData[presentacionActiva]
+                                  const mod = resultado?.modulos?.[presentacionActiva]
+                                  if (mod?.id && resultado?.curso_id) {
+                                    api.put(`/cursos/${resultado.curso_id}`, {
+                                      modulos: [{ id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: editedPres }]
+                                    }).catch(() => {})
+                                  }
+                                  setPresentaciones(prev => ({ ...prev, [presentacionActiva]: editedPres }))
+                                  // También actualizar resultado.modulos para que session storage persista la imagen
+                                  setResultado(prev => {
+                                    if (!prev?.modulos) return prev
+                                    const modulos = [...prev.modulos]
+                                    modulos[presentacionActiva] = { ...modulos[presentacionActiva], contenido_presentacion: editedPres }
+                                    return { ...prev, modulos }
+                                  })
                                 }
                                 setEditandoPPT(e => !e)
                               }}

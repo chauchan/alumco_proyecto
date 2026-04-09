@@ -19,24 +19,32 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
   const [respuestas, setRespuestas] = useState({})
   const [resultado, setResultado] = useState(null)
   const [enviando, setEnviando] = useState(false)
+  const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const videoRef = useRef(null)
 
   useEffect(() => {
-    api.get(`/cursos/${cursoId}`)
-      .then(res => {
-        const preguntas = (res.data.preguntas || []).map(p => ({
+    Promise.all([
+      api.get(`/cursos/${cursoId}`),
+      api.get(`/cursos/${cursoId}/mi-progreso`).catch(() => ({ data: {} }))
+    ]).then(([cursoRes, progresoRes]) => {
+        const preguntas = (cursoRes.data.preguntas || []).map(p => ({
           ...p,
           alternativas: typeof p.alternativas === 'string' ? JSON.parse(p.alternativas) : p.alternativas
         }))
-        const modulos = (res.data.modulos || []).map(m => {
+        const modulos = (cursoRes.data.modulos || []).map(m => {
           let cp = m.contenido_presentacion
           if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { cp = null } }
           return { ...m, contenido_presentacion: cp }
         })
-        const c = { ...res.data, preguntas, modulos }
+        const c = { ...cursoRes.data, preguntas, modulos }
         setCurso(c)
-        // Si no hay video intro, ir directo a módulos
-        if (!c.video_intro_url) setPaso('modulos')
+        // Verificar bloqueo
+        const bh = progresoRes.data?.bloqueado_hasta
+        if (bh && new Date(bh) > new Date()) {
+          setBloqueadoHasta(new Date(bh))
+        } else if (!c.video_intro_url) {
+          setPaso('modulos')
+        }
       })
       .catch(() => {})
       .finally(() => setCargando(false))
@@ -82,13 +90,18 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     const aprobado = score >= 60
     setEnviando(true)
     try {
-      await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score })
-      setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
-      if (onProgreso) onProgreso(cursoId, aprobado ? 100 : score)
+      const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
+      const bh = r.data?.bloqueado_hasta
+      if (bh && new Date(bh) > new Date()) {
+        setBloqueadoHasta(new Date(bh))
+      }
     } catch {
+      // Si falla guardar progreso, mostrar resultado igual
     } finally {
       setEnviando(false)
     }
+    setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
+    if (onProgreso) onProgreso(cursoId, aprobado ? 100 : score)
   }
 
   // ─── render módulo expandido ─────────────────────────────────────────────────
@@ -280,7 +293,27 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
 
         {/* ── Body ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-          {cargando ? (
+          {bloqueadoHasta ? (
+            /* ── CURSO BLOQUEADO ── */
+            <div style={{ textAlign: 'center', padding: '40px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <div style={{ fontSize: 56 }}>🔒</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>Curso temporalmente bloqueado</div>
+              <div style={{ fontSize: 14, color: '#555', maxWidth: 380, lineHeight: 1.6 }}>
+                Has fallado este curso 2 veces. Podrás intentarlo nuevamente el{' '}
+                <strong>{bloqueadoHasta.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
+              </div>
+              <div style={{
+                background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12,
+                padding: '14px 24px', fontSize: 13, color: '#B91C1C', maxWidth: 360
+              }}>
+                Tu administrador de sede ha sido notificado. Aprovecha este tiempo para repasar los contenidos.
+              </div>
+              <button onClick={onClose}
+                style={{ background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
+                Cerrar
+              </button>
+            </div>
+          ) : cargando ? (
             <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>Cargando curso...</div>
 
           ) : paso === 'video' ? (
