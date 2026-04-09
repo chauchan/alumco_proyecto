@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
+import { useAccesibilidad } from '../hooks/useAccesibilidad'
 
 const RUTA = { colaborador:'/colaborador', profesor:'/profesor', admin_sede:'/admin', jefatura:'/jefatura' }
 
@@ -11,6 +12,7 @@ export default function Login() {
   const [form, setForm] = useState({ identificador:'', password:'' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
+  const { acc, toggle } = useAccesibilidad()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -150,12 +152,20 @@ export default function Login() {
           display:'flex', alignItems:'center', gap:10, background:'#F9F9F9'
         }}>
           <span style={{ fontSize:11, color:'#888' }}>Accesibilidad:</span>
-          {['A+ Texto grande','Alto contraste'].map(l => (
-            <button key={l} style={{
-              fontSize:11, color:'#888', background:'white', border:'0.5px solid #E8E8E8',
-              borderRadius:20, padding:'4px 10px', cursor:'pointer'
-            }}>{l}</button>
-          ))}
+          <button onClick={() => toggle('textoGrande')} style={{
+            fontSize:11, cursor:'pointer', borderRadius:20, padding:'4px 10px',
+            border: acc.textoGrande ? '1.5px solid #2B4BA0' : '0.5px solid #E8E8E8',
+            background: acc.textoGrande ? '#EEF2FF' : 'white',
+            color: acc.textoGrande ? '#2B4BA0' : '#888',
+            fontWeight: acc.textoGrande ? 600 : 400,
+          }}>A+ Texto grande</button>
+          <button onClick={() => toggle('altoContraste')} style={{
+            fontSize:11, cursor:'pointer', borderRadius:20, padding:'4px 10px',
+            border: acc.altoContraste ? '1.5px solid #1A1A1A' : '0.5px solid #E8E8E8',
+            background: acc.altoContraste ? '#1A1A1A' : 'white',
+            color: acc.altoContraste ? '#fff' : '#888',
+            fontWeight: acc.altoContraste ? 600 : 400,
+          }}>Alto contraste</button>
         </div>
       </div>
     </div>
