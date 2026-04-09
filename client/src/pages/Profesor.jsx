@@ -60,6 +60,12 @@ export default function Profesor() {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [eliminandoMasivo, setEliminandoMasivo] = useState(false)
 
+  const [videoIntroUrl, setVideoIntroUrl] = useState(null)
+  const [subiendoVideo, setSubiendoVideo] = useState(false)
+  const [eliminandoVideo, setEliminandoVideo] = useState(false)
+  const [generandoTodosPPT, setGenerandoTodosPPT] = useState(false)
+  const [progresoPPT, setProgresoPPT] = useState({ hecho: 0, total: 0 })
+
   useEffect(() => {
     Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
       .then(([c, cert, bIA]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data) })
@@ -76,9 +82,29 @@ export default function Profesor() {
     setPptModuloIdx(idx)
     setPptSlide(0)
     if (pptPresentaciones[idx]) return
+
+    // Usar contenido_presentacion guardado en BD si existe
+    if (mod.contenido_presentacion) {
+      let cp = mod.contenido_presentacion
+      if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { cp = null } }
+      if (cp) {
+        // Normalizar a { diapositivas: [...] }
+        const diapositivas = Array.isArray(cp) ? cp : Array.isArray(cp.diapositivas) ? cp.diapositivas : []
+        if (diapositivas.length > 0) {
+          setPptPresentaciones(prev => ({ ...prev, [idx]: { diapositivas } }))
+          return
+        }
+      }
+    }
+
+    // Si no hay contenido guardado, generar con IA
     setPptPresentaciones(prev => ({ ...prev, [idx]: 'cargando' }))
     try {
       const res = await api.post('/ia/generar-presentacion', { titulo: mod.titulo, descripcion: mod.descripcion })
+      // Guardar en BD para no regenerar la próxima vez
+      await api.put(`/cursos/${cursoDetalle.id}`, {
+        modulos: [{ id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: res.data.presentacion }]
+      })
       setPptPresentaciones(prev => ({ ...prev, [idx]: res.data.presentacion }))
     } catch {
       setPptPresentaciones(prev => ({ ...prev, [idx]: 'error' }))
@@ -92,6 +118,72 @@ export default function Profesor() {
     setEditandoModulos(false); setModulosEdit([])
     setEditandoPreguntas(false); setPreguntasEdit([])
     setTargeting({ estamento_objetivo: null, obligatorio: false })
+    setVideoIntroUrl(null)
+  }
+
+  const subirVideoIntro = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !cursoDetalle) return
+    const formData = new FormData()
+    formData.append('video', file)
+    setSubiendoVideo(true)
+    try {
+      const res = await api.post(`/cursos/${cursoDetalle.id}/video-intro`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setVideoIntroUrl(res.data.video_intro_url)
+      setCursoDetalle(prev => ({ ...prev, video_intro_url: res.data.video_intro_url }))
+    } catch {
+      alert('Error al subir el video')
+    } finally {
+      setSubiendoVideo(false)
+    }
+  }
+
+  const eliminarVideoIntro = async () => {
+    if (!cursoDetalle || !confirm('¿Eliminar el video introductorio?')) return
+    setEliminandoVideo(true)
+    try {
+      await api.delete(`/cursos/${cursoDetalle.id}/video-intro`)
+      setVideoIntroUrl(null)
+      setCursoDetalle(prev => ({ ...prev, video_intro_url: null }))
+    } catch {
+      alert('Error al eliminar el video')
+    } finally {
+      setEliminandoVideo(false)
+    }
+  }
+
+  const generarTodosPPT = async () => {
+    const modulos = cursoDetalle?.modulos || []
+    const sinPPT = modulos.filter(m => {
+      const cp = m.contenido_presentacion
+      if (!cp) return true
+      try {
+        const parsed = typeof cp === 'string' ? JSON.parse(cp) : cp
+        const slides = Array.isArray(parsed) ? parsed : parsed?.diapositivas || []
+        return slides.length === 0
+      } catch { return true }
+    })
+    if (sinPPT.length === 0) { alert('Todos los módulos ya tienen presentación generada.'); return }
+    if (!confirm(`¿Generar presentación PPT para ${sinPPT.length} módulo(s)? Esto puede tardar unos minutos.`)) return
+
+    setGenerandoTodosPPT(true)
+    setProgresoPPT({ hecho: 0, total: sinPPT.length })
+    let hecho = 0
+    for (const mod of sinPPT) {
+      try {
+        const res = await api.post(`/ia/modulo/${mod.id}/generar-ppt`)
+        const pres = res.data.presentacion
+        setCursoDetalle(prev => ({
+          ...prev,
+          modulos: prev.modulos.map(m => m.id === mod.id ? { ...m, contenido_presentacion: pres } : m)
+        }))
+      } catch { /* sigue con el siguiente */ }
+      hecho++
+      setProgresoPPT({ hecho, total: sinPPT.length })
+    }
+    setGenerandoTodosPPT(false)
   }
 
   const guardarTargeting = async () => {
@@ -238,7 +330,7 @@ export default function Profesor() {
                   </div>
                   {/* Tabs */}
                   <div style={{ display:'flex', gap:4, marginTop:14 }}>
-                    {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT'],['audiencia','Audiencia']].map(([key, label]) => (
+                    {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT'],['audiencia','Audiencia'],['video','Video Intro']].map(([key, label]) => (
                       <button key={key} onClick={() => { setTabDetalle(key); setPptModuloIdx(null); setPptEditando(false) }} style={{
                         fontSize:12, padding:'5px 14px', borderRadius:6, border:'none', cursor:'pointer',
                         background: tabDetalle === key ? '#fff' : 'rgba(255,255,255,0.12)',
@@ -381,18 +473,38 @@ export default function Profesor() {
                     <>
                       {pptModuloIdx === null ? (
                         <>
-                          <div style={{ fontSize:12, color:'#888', marginBottom:14 }}>Selecciona un módulo para ver su presentación:</div>
-                          {cursoDetalle.modulos?.map((mod, i) => (
-                            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'0.5px solid #E8E8E8', borderRadius:8, marginBottom:8 }}>
-                              <div style={{ width:22, height:22, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{i+1}</div>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <div style={{ fontSize:12, color:'#888' }}>Selecciona un módulo para ver su presentación:</div>
+                            <button onClick={generarTodosPPT} disabled={generandoTodosPPT}
+                              style={{ fontSize:11, padding:'5px 12px', borderRadius:7, border:'none', cursor: generandoTodosPPT ? 'not-allowed' : 'pointer',
+                                background: generandoTodosPPT ? '#ccc' : '#1E3A6E', color:'#fff', fontWeight:500, flexShrink:0 }}>
+                              {generandoTodosPPT
+                                ? `Generando ${progresoPPT.hecho}/${progresoPPT.total}...`
+                                : '✨ Generar todos los PPT'}
+                            </button>
+                          </div>
+                          {cursoDetalle.modulos?.map((mod, i) => {
+                            const tienePPT = (() => {
+                              if (pptPresentaciones[i] && pptPresentaciones[i] !== 'error' && pptPresentaciones[i] !== 'cargando') return true
+                              const cp = mod.contenido_presentacion
+                              if (!cp) return false
+                              try {
+                                const p = typeof cp === 'string' ? JSON.parse(cp) : cp
+                                const slides = Array.isArray(p) ? p : p?.diapositivas || []
+                                return slides.length > 0
+                              } catch { return false }
+                            })()
+                            return (
+                            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:`0.5px solid ${tienePPT ? '#BBF7D0' : '#E8E8E8'}`, borderRadius:8, marginBottom:8, background: tienePPT ? '#F0FDF4' : '#fff' }}>
+                              <div style={{ width:22, height:22, borderRadius:'50%', background: tienePPT ? '#22C55E' : '#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{tienePPT ? '✓' : i+1}</div>
                               <span style={{ fontSize:12, fontWeight:500, flex:1 }}>{mod.titulo}</span>
                               <button onClick={() => abrirPPTModulo(mod, i)} style={{
                                 fontSize:11, background:'#1E3A6E', color:'#fff', border:'none', borderRadius:6, padding:'4px 12px', cursor:'pointer'
                               }}>
-                                {pptPresentaciones[i] === 'cargando' ? '⏳' : pptPresentaciones[i] && pptPresentaciones[i] !== 'error' ? '▶ Ver' : '▶ Generar'}
+                                {pptPresentaciones[i] === 'cargando' ? '⏳' : tienePPT ? '▶ Ver' : '▶ Generar'}
                               </button>
                             </div>
-                          ))}
+                          )})}
                         </>
                       ) : (() => {
                         const mod  = cursoDetalle.modulos[pptModuloIdx]
@@ -562,6 +674,48 @@ export default function Profesor() {
                       </div>
                     </div>
                   )}
+
+                  {/* ── Tab Video Intro ── */}
+                  {tabDetalle === 'video' && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                      <div style={{ fontSize:13, color:'#555' }}>
+                        El video introductorio se muestra al colaborador <strong>antes</strong> de que pueda acceder a los módulos del curso.
+                        Acepta archivos MP4 o WebM (máx. 500 MB).
+                      </div>
+
+                      {videoIntroUrl ? (
+                        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                          <video controls style={{ width:'100%', borderRadius:10, background:'#000', maxHeight:320 }}>
+                            <source src={videoIntroUrl} type="video/mp4" />
+                            <source src={videoIntroUrl} type="video/webm" />
+                          </video>
+                          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                            <label style={{ background:'#2B4BA0', color:'#fff', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
+                              {subiendoVideo ? 'Subiendo...' : '↑ Reemplazar video'}
+                              <input type="file" accept="video/mp4,video/webm" style={{ display:'none' }} onChange={subirVideoIntro} disabled={subiendoVideo} />
+                            </label>
+                            <button onClick={eliminarVideoIntro} disabled={eliminandoVideo}
+                              style={{ background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
+                              {eliminandoVideo ? 'Eliminando...' : '✕ Quitar video'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label style={{
+                          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                          border:'2px dashed #D0D5DD', borderRadius:12, padding:'40px 24px', cursor:'pointer',
+                          background: subiendoVideo ? '#F9FAFB' : '#FAFAFA', gap:10
+                        }}>
+                          <div style={{ fontSize:36 }}>🎬</div>
+                          <div style={{ fontSize:13, fontWeight:500, color:'#444' }}>
+                            {subiendoVideo ? 'Subiendo video...' : 'Arrastra o haz click para subir un video'}
+                          </div>
+                          <div style={{ fontSize:11, color:'#888' }}>MP4 o WebM · máx. 500 MB</div>
+                          <input type="file" accept="video/mp4,video/webm" style={{ display:'none' }} onChange={subirVideoIntro} disabled={subiendoVideo} />
+                        </label>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Botones aprobar/rechazar */}
@@ -608,8 +762,9 @@ export default function Profesor() {
                     style={{ height: 32, padding: '0 14px', background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
                     onClick={async () => {
                       const detalle = await api.get(`/cursos/${curso.id}`)
-                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [] })
+                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
                       setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
+                      setVideoIntroUrl(detalle.data.video_intro_url || null)
                       setTabDetalle('modulos')
                     }}>
                     Revisar

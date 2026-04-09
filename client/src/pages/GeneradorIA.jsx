@@ -343,9 +343,25 @@ export default function GeneradorIA() {
     setModoPPT(false)
     setSlideActual(0)
     if (presentaciones[i]) return
+
+    const mod = resultado.modulos[i]
+
+    // Usar presentacion ya generada (campo del servidor o contenido_presentacion del BD)
+    const fuente = mod.presentacion || mod.contenido_presentacion
+    if (fuente) {
+      let cp = typeof fuente === 'string' ? (() => { try { return JSON.parse(fuente) } catch { return null } })() : fuente
+      if (cp) {
+        const diapositivas = Array.isArray(cp) ? cp : Array.isArray(cp.diapositivas) ? cp.diapositivas : []
+        if (diapositivas.length > 0) {
+          setPresentaciones(prev => ({ ...prev, [i]: { diapositivas } }))
+          return
+        }
+      }
+    }
+
+    // Generar con IA si no hay contenido guardado
     setPresentaciones(prev => ({ ...prev, [i]: 'cargando' }))
     try {
-      const mod = resultado.modulos[i]
       const res = await api.post('/ia/generar-presentacion', {
         titulo: mod.titulo,
         descripcion: mod.descripcion,
@@ -405,6 +421,15 @@ export default function GeneradorIA() {
         signal: abortRef.current.signal
       })
       setResultado(res.data)
+      // Pre-cargar presentaciones desde la respuesta (ya generadas en el servidor)
+      const presMap = {}
+      ;(res.data.modulos || []).forEach((mod, i) => {
+        const pres = mod.presentacion || mod.contenido_presentacion
+        if (!pres) return
+        const diapositivas = Array.isArray(pres) ? pres : pres?.diapositivas || []
+        if (diapositivas.length > 0) presMap[i] = { diapositivas }
+      })
+      if (Object.keys(presMap).length > 0) setPresentaciones(presMap)
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return // cancelado intencionalmente
       setError(err.response?.data?.error || 'Error al generar el curso')

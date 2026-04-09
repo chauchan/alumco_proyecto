@@ -21,6 +21,12 @@ const fileFilter = (req, file, cb) => {
 };
 const upload = multer({ storage, fileFilter, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
+const videoFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('video/')) cb(null, true);
+  else cb(new Error('Solo se aceptan archivos de video'), false);
+};
+const uploadVideo = multer({ storage, fileFilter: videoFilter, limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB
+
 // GET /api/cursos — listar cursos
 router.get('/', verificarToken, async (req, res) => {
   const { rol, id, estamento } = req.usuario;
@@ -101,11 +107,12 @@ router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatur
   const { nombre, descripcion, area } = req.body;
   if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
   try {
-    const result = await pool.query(
-      'INSERT INTO cursos (nombre, descripcion, area, profesor_id) VALUES ($1,$2,$3,$4) RETURNING *',
+    const ins = await pool.query(
+      'INSERT INTO cursos (nombre, descripcion, area, profesor_id) VALUES ($1,$2,$3,$4)',
       [nombre, descripcion, area, req.usuario.id]
     );
-    res.status(201).json(result.rows[0]);
+    const nuevo = await pool.query('SELECT * FROM cursos WHERE id = $1', [ins.lastID]);
+    res.status(201).json(nuevo.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al crear curso' });
   }
@@ -115,11 +122,8 @@ router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatur
 router.patch('/:id/publicar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { publicado } = req.body;
   try {
-    const result = await pool.query(
-      'UPDATE cursos SET publicado = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nombre, publicado',
-      [publicado, req.params.id]
-    );
-    res.json(result.rows[0]);
+    await pool.query('UPDATE cursos SET publicado = $1, updated_at = NOW() WHERE id = $2', [publicado, req.params.id]);
+    res.json({ id: req.params.id, publicado });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar estado del curso' });
   }
@@ -132,11 +136,12 @@ router.post('/:id/modulos', verificarToken, verificarRol('profesor', 'admin_sede
   const tipo = req.file.mimetype.startsWith('video') ? 'video'
     : req.file.mimetype === 'application/pdf' ? 'pdf' : 'ppt';
   try {
-    const result = await pool.query(
-      'INSERT INTO modulos (curso_id, titulo, descripcion, tipo, archivo_url, orden) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+    const ins = await pool.query(
+      'INSERT INTO modulos (curso_id, titulo, descripcion, tipo, archivo_url, orden) VALUES ($1,$2,$3,$4,$5,$6)',
       [req.params.id, titulo, descripcion, tipo, `/uploads/${req.file.filename}`, orden || 1]
     );
-    res.status(201).json(result.rows[0]);
+    const nuevo = await pool.query('SELECT * FROM modulos WHERE id = $1', [ins.lastID]);
+    res.status(201).json(nuevo.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al subir módulo' });
   }
@@ -182,11 +187,12 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
   const { texto, alternativas } = req.body;
   if (!texto || !alternativas?.length) return res.status(400).json({ error: 'Texto y alternativas son requeridos' });
   try {
-    const result = await pool.query(
-      'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1, $2, $3) RETURNING *',
+    const ins = await pool.query(
+      'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1, $2, $3)',
       [req.params.id, texto, JSON.stringify(alternativas)]
     );
-    res.status(201).json(result.rows[0]);
+    const nueva = await pool.query('SELECT * FROM preguntas WHERE id = $1', [ins.lastID]);
+    res.status(201).json(nueva.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar pregunta' });
   }
@@ -195,12 +201,10 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
 // PATCH /api/cursos/:id/aprobar — profesor aprueba y publica el curso
 router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   try {
-    const result = await pool.query(
-      'UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, nombre, publicado',
-      [req.usuario.id, req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
-    res.json(result.rows[0]);
+    const existe = await pool.query('SELECT id FROM cursos WHERE id = $1', [req.params.id]);
+    if (!existe.rows.length) return res.status(404).json({ error: 'Curso no encontrado' });
+    await pool.query('UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2', [req.usuario.id, req.params.id]);
+    res.json({ id: req.params.id, publicado: 1 });
   } catch (err) {
     res.status(500).json({ error: 'Error al aprobar curso' });
   }
@@ -270,6 +274,39 @@ router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefat
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar curso' });
+  }
+});
+
+// POST /api/cursos/:id/video-intro — sube video introductorio del curso
+router.post('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), (req, res, next) => {
+  uploadVideo.single('video')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Error al procesar el archivo' });
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Video requerido' });
+  try {
+    const url = `/uploads/${req.file.filename}`;
+    await pool.query('UPDATE cursos SET video_intro_url = $1, updated_at = NOW() WHERE id = $2', [url, req.params.id]);
+    res.json({ video_intro_url: url });
+  } catch (err) {
+    console.error('Error video-intro:', err.message);
+    res.status(500).json({ error: 'Error al guardar video: ' + err.message });
+  }
+});
+
+// DELETE /api/cursos/:id/video-intro — elimina video introductorio
+router.delete('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  try {
+    const cur = await pool.query('SELECT video_intro_url FROM cursos WHERE id = $1', [req.params.id]);
+    if (cur.rows[0]?.video_intro_url) {
+      const filePath = path.join(__dirname, '../../', cur.rows[0].video_intro_url);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    await pool.query('UPDATE cursos SET video_intro_url = NULL, updated_at = NOW() WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar video' });
   }
 });
 

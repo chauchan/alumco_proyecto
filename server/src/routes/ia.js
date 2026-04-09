@@ -243,6 +243,35 @@ function parsearJSON(texto) {
   throw new Error('La IA no devolvió un JSON válido');
 }
 
+// ── Helper: genera slides PPT para un módulo ─────────────────────────────────
+async function generarPPTModulo(titulo, descripcion) {
+  const prompt = `Genera una presentación educativa COMPLETA en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+Responde SOLO con este JSON exacto, sin texto adicional:
+{"diapositivas":[
+  {"tipo":"objetivos","titulo":"Objetivos de aprendizaje","lista":["Al finalizar podrás... 1","Al finalizar podrás... 2","Al finalizar podrás... 3"]},
+  {"tipo":"desempeno","titulo":"Objetivo de desempeño","descripcion":"Al finalizar este módulo, el trabajador será capaz de [acción concreta]"},
+  {"tipo":"introduccion","titulo":"Introducción","texto":"párrafo de 3-4 oraciones que contextualice el tema"},
+  {"tipo":"seccion","titulo":"título del primer tema","texto":"explicación en 3-4 oraciones","puntos":["punto 1","punto 2","punto 3"]},
+  {"tipo":"seccion","titulo":"título del segundo tema","texto":"explicación en 3-4 oraciones","puntos":["punto 1","punto 2","punto 3"]},
+  {"tipo":"puntos_clave","titulo":"Puntos claves","puntos":["clave 1","clave 2","clave 3","clave 4"]},
+  {"tipo":"importante","titulo":"Cosas importantes","puntos":["importante 1","importante 2","importante 3"]},
+  {"tipo":"conclusion","titulo":"Conclusión","texto":"párrafo de cierre","mensaje":"frase motivacional corta"}
+]}
+
+Módulo: ${titulo}
+Descripción: ${descripcion || titulo}
+Responde SOLO el JSON.`;
+  try {
+    const resp = await llamarIA(prompt);
+    const parsed = parsearJSON(resp);
+    if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) return null;
+    return parsed;
+  } catch (e) {
+    console.warn(`[IA] Error generando PPT para "${titulo}":`, e.message);
+    return null;
+  }
+}
+
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
 // Paso 1: genera SOLO estructura de módulos + preguntas (rápido ~30-60s)
 router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.single('protocolo'), async (req, res) => {
@@ -336,7 +365,14 @@ Reglas:
       }
     }));
 
-    const borrador = { modulos };
+    // ── Paso 3c: generar PPT para cada módulo ────────────────────────────────
+    console.log('[IA] Paso 3c: generando presentaciones PPT...');
+    const modulosConPPT = await Promise.all(modulos.map(async (mod) => {
+      const presentacion = await generarPPTModulo(mod.titulo, mod.descripcion);
+      return { ...mod, presentacion };
+    }));
+
+    const borrador = { modulos: modulosConPPT };
     const modulosGenerados = borrador.modulos.length;
     console.log('[IA] Paso 5: módulos generados:', modulosGenerados);
 
@@ -374,8 +410,10 @@ Reglas:
     for (let i = 0; i < borrador.modulos.length; i++) {
       const mod = borrador.modulos[i];
       await pool.query(
-        'INSERT INTO modulos (curso_id, titulo, descripcion, orden) VALUES ($1,$2,$3,$4)',
-        [cursoId, mod.titulo, mod.descripcion, i + 1]
+        'INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, orden) VALUES ($1,$2,$3,$4,$5,$6)',
+        [cursoId, mod.titulo, mod.descripcion,
+         mod.presentacion ? JSON.stringify(mod.presentacion) : null,
+         'ppt', i + 1]
       );
       for (const pregunta of (mod.preguntas || [])) {
         await pool.query(
@@ -510,6 +548,28 @@ Responde SOLO el JSON.`;
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
     res.status(500).json({ error: 'Error al generar la presentación.' });
+  }
+});
+
+// ─── POST /api/ia/modulo/:id/generar-ppt ──────────────────────────────────────
+// Genera y guarda el PPT de un módulo existente (accesible a todos los roles)
+router.post('/modulo/:id/generar-ppt', verificarToken, async (req, res) => {
+  try {
+    const mod = await pool.query('SELECT id, titulo, descripcion, contenido_presentacion FROM modulos WHERE id = $1', [req.params.id]);
+    if (!mod.rows.length) return res.status(404).json({ error: 'Módulo no encontrado' });
+    const m = mod.rows[0];
+    // Si ya tiene contenido, devolverlo sin regenerar
+    if (m.contenido_presentacion) {
+      const cp = typeof m.contenido_presentacion === 'string' ? JSON.parse(m.contenido_presentacion) : m.contenido_presentacion;
+      return res.json({ presentacion: cp });
+    }
+    const presentacion = await generarPPTModulo(m.titulo, m.descripcion);
+    if (!presentacion) return res.status(500).json({ error: 'No se pudo generar la presentación' });
+    await pool.query('UPDATE modulos SET contenido_presentacion = $1 WHERE id = $2', [JSON.stringify(presentacion), m.id]);
+    res.json({ presentacion });
+  } catch (err) {
+    console.error('[IA] Error generar-ppt módulo:', err.message);
+    res.status(500).json({ error: 'Error al generar la presentación' });
   }
 });
 
