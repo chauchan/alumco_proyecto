@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -88,8 +89,8 @@ export default function AsignarCurso() {
             <div className="page-sub">{curso?.nombre}</div>
           </div>
 
-          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}>✓ {exito}</div>}
-          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}>✗ {error}</div>}
+          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}><Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}</div>}
+          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}><Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}</div>}
 
           {/* Modo de asignación */}
           <div className="card">
@@ -138,7 +139,7 @@ export default function AsignarCurso() {
                         background: seleccionado ? '#2B4BA0' : 'white',
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
-                        {seleccionado && <span style={{ color: 'white', fontSize: 12 }}>✓</span>}
+                        {seleccionado && <Icon icon="lucide:check" color="white" width={12} />}
                       </div>
                       <span style={{ flex: 1, fontSize: 13, color: seleccionado ? '#2B4BA0' : '#1a1a1a', fontWeight: seleccionado ? 500 : 400 }}>
                         {est}
@@ -186,7 +187,7 @@ export default function AsignarCurso() {
                           background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
                           display: 'flex', alignItems: 'center', justifyContent: 'center'
                         }}>
-                          {seleccionados.includes(u.id) && <span style={{ color: 'white', fontSize: 10 }}>✓</span>}
+                          {seleccionados.includes(u.id) && <Icon icon="lucide:check" color="white" width={10} />}
                         </div>
                         <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
                         <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>

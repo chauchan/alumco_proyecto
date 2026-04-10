@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
@@ -125,13 +126,13 @@ export default function GestionUsuarios() {
               <div className="page-sub">Crear y administrar usuarios de todas las sedes · {usuarios.filter(u => u.activo).length} activos</div>
             </div>
             <button className="btn-primary" onClick={() => { setMostrarForm(!mostrarForm); setError(''); setExito('') }}>
-              {mostrarForm ? '✕ Cancelar' : '+ Nuevo usuario'}
+              {mostrarForm ? <><Icon icon="lucide:x" width={13} /> Cancelar</> : '+ Nuevo usuario'}
             </button>
           </div>
 
           {/* Mensajes */}
-          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}>✓ {exito}</div>}
-          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}>✗ {error}</div>}
+          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}><Icon icon="lucide:check" width={14} style={{verticalAlign:'middle',marginRight:4}} /> {exito}</div>}
+          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}><Icon icon="lucide:x" width={14} style={{verticalAlign:'middle',marginRight:4}} /> {error}</div>}
 
           {/* Formulario */}
           {mostrarForm && (

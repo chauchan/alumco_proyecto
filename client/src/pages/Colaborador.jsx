@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
@@ -44,11 +45,9 @@ export default function Colaborador() {
           <div className="greeting-bar">
             <div>
               <div className="greeting-name" style={{ fontSize:17, fontWeight:500, color:'#fff' }}>
-                Hola, {usuario?.nombre?.split(' ')[0]} 👋
+                Hola, {usuario?.nombre?.split(' ')[0]}
               </div>
-              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:3 }}>
-                {usuario?.sede_nombre} · {usuario?.tipo_contrato === 'fijo' ? 'Funcionaria/o fija/o' : 'Reemplazo'}
-              </div>
+              
             </div>
             <div className="greeting-badge">
               <div style={{ fontSize:22, fontWeight:500, color:'#F5A623' }}>{pendientes.length}</div>
@@ -75,7 +74,7 @@ export default function Colaborador() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Cursos pendientes</span>
-              <span className="card-link">Ver todos →</span>
+              <span className="card-link">Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {cargando ? (
               <div className="card" style={{ textAlign:'center', color:'#888', padding:24 }}>Cargando cursos...</div>
@@ -108,7 +107,7 @@ export default function Colaborador() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Certificados recientes</span>
-              <span className="card-link">Ver todos →</span>
+              <span className="card-link">Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {certAprobados.slice(0,3).map(cert => (
               <div key={cert.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
@@ -121,7 +120,7 @@ export default function Colaborador() {
                   fontSize:11, color:'#2B4BA0', border:'0.5px solid #E8E8E8',
                   borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:4
                 }}>
-                  ↓ Descargar
+                  <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
                 </a>
               </div>
             ))}

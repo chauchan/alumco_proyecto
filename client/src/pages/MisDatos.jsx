@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -99,12 +100,12 @@ export default function MisDatos() {
 
                   {exito && (
                     <div style={{ background: '#EDFAF3', border: '0.5px solid #7BC67A', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#1A7A45', marginBottom: 14 }}>
-                      ✓ {exito}
+                      <Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}
                     </div>
                   )}
                   {error && (
                     <div style={{ background: '#FFF0F0', border: '0.5px solid #E8505B', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#C0392B', marginBottom: 14 }}>
-                      ✗ {error}
+                      <Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}
                     </div>
                   )}
 

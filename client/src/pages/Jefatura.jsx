@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import Topbar from '../components/Topbar'
@@ -77,8 +78,8 @@ export default function Jefatura() {
               <div className="page-sub">Vista global de todas las sedes · {new Date().toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
             </div>
             <div style={{ display:'flex', gap:8 }}>
-              <button className="btn-outline-dark" onClick={exportarExcel}>↓ Exportar a Excel</button>
-              <button className="btn-primary" onClick={() => navigate('/jefatura/ia')}>✨ Generador IA</button>
+              <button className="btn-outline-dark" onClick={exportarExcel}><><Icon icon="lucide:download" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Exportar a Excel</></button>
+              <button className="btn-primary" onClick={() => navigate('/jefatura/ia')}><><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Generador IA</></button>
             </div>
           </div>
 
@@ -102,7 +103,7 @@ export default function Jefatura() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Comparativa por sede</span>
-              <span className="card-link" style={{ color:'#1E3A6E' }}>Detalle →</span>
+              <span className="card-link" style={{ color:'#1E3A6E' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             <div className="two-col">
               {sedes.map((s, i) => (
@@ -136,7 +137,7 @@ export default function Jefatura() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Cobertura por curso</span>
-              <span className="card-link" style={{ color:'#1E3A6E' }}>Ver todos →</span>
+              <span className="card-link" style={{ color:'#1E3A6E' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead>

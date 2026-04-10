@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -129,7 +130,7 @@ export default function NuevoCurso() {
                       fontSize:12, fontWeight:500, color:'#fff', flexShrink:0,
                       background: completado ? '#7BC67A' : activo ? '#2B4BA0' : '#CCC'
                     }}>
-                      {completado ? '✓' : num}
+                      {completado ? <Icon icon="lucide:check" color="white" width={13} /> : num}
                     </div>
                     <span style={{ fontSize:13, fontWeight: activo ? 500 : 400, color: activo ? '#2B4BA0' : '#888' }}>{p}</span>
                   </div>
@@ -143,7 +144,7 @@ export default function NuevoCurso() {
 
           {error && (
             <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}>
-              ✗ {error}
+              <Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}
             </div>
           )}
 
@@ -171,7 +172,7 @@ export default function NuevoCurso() {
                     style={{ resize:'none' }} />
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
-                  <button type="submit" className="btn-primary">Siguiente →</button>
+                  <button type="submit" className="btn-primary">Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} /></button>
                   <button type="button" onClick={() => navigate('/profesor')}
                     style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
                     Cancelar
@@ -194,10 +195,10 @@ export default function NuevoCurso() {
                 <label htmlFor="input-archivo">
                   <div className="upload-zone" style={{ cursor:'pointer' }}>
                     {subiendo ? (
-                      <div style={{ fontSize:13, color:'#888' }}>⏳ Subiendo archivo...</div>
+                      <div style={{ fontSize:13, color:'#888' }}>Subiendo archivo...</div>
                     ) : (
                       <>
-                        <div style={{ fontSize:24, marginBottom:8 }}>📁</div>
+                        <Icon icon="lucide:folder-open" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />
                         <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>Haz clic para seleccionar un archivo</div>
                         <div style={{ fontSize:11, color:'#888', marginBottom:8 }}>PDF · MP4 · PPT · PPTX</div>
                         <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
@@ -225,7 +226,7 @@ export default function NuevoCurso() {
                   {modulos.map((m, i) => (
                     <div key={i} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
                       <div style={{ width:32, height:32, background:'#FFEEEC', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ fontSize:14 }}>{m.tipo === 'video' ? '🎥' : m.tipo === 'ppt' ? '📊' : '📄'}</span>
+                        <span style={{ fontSize:14 }}>{m.tipo === 'video' ? <Icon icon="lucide:video" width={14} /> : m.tipo === 'ppt' ? <Icon icon="lucide:file-bar-chart" width={14} /> : <Icon icon="lucide:file-text" width={14} />}</span>
                       </div>
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:13, fontWeight:500 }}>{m.titulo}</div>
@@ -233,7 +234,7 @@ export default function NuevoCurso() {
                           {m.tipo?.toUpperCase()}
                         </span>
                       </div>
-                      <span className="status-pill status-ok">✓ Subido</span>
+                      <span className="status-pill status-ok" style={{display:"inline-flex",alignItems:"center",gap:3}}><Icon icon="lucide:check" width={12} /> Subido</span>
                     </div>
                   ))}
                 </div>
@@ -242,11 +243,11 @@ export default function NuevoCurso() {
               <div style={{ display:'flex', gap:8 }}>
                 <button className="btn-primary" onClick={() => setPaso(3)} disabled={modulos.length === 0}
                   style={{ opacity: modulos.length === 0 ? 0.5 : 1 }}>
-                  Siguiente →
+                  Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} />
                 </button>
                 <button onClick={() => setPaso(1)}
                   style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
-                  ← Atrás
+                  <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
                 </button>
                 <button onClick={handleGuardarBorrador}
                   style={{ background:'none', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer' }}>
@@ -287,7 +288,7 @@ export default function NuevoCurso() {
                             value={alt.texto} onChange={e => updateAlternativa(pi, ai, 'texto', e.target.value)}
                             style={{ flex:1, border:'0.5px solid #E8E8E8', borderRadius:8, padding:'6px 10px', fontSize:13, background: alt.correcta ? '#EDFAF3' : '#F4F5F7' }}
                           />
-                          {alt.correcta && <span style={{ fontSize:10, color:'#1A7A45', whiteSpace:'nowrap' }}>✓ Correcta</span>}
+                          {alt.correcta && <span style={{ fontSize:10, color:"#1A7A45", whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:2 }}><Icon icon="lucide:check" width={10} /> Correcta</span>}
                         </div>
                       ))}
                     </div>
@@ -308,11 +309,11 @@ export default function NuevoCurso() {
 
               <div style={{ display:'flex', gap:8 }}>
                 <button className="btn-primary" onClick={handlePublicar}>
-                  ✓ Publicar curso
+                  <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Publicar curso</>
                 </button>
                 <button onClick={() => setPaso(2)}
                   style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
-                  ← Atrás
+                  <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
                 </button>
                 <button onClick={handleGuardarBorrador}
                   style={{ background:'none', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer' }}>

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
 import api from '../services/api'
+import { useAccesibilidad } from '../hooks/useAccesibilidad'
 
 const avatarColors = {
   colaborador: '#F5A623', profesor: '#E8505B',
@@ -32,6 +34,7 @@ export default function Topbar({ seccion }) {
   const [vistaAbierto, setVistaAbierto] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
   const [noLeidas, setNoLeidas] = useState(0)
+  const { acc, toggle } = useAccesibilidad()
 
   const iniciales = usuario?.nombre
     ? usuario.nombre.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -76,6 +79,36 @@ export default function Topbar({ seccion }) {
       <div className="topbar-right" style={{ position: 'relative' }}>
         {rolesLabel[usuario?.rol] && <span className="role-badge">{rolesLabel[usuario?.rol]}</span>}
         <span className="topbar-name">{usuario?.nombre}</span>
+
+        {/* Botones accesibilidad */}
+        <div style={{ display:'flex', gap:4, marginRight:2 }}>
+          <button
+            onClick={() => toggle('textoGrande')}
+            title="Texto grande"
+            style={{
+              background: acc.textoGrande ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.15)',
+              border: acc.textoGrande ? '1.5px solid #fff' : '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+              color: acc.textoGrande ? '#1E3A6E' : 'rgba(255,255,255,0.85)',
+              fontSize: 12, fontWeight: acc.textoGrande ? 700 : 400, lineHeight: 1,
+            }}>
+            A+
+          </button>
+          <button
+            onClick={() => toggle('altoContraste')}
+            title="Modo contraste (dislexia)"
+            style={{
+              background: acc.altoContraste ? '#FFF0B0' : 'rgba(255,255,255,0.15)',
+              border: acc.altoContraste ? '1.5px solid #B8860B' : '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 6, padding: '3px 7px', cursor: 'pointer',
+              color: acc.altoContraste ? '#7B3F00' : 'rgba(255,255,255,0.85)',
+              fontSize: 11, fontWeight: acc.altoContraste ? 700 : 400,
+              display: 'flex', alignItems: 'center', gap: 3,
+            }}>
+            <Icon icon="lucide:eye" width={13} />
+            {acc.altoContraste ? 'ON' : 'contraste'}
+          </button>
+        </div>
 
         {/* Campana de notificaciones */}
         <div style={{ position: 'relative' }}>
@@ -165,7 +198,7 @@ export default function Topbar({ seccion }) {
               fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5,
               letterSpacing: '0.03em'
             }}>
-            <span style={{ fontSize: 13 }}>⇄</span> Vista
+            <Icon icon="lucide:arrows-left-right" width={14} /> Vista
           </button>
           {vistaAbierto && (
             <>
@@ -225,8 +258,8 @@ export default function Topbar({ seccion }) {
                   {usuario?.sede_nombre && <div style={{ fontSize: 11, color: '#888' }}>{usuario.sede_nombre}</div>}
                 </div>
                 {[
-                  { icon: '👤', label: 'Mis datos', path: '/mis-datos' },
-                  { icon: '🔒', label: 'Cambiar contraseña', path: '/cambiar-password' },
+                  { icon: 'lucide:user', label: 'Mis datos', path: '/mis-datos' },
+                  { icon: 'lucide:lock', label: 'Cambiar contraseña', path: '/cambiar-password' },
                 ].map(item => (
                   <div key={item.label}
                     style={{ padding: '10px 16px', fontSize: 13, color: '#1a1a1a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
@@ -234,7 +267,7 @@ export default function Topbar({ seccion }) {
                     onMouseEnter={e => e.currentTarget.style.background = '#F4F5F7'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <span>{item.icon}</span> {item.label}
+                    <Icon icon={item.icon} width={14} /> {item.label}
                   </div>
                 ))}
                 <div

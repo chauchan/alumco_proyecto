@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
@@ -234,7 +235,7 @@ export default function Profesor() {
                         {cursoDetalle.modulos_count} módulos · {cursoDetalle.preguntas_count} preguntas · Generado por IA
                       </div>
                     </div>
-                    <button onClick={cerrarDetalle} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.7)', fontSize:18, cursor:'pointer' }}>✕</button>
+                    <button onClick={cerrarDetalle} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.7)', cursor:'pointer', display:'flex', alignItems:'center' }}><Icon icon="lucide:x" width={18} /></button>
                   </div>
                   {/* Tabs */}
                   <div style={{ display:'flex', gap:4, marginTop:14 }}>
@@ -260,13 +261,13 @@ export default function Profesor() {
                           <>
                             <button onClick={() => setEditandoModulos(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
                             <button onClick={guardarModulos} disabled={guardandoModulos} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
-                              {guardandoModulos ? 'Guardando...' : '✓ Guardar cambios'}
+                              {guardandoModulos ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar cambios</>}
                             </button>
                           </>
                         ) : (
                           <button onClick={() => { setModulosEdit(JSON.parse(JSON.stringify(cursoDetalle.modulos))); setEditandoModulos(true) }}
                             style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
-                            ✎ Editar módulos
+                            <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar módulos</>
                           </button>
                         )}
                       </div>
@@ -301,7 +302,7 @@ export default function Profesor() {
                           <>
                             <button onClick={() => setEditandoPreguntas(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
                             <button onClick={guardarPreguntas} disabled={guardandoPreguntas} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
-                              {guardandoPreguntas ? 'Guardando...' : '✓ Guardar cambios'}
+                              {guardandoPreguntas ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar cambios</>}
                             </button>
                           </>
                         ) : (
@@ -312,7 +313,7 @@ export default function Profesor() {
                             })))
                             setEditandoPreguntas(true)
                           }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
-                            ✎ Editar preguntas
+                            <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar preguntas</>
                           </button>
                         )}
                       </div>
@@ -363,7 +364,7 @@ export default function Profesor() {
                                 {alts?.map((alt, k) => (
                                   <div key={k} style={{ display:'flex', gap:7, fontSize:12, padding:'4px 0', color: alt.correcta ? '#1A7A45' : '#555' }}>
                                     <span style={{ width:16, height:16, borderRadius:'50%', border: alt.correcta ? '2px solid #1A7A45' : '1.5px solid #CCC', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, flexShrink:0, background: alt.correcta ? '#E8F5ED' : 'transparent' }}>
-                                      {alt.correcta ? '✓' : ''}
+                                      {alt.correcta ? <Icon icon="lucide:check" color="#1A7A45" width={9} /> : null}
                                     </span>
                                     {alt.texto}
                                   </div>
@@ -381,18 +382,39 @@ export default function Profesor() {
                     <>
                       {pptModuloIdx === null ? (
                         <>
-                          <div style={{ fontSize:12, color:'#888', marginBottom:14 }}>Selecciona un módulo para ver su presentación:</div>
-                          {cursoDetalle.modulos?.map((mod, i) => (
-                            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:'0.5px solid #E8E8E8', borderRadius:8, marginBottom:8 }}>
-                              <div style={{ width:22, height:22, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{i+1}</div>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                            <div style={{ fontSize:12, color:'#888' }}>Selecciona un módulo para ver su presentación:</div>
+                            <button onClick={generarTodosPPT} disabled={generandoTodosPPT}
+                              style={{ fontSize:11, padding:'5px 12px', borderRadius:7, border:'none', cursor: generandoTodosPPT ? 'not-allowed' : 'pointer',
+                                background: generandoTodosPPT ? '#ccc' : '#1E3A6E', color:'#fff', fontWeight:500, flexShrink:0 }}>
+                              {generandoTodosPPT
+                                ? `Generando ${progresoPPT.hecho}/${progresoPPT.total}...`
+                                : <><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Generar todos los PPT</>}
+                            </button>
+                          </div>
+                          {cursoDetalle.modulos?.map((mod, i) => {
+                            const tienePPT = (() => {
+                              if (pptPresentaciones[i] && pptPresentaciones[i] !== 'error' && pptPresentaciones[i] !== 'cargando') return true
+                              const cp = mod.contenido_presentacion
+                              if (!cp) return false
+                              try {
+                                const p = typeof cp === 'string' ? JSON.parse(cp) : cp
+                                const slides = Array.isArray(p) ? p : p?.diapositivas || []
+                                return slides.length > 0
+                              } catch { return false }
+                            })()
+                            return (
+                            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:`0.5px solid ${tienePPT ? '#BBF7D0' : '#E8E8E8'}`, borderRadius:8, marginBottom:8, background: tienePPT ? '#F0FDF4' : '#fff' }}>
+                              <div style={{ width:22, height:22, borderRadius:'50%', background: tienePPT ? '#22C55E' : '#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{tienePPT ? <Icon icon="lucide:check" color="#fff" width={12} /> : i+1}</div>
                               <span style={{ fontSize:12, fontWeight:500, flex:1 }}>{mod.titulo}</span>
                               <button onClick={() => abrirPPTModulo(mod, i)} style={{
                                 fontSize:11, background:'#1E3A6E', color:'#fff', border:'none', borderRadius:6, padding:'4px 12px', cursor:'pointer'
                               }}>
-                                {pptPresentaciones[i] === 'cargando' ? '⏳' : pptPresentaciones[i] && pptPresentaciones[i] !== 'error' ? '▶ Ver' : '▶ Generar'}
+                                {pptPresentaciones[i] === 'cargando' ? <Icon icon="lucide:loader-circle" width={13} /> : tienePPT ? <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Ver</> : <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Generar</>}
                               </button>
                             </div>
-                          ))}
+                          )
+                          })}
                         </>
                       ) : (() => {
                         const mod  = cursoDetalle.modulos[pptModuloIdx]
@@ -403,11 +425,11 @@ export default function Profesor() {
                           <div>
                             <button onClick={() => { setPptModuloIdx(null); setPptSlide(0); setPptEditando(false) }}
                               style={{ fontSize:11, color:'#1E3A6E', background:'none', border:'none', cursor:'pointer', marginBottom:12, display:'flex', alignItems:'center', gap:4 }}>
-                              ← Volver a módulos
+                              <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Volver a módulos</>
                             </button>
                             {ppres === 'cargando' && (
                               <div style={{ textAlign:'center', padding:'2rem 0', color:'#888' }}>
-                                <div style={{ fontSize:28, marginBottom:8 }}>⏳</div>
+                                <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />
                                 <div style={{ fontSize:13 }}>Generando presentación...</div>
                               </div>
                             )}
@@ -435,13 +457,13 @@ export default function Profesor() {
                                         </button>
                                         <button onClick={() => guardarEdicion(pptModuloIdx, mod)} disabled={pptGuardando}
                                           style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
-                                          {pptGuardando ? 'Guardando...' : '✓ Guardar'}
+                                          {pptGuardando ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar</>}
                                         </button>
                                       </>
                                     ) : (
                                       <button onClick={() => iniciarEdicion(pptModuloIdx, slides)}
                                         style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
-                                        ✎ Editar slides
+                                        <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar slides</>
                                       </button>
                                     )}
                                   </div>
@@ -472,7 +494,7 @@ export default function Profesor() {
                                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                                     <button onClick={() => setPptSlide(s => Math.max(0,s-1))} disabled={pptSlide===0}
                                       style={{ height:34, padding:'0 14px', borderRadius:8, border:'1px solid #E8E8E8', background: pptSlide===0?'#F4F5F7':'#fff', color: pptSlide===0?'#CCC':'#333', fontSize:12, cursor: pptSlide===0?'default':'pointer' }}>
-                                      ← Anterior
+                                      <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Anterior</>
                                     </button>
                                     <div style={{ display:'flex', gap:5 }}>
                                       {editSlides.map((_,k) => (
@@ -481,7 +503,7 @@ export default function Profesor() {
                                     </div>
                                     <button onClick={() => setPptSlide(s => Math.min(editSlides.length-1,s+1))} disabled={pptSlide===editSlides.length-1}
                                       style={{ height:34, padding:'0 14px', borderRadius:8, border:'none', background: pptSlide===editSlides.length-1?'#CCC':'#1E3A6E', color:'#fff', fontSize:12, cursor: pptSlide===editSlides.length-1?'default':'pointer' }}>
-                                      Siguiente →
+                                      <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle",marginLeft:4}} /></>
                                     </button>
                                   </div>
                                 </>
@@ -557,9 +579,51 @@ export default function Profesor() {
                         </div>
                         <button onClick={guardarTargeting} disabled={guardandoTargeting}
                           style={{ fontSize:12, padding:'6px 16px', borderRadius:7, border:'none', background:'#1E3A6E', color:'#fff', cursor:'pointer', fontWeight:500, flexShrink:0 }}>
-                          {guardandoTargeting ? 'Guardando...' : '✓ Guardar configuración'}
+                          {guardandoTargeting ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar configuración</>}
                         </button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* ── Tab Video Intro ── */}
+                  {tabDetalle === 'video' && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                      <div style={{ fontSize:13, color:'#555' }}>
+                        El video introductorio se muestra al colaborador <strong>antes</strong> de que pueda acceder a los módulos del curso.
+                        Acepta archivos MP4 o WebM (máx. 500 MB).
+                      </div>
+
+                      {videoIntroUrl ? (
+                        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                          <video controls style={{ width:'100%', borderRadius:10, background:'#000', maxHeight:320 }}>
+                            <source src={videoIntroUrl} type="video/mp4" />
+                            <source src={videoIntroUrl} type="video/webm" />
+                          </video>
+                          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                            <label style={{ background:'#2B4BA0', color:'#fff', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
+                              {subiendoVideo ? 'Subiendo...' : <><Icon icon="lucide:upload" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Reemplazar video</>}
+                              <input type="file" accept="video/mp4,video/webm" style={{ display:'none' }} onChange={subirVideoIntro} disabled={subiendoVideo} />
+                            </label>
+                            <button onClick={eliminarVideoIntro} disabled={eliminandoVideo}
+                              style={{ background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
+                              {eliminandoVideo ? 'Eliminando...' : <><Icon icon="lucide:x" width={13} style={{verticalAlign:'middle',marginRight:3}} /> Quitar video</>}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label style={{
+                          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                          border:'2px dashed #D0D5DD', borderRadius:12, padding:'40px 24px', cursor:'pointer',
+                          background: subiendoVideo ? '#F9FAFB' : '#FAFAFA', gap:10
+                        }}>
+                          <Icon icon="lucide:video" width={36} style={{marginBottom:8,display:"block",color:"#888"}} />
+                          <div style={{ fontSize:13, fontWeight:500, color:'#444' }}>
+                            {subiendoVideo ? 'Subiendo video...' : 'Arrastra o haz click para subir un video'}
+                          </div>
+                          <div style={{ fontSize:11, color:'#888' }}>MP4 o WebM · máx. 500 MB</div>
+                          <input type="file" accept="video/mp4,video/webm" style={{ display:'none' }} onChange={subirVideoIntro} disabled={subiendoVideo} />
+                        </label>
+                      )}
                     </div>
                   )}
                 </div>
@@ -571,7 +635,7 @@ export default function Profesor() {
                       try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
                       catch { alert('Error al aprobar el curso') }
                     }}>
-                    ✓ Aprobar y publicar
+                    <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
                   </button>
                   <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                     onClick={async () => {
@@ -579,7 +643,7 @@ export default function Profesor() {
                       try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
                       catch { alert('Error al rechazar el curso') }
                     }}>
-                    ✕ Rechazar
+                    <><Icon icon="lucide:x" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Rechazar</>
                   </button>
                 </div>
               </div>
@@ -597,7 +661,7 @@ export default function Profesor() {
               </div>
               {borradoresIA.map(curso => (
                 <div key={curso.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '0.5px solid #F0F0F0' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>✨</div>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon icon="lucide:sparkles" width={18} style={{color:'#F5A623'}} /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#222' }}>{curso.nombre}</div>
                     <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
@@ -656,7 +720,7 @@ export default function Profesor() {
                     onClick={modoSeleccion ? () => toggleSeleccion(c.id) : undefined}>
                     {modoSeleccion && (
                       <div style={{ width:18, height:18, borderRadius:4, border: seleccionados.has(c.id) ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: seleccionados.has(c.id) ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        {seleccionados.has(c.id) && <span style={{ color:'#fff', fontSize:11, lineHeight:1 }}>✓</span>}
+                        {seleccionados.has(c.id) && <Icon icon="lucide:check" color="#fff" width={11} />}
                       </div>
                     )}
                     {!modoSeleccion && <div style={{ width:28, height:28, background:'#FFEEEC', borderRadius:6, flexShrink:0 }} />}
