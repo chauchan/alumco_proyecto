@@ -83,23 +83,26 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     if (!curso?.preguntas?.length) return
     let correctas = 0
     curso.preguntas.forEach(p => {
-      const alts = p.alternativas || []
+      const alts = (p.alternativas || []).filter(a => a?.texto?.trim()).slice(0, 4)
       if (respuestas[p.id] !== undefined && alts[respuestas[p.id]]?.correcta) correctas++
     })
     const score = Math.round((correctas / curso.preguntas.length) * 100)
     const aprobado = score >= 60
     setEnviando(true)
+    let bloqueado = false
     try {
       const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
       const bh = r.data?.bloqueado_hasta
       if (bh && new Date(bh) > new Date()) {
         setBloqueadoHasta(new Date(bh))
+        bloqueado = true
       }
     } catch {
       // Si falla guardar progreso, mostrar resultado igual
     } finally {
       setEnviando(false)
     }
+    if (bloqueado) return  // mostrar pantalla de bloqueo, no la de resultado
     setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
     if (onProgreso) onProgreso(cursoId, aprobado ? 100 : score)
   }
@@ -503,7 +506,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                     <div key={preg.id} style={{ border: '0.5px solid #E8E8E8', borderRadius: 10, padding: 16 }}>
                       <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{pi + 1}. {preg.texto}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {(preg.alternativas || []).map((alt, ai) => {
+                        {(preg.alternativas || []).filter(alt => alt?.texto?.trim()).slice(0, 4).map((alt, ai) => {
                           const sel = respuestas[preg.id] === ai
                           return (
                             <label key={ai} style={{

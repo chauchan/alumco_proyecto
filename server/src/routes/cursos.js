@@ -196,35 +196,24 @@ router.patch('/:id/progreso', verificarToken, verificarRol('colaborador'), async
   // Si no es evaluación (ej: progreso de módulos), hacer upsert simple sin contar fallos
   if (!es_evaluacion) {
     try {
+      // $5,$6 repiten $3,$4 para evitar VALUES() deprecated en MySQL 8.0.20+
       await pool.query(
         `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
          VALUES ($1,$2,$3,$4,NOW())
-         ON DUPLICATE KEY UPDATE porcentaje = GREATEST(progreso.porcentaje, VALUES(porcentaje)), completado = VALUES(completado), ultimo_acceso = NOW()`,
-        [req.usuario.id, req.params.id, porcentaje, completado]
+         ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, $5), completado = $6, ultimo_acceso = NOW()`,
+        [req.usuario.id, req.params.id, porcentaje, completado, porcentaje, completado]
       );
-    } catch {}
+    } catch (e) { console.warn('[progreso] upsert módulos falló:', e.message); }
     return res.json({ porcentaje, completado });
   }
 
   try {
-    // Obtener estado actual (tolera que las columnas de bloqueo no existan aún)
-    let row = null;
-    try {
-      const actual = await pool.query(
-        'SELECT intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
-        [req.usuario.id, req.params.id]
-      );
-      row = actual.rows[0];
-    } catch {
-      // Columnas de bloqueo no existen — usar upsert básico
-      await pool.query(
-        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
-         VALUES ($1,$2,$3,$4,NOW())
-         ON DUPLICATE KEY UPDATE porcentaje = GREATEST(progreso.porcentaje, VALUES(porcentaje)), completado = VALUES(completado), ultimo_acceso = NOW()`,
-        [req.usuario.id, req.params.id, porcentaje, completado]
-      );
-      return res.json({ porcentaje, completado, bloqueado_hasta: null, intentos_fallidos: 0 });
-    }
+    // Obtener estado actual — las columnas son garantizadas por addColumnIfMissing en startup
+    const actual = await pool.query(
+      'SELECT intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
+      [req.usuario.id, req.params.id]
+    );
+    let row = actual.rows[0];
 
     let intentos_fallidos, bloqueado_hasta;
     const DIAS_BLOQUEO = 7;
@@ -279,6 +268,7 @@ router.patch('/:id/progreso', verificarToken, verificarRol('colaborador'), async
 
     res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
   } catch (err) {
+    console.error('[progreso] Error al actualizar progreso:', err.message);
     res.status(500).json({ error: 'Error al actualizar progreso' });
   }
 });
@@ -339,28 +329,32 @@ router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_s
 router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { nombre, descripcion, modulos, preguntas, estamento_objetivo, obligatorio } = req.body;
   try {
-    await pool.query(
-      `UPDATE cursos SET
-        nombre = COALESCE($1, nombre),
-        descripcion = COALESCE($2, descripcion),
-        estamento_objetivo = CASE WHEN $3 IS NOT NULL THEN $3 ELSE estamento_objetivo END,
-        obligatorio = CASE WHEN $4 IS NOT NULL THEN $4 ELSE obligatorio END,
-        updated_at = NOW()
-       WHERE id = $5`,
-      [nombre || null, descripcion !== undefined ? descripcion : null,
-       estamento_objetivo !== undefined ? (estamento_objetivo || null) : null,
-       obligatorio !== undefined ? (obligatorio ? 1 : 0) : null,
-       req.params.id]
-    );
+    // Construcción dinámica del SET para evitar repetir parámetros posicionales en MySQL
+    const sets = ['updated_at = NOW()'];
+    const vals = [];
+    if (nombre !== undefined) { sets.unshift('nombre = ?'); vals.push(nombre || null); }
+    if (descripcion !== undefined) { sets.unshift('descripcion = ?'); vals.push(descripcion ?? null); }
+    if (estamento_objetivo !== undefined) { sets.unshift('estamento_objetivo = ?'); vals.push(estamento_objetivo || null); }
+    if (obligatorio !== undefined) { sets.unshift('obligatorio = ?'); vals.push(obligatorio ? 1 : 0); }
+    vals.push(req.params.id);
+    await pool.query(`UPDATE cursos SET ${sets.join(', ')} WHERE id = ?`, vals);
     if (modulos?.length) {
       for (const mod of modulos) {
-        if (mod.contenido_presentacion !== undefined) {
+        const tieneTitulo = mod.titulo !== undefined && mod.titulo !== null;
+        const tienePPT = mod.contenido_presentacion !== undefined;
+        if (tieneTitulo && tienePPT) {
           await pool.query(
             'UPDATE modulos SET titulo = $1, descripcion = $2, contenido_presentacion = $3 WHERE id = $4',
-            [mod.titulo, mod.descripcion, JSON.stringify(mod.contenido_presentacion), mod.id]
+            [mod.titulo, mod.descripcion ?? null, JSON.stringify(mod.contenido_presentacion), mod.id]
           );
-        } else {
-          await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion, mod.id]);
+        } else if (tieneTitulo) {
+          await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion ?? null, mod.id]);
+        } else if (tienePPT) {
+          // Solo actualizar contenido_presentacion (el profesor puede guardar sin tocar título)
+          await pool.query(
+            'UPDATE modulos SET contenido_presentacion = $1 WHERE id = $2',
+            [JSON.stringify(mod.contenido_presentacion), mod.id]
+          );
         }
       }
     }

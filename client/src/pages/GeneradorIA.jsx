@@ -373,7 +373,26 @@ export default function GeneradorIA() {
     }
   }
 
-  const cerrarModal = () => { setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false) }
+  const cerrarModal = () => {
+    // Auto-guardar si hay ediciones pendientes sin guardar
+    if (editandoPPT && pptEditData[presentacionActiva]) {
+      const editedPres = pptEditData[presentacionActiva]
+      const mod = resultado?.modulos?.[presentacionActiva]
+      if (mod?.id && resultado?.curso_id) {
+        api.put(`/cursos/${resultado.curso_id}`, {
+          modulos: [{ id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: editedPres }]
+        }).catch(() => {})
+        setPresentaciones(prev => ({ ...prev, [presentacionActiva]: editedPres }))
+        setResultado(prev => {
+          if (!prev?.modulos) return prev
+          const modulos = [...prev.modulos]
+          modulos[presentacionActiva] = { ...modulos[presentacionActiva], contenido_presentacion: editedPres }
+          return { ...prev, modulos }
+        })
+      }
+    }
+    setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false)
+  }
 
 
   // Persistir resultado en sessionStorage cuando cambia
@@ -1156,6 +1175,18 @@ export default function GeneradorIA() {
                         onClick={async () => {
                           setEnviando(true)
                           try {
+                            // Guardar cualquier PPT editado pendiente antes de enviar
+                            if (Object.keys(pptEditData).length > 0 && resultado?.curso_id) {
+                              const modulosToSave = Object.entries(pptEditData)
+                                .map(([idxStr, pres]) => {
+                                  const mod = resultado.modulos?.[Number(idxStr)]
+                                  if (!mod?.id) return null
+                                  return { id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: pres }
+                                }).filter(Boolean)
+                              if (modulosToSave.length > 0) {
+                                await api.put(`/cursos/${resultado.curso_id}`, { modulos: modulosToSave }).catch(() => {})
+                              }
+                            }
                             await api.post('/ia/notificar-profesor', {
                               curso_id: resultado.curso_id,
                               curso_nombre: resultado.nombre,
