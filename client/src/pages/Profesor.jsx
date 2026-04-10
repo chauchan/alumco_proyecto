@@ -505,7 +505,7 @@ export default function Profesor() {
                                 {pptPresentaciones[i] === 'cargando' ? <Icon icon="lucide:loader-circle" width={13} /> : tienePPT ? <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Ver</> : <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Generar</>}
                               </button>
                             </div>
-                          )}}
+                          )})}
                         </>
                       ) : (() => {
                         const mod  = cursoDetalle.modulos[pptModuloIdx]
