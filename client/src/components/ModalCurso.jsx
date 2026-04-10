@@ -43,8 +43,21 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
         const bh = progresoRes.data?.bloqueado_hasta
         if (bh && new Date(bh) > new Date()) {
           setBloqueadoHasta(new Date(bh))
-        } else if (!c.video_intro_url) {
-          setPaso('modulos')
+        } else {
+          // Si tiene progreso guardado, saltar el video y restaurar módulos como completados
+          const pctGuardado = progresoRes.data?.porcentaje || 0
+          if (pctGuardado > 0 && modulos.length > 0) {
+            setCompletados(new Set(modulos.map(m => m.id)))
+            // Si porcentaje >= 70 ya completó módulos → ir directo a evaluación
+            if (pctGuardado >= 70 && c.preguntas?.length > 0) {
+              setPaso('evaluacion')
+            } else {
+              setPaso('modulos') // saltar el video aunque exista
+            }
+          } else {
+            // Sin progreso previo — solo saltar video si no hay video_intro
+            if (!c.video_intro_url) setPaso('modulos')
+          }
         }
       })
       .catch(() => {})
@@ -72,7 +85,9 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     const total = curso.modulos?.length || 1
     const tieneEval = curso.preguntas?.length > 0
     const pct = Math.round((nuevos.size / total) * (tieneEval ? 70 : 100))
-    api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: pct }).catch(() => {})
+    api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: pct })
+      .then(r => console.log('[progreso módulo] guardado:', r.data))
+      .catch(err => console.error('[progreso módulo] ERROR:', err?.response?.status, err?.response?.data || err?.message))
     if (onProgreso) onProgreso(cursoId, pct)
   }
 
@@ -98,7 +113,8 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
         setBloqueadoHasta(new Date(bh))
         bloqueado = true
       }
-    } catch {
+    } catch (err) {
+      console.error('[evaluacion] error al guardar progreso:', err?.response?.data || err?.message)
       // Si falla guardar progreso, mostrar resultado igual
     } finally {
       setEnviando(false)

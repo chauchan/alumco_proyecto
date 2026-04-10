@@ -64,8 +64,6 @@ export default function Profesor() {
   const [videoIntroUrl, setVideoIntroUrl] = useState(null)
   const [subiendoVideo, setSubiendoVideo] = useState(false)
   const [eliminandoVideo, setEliminandoVideo] = useState(false)
-  const [generandoTodosPPT, setGenerandoTodosPPT] = useState(false)
-  const [progresoPPT, setProgresoPPT] = useState({ hecho: 0, total: 0 })
 
   useEffect(() => {
     Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
@@ -122,6 +120,23 @@ export default function Profesor() {
     setVideoIntroUrl(null)
   }
 
+  const abrirDetalleCurso = async (c) => {
+    const detalle = await api.get(`/cursos/${c.id}`)
+    setCursoDetalle({ ...c, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
+    setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
+    setVideoIntroUrl(detalle.data.video_intro_url || null)
+    const presMap = {}
+    ;(detalle.data.modulos || []).forEach((mod, i) => {
+      if (!mod.contenido_presentacion) return
+      let cp = mod.contenido_presentacion
+      if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { return } }
+      const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+      if (slides.length > 0) presMap[i] = { diapositivas: slides }
+    })
+    if (Object.keys(presMap).length > 0) setPptPresentaciones(presMap)
+    setTabDetalle('modulos')
+  }
+
   const subirVideoIntro = async (e) => {
     const file = e.target.files?.[0]
     if (!file || !cursoDetalle) return
@@ -155,37 +170,6 @@ export default function Profesor() {
     }
   }
 
-  const generarTodosPPT = async () => {
-    const modulos = cursoDetalle?.modulos || []
-    const sinPPT = modulos.filter(m => {
-      const cp = m.contenido_presentacion
-      if (!cp) return true
-      try {
-        const parsed = typeof cp === 'string' ? JSON.parse(cp) : cp
-        const slides = Array.isArray(parsed) ? parsed : parsed?.diapositivas || []
-        return slides.length === 0
-      } catch { return true }
-    })
-    if (sinPPT.length === 0) { alert('Todos los módulos ya tienen presentación generada.'); return }
-    if (!confirm(`¿Generar presentación PPT para ${sinPPT.length} módulo(s)? Esto puede tardar unos minutos.`)) return
-
-    setGenerandoTodosPPT(true)
-    setProgresoPPT({ hecho: 0, total: sinPPT.length })
-    let hecho = 0
-    for (const mod of sinPPT) {
-      try {
-        const res = await api.post(`/ia/modulo/${mod.id}/generar-ppt`)
-        const pres = res.data.presentacion
-        setCursoDetalle(prev => ({
-          ...prev,
-          modulos: prev.modulos.map(m => m.id === mod.id ? { ...m, contenido_presentacion: pres } : m)
-        }))
-      } catch { /* sigue con el siguiente */ }
-      hecho++
-      setProgresoPPT({ hecho, total: sinPPT.length })
-    }
-    setGenerandoTodosPPT(false)
-  }
 
   const guardarTargeting = async () => {
     setGuardandoTargeting(true)
@@ -324,7 +308,9 @@ export default function Profesor() {
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{cursoDetalle.nombre}</div>
                       <div style={{ fontSize:11, color:'rgba(255,255,255,0.65)', marginTop:3 }}>
-                        {cursoDetalle.modulos_count} módulos · {cursoDetalle.preguntas_count} preguntas · Generado por IA
+                        {cursoDetalle.modulos?.length ?? cursoDetalle.modulos_count ?? 0} módulos · {cursoDetalle.preguntas?.length ?? cursoDetalle.preguntas_count ?? 0} preguntas
+                        {cursoDetalle.generado_por_ia ? ' · Generado por IA' : ''}
+                        {cursoDetalle.publicado ? ' · Publicado' : ' · Borrador'}
                       </div>
                     </div>
                     <button onClick={cerrarDetalle} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.7)', cursor:'pointer', display:'flex', alignItems:'center' }}><Icon icon="lucide:x" width={18} /></button>
@@ -474,15 +460,8 @@ export default function Profesor() {
                     <>
                       {pptModuloIdx === null ? (
                         <>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                          <div style={{ marginBottom:14 }}>
                             <div style={{ fontSize:12, color:'#888' }}>Selecciona un módulo para ver su presentación:</div>
-                            <button onClick={generarTodosPPT} disabled={generandoTodosPPT}
-                              style={{ fontSize:11, padding:'5px 12px', borderRadius:7, border:'none', cursor: generandoTodosPPT ? 'not-allowed' : 'pointer',
-                                background: generandoTodosPPT ? '#ccc' : '#1E3A6E', color:'#fff', fontWeight:500, flexShrink:0 }}>
-                              {generandoTodosPPT
-                                ? `Generando ${progresoPPT.hecho}/${progresoPPT.total}...`
-                                : <><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Generar todos los PPT</>}
-                            </button>
                           </div>
                           {cursoDetalle.modulos?.map((mod, i) => {
                             const tienePPT = (() => {
@@ -505,7 +484,7 @@ export default function Profesor() {
                                 {pptPresentaciones[i] === 'cargando' ? <Icon icon="lucide:loader-circle" width={13} /> : tienePPT ? <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Ver</> : <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Generar</>}
                               </button>
                             </div>
-                          )}}
+                          )})}
                         </>
                       ) : (() => {
                         const mod  = cursoDetalle.modulos[pptModuloIdx]
@@ -719,23 +698,50 @@ export default function Profesor() {
                   )}
                 </div>
 
-                {/* Botones aprobar/rechazar */}
+                {/* Botones de acción según estado del curso */}
                 <div style={{ padding:'14px 24px', borderTop:'0.5px solid #E8E8E8', display:'flex', gap:10, flexShrink:0 }}>
-                  <button style={{ flex:1, height:40, background:'#1A7A45', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
-                    onClick={async () => {
-                      try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
-                      catch { alert('Error al aprobar el curso') }
-                    }}>
-                    <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
-                  </button>
-                  <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
-                    onClick={async () => {
-                      if (!confirm('¿Rechazar este borrador? Se eliminará permanentemente.')) return
-                      try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                      catch { alert('Error al rechazar el curso') }
-                    }}>
-                    <><Icon icon="lucide:x" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Rechazar</>
-                  </button>
+                  {cursoDetalle.publicado ? (
+                    <>
+                      <button style={{ flex:1, height:40, background:'none', color:'#555', border:'1px solid #CCC', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                        onClick={async () => {
+                          if (!confirm('¿Despublicar este curso? Los colaboradores ya no podrán acceder a él.')) return
+                          try { await api.patch(`/cursos/${cursoDetalle.id}/publicar`, { publicado: false }); cerrarDetalle(); recargar() }
+                          catch { alert('Error al despublicar el curso') }
+                        }}>
+                        <><Icon icon="lucide:eye-off" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Despublicar</>
+                      </button>
+                      <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                        onClick={async () => {
+                          if (!confirm('¿Eliminar este curso permanentemente? Esta acción no se puede deshacer.')) return
+                          try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
+                          catch { alert('Error al eliminar el curso') }
+                        }}>
+                        <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar</>
+                      </button>
+                      <button style={{ height:40, padding:'0 20px', background:'#1E3A6E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                        onClick={cerrarDetalle}>
+                        Cerrar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button style={{ flex:1, height:40, background:'#1A7A45', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                        onClick={async () => {
+                          try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
+                          catch { alert('Error al aprobar el curso') }
+                        }}>
+                        <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
+                      </button>
+                      <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                        onClick={async () => {
+                          if (!confirm('¿Eliminar este borrador permanentemente?')) return
+                          try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
+                          catch { alert('Error al eliminar el curso') }
+                        }}>
+                        <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar borrador</>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -761,23 +767,7 @@ export default function Profesor() {
                   </div>
                   <button
                     style={{ height: 32, padding: '0 14px', background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
-                    onClick={async () => {
-                      const detalle = await api.get(`/cursos/${curso.id}`)
-                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
-                      setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
-                      setVideoIntroUrl(detalle.data.video_intro_url || null)
-                      // Pre-cargar PPTs de todos los módulos que ya tienen contenido guardado
-                      const presMap = {}
-                      ;(detalle.data.modulos || []).forEach((mod, i) => {
-                        if (!mod.contenido_presentacion) return
-                        let cp = mod.contenido_presentacion
-                        if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { return } }
-                        const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
-                        if (slides.length > 0) presMap[i] = { diapositivas: slides }
-                      })
-                      if (Object.keys(presMap).length > 0) setPptPresentaciones(presMap)
-                      setTabDetalle('modulos')
-                    }}>
+                    onClick={() => abrirDetalleCurso(curso)}>
                     Revisar
                   </button>
                 </div>
@@ -842,7 +832,7 @@ export default function Profesor() {
                     {!modoSeleccion && (
                       !c.publicado
                         ? <button className="btn-sm btn-sm-primary" onClick={() => api.patch(`/cursos/${c.id}/publicar`, { publicado:true }).then(recargar)}>Publicar</button>
-                        : <button className="btn-sm btn-sm-outline">Editar</button>
+                        : <button className="btn-sm btn-sm-outline" onClick={() => abrirDetalleCurso(c)}>Editar</button>
                     )}
                   </div>
                 ))}
