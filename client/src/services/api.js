@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 540000, // 9 min — margen sobre timeout de Ollama (8 min)
+  timeout: 840000, // 14 min — cubre generación secuencial de 7 módulos PPT (90s×2 intentos × 7 = ~1300s peor caso, caso típico ~3 min)
 })
 
 // Agregar token automáticamente a cada request

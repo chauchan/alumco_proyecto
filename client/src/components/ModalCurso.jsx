@@ -20,30 +20,38 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
   const [respuestas, setRespuestas] = useState({})
   const [resultado, setResultado] = useState(null)
   const [enviando, setEnviando] = useState(false)
+  const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const videoRef = useRef(null)
 
   useEffect(() => {
-    api.get(`/cursos/${cursoId}`)
-      .then(res => {
-        const preguntas = (res.data.preguntas || []).map(p => ({
+    Promise.all([
+      api.get(`/cursos/${cursoId}`),
+      api.get(`/cursos/${cursoId}/mi-progreso`).catch(() => ({ data: {} }))
+    ]).then(([cursoRes, progresoRes]) => {
+        const preguntas = (cursoRes.data.preguntas || []).map(p => ({
           ...p,
           alternativas: typeof p.alternativas === 'string' ? JSON.parse(p.alternativas) : p.alternativas
         }))
-        const modulos = (res.data.modulos || []).map(m => {
+        const modulos = (cursoRes.data.modulos || []).map(m => {
           let cp = m.contenido_presentacion
           if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { cp = null } }
           return { ...m, contenido_presentacion: cp }
         })
-        const c = { ...res.data, preguntas, modulos }
+        const c = { ...cursoRes.data, preguntas, modulos }
         setCurso(c)
-        // Si no hay video intro, ir directo a módulos
-        if (!c.video_intro_url) setPaso('modulos')
+        // Verificar bloqueo
+        const bh = progresoRes.data?.bloqueado_hasta
+        if (bh && new Date(bh) > new Date()) {
+          setBloqueadoHasta(new Date(bh))
+        } else if (!c.video_intro_url) {
+          setPaso('modulos')
+        }
       })
       .catch(() => {})
       .finally(() => setCargando(false))
   }, [cursoId])
 
-  // ─── progreso ────────────────────────────────────────────────────────────────────────────
+  // ─── progreso ────────────────────────────────────────────────────────────────
   const calcProgreso = () => {
     if (!curso) return 0
     if (resultado?.aprobado) return 100
@@ -76,23 +84,31 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     if (!curso?.preguntas?.length) return
     let correctas = 0
     curso.preguntas.forEach(p => {
-      const alts = p.alternativas || []
+      const alts = (p.alternativas || []).filter(a => a?.texto?.trim()).slice(0, 4)
       if (respuestas[p.id] !== undefined && alts[respuestas[p.id]]?.correcta) correctas++
     })
     const score = Math.round((correctas / curso.preguntas.length) * 100)
     const aprobado = score >= 60
     setEnviando(true)
+    let bloqueado = false
     try {
-      await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score })
-      setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
-      if (onProgreso) onProgreso(cursoId, aprobado ? 100 : score)
+      const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
+      const bh = r.data?.bloqueado_hasta
+      if (bh && new Date(bh) > new Date()) {
+        setBloqueadoHasta(new Date(bh))
+        bloqueado = true
+      }
     } catch {
+      // Si falla guardar progreso, mostrar resultado igual
     } finally {
       setEnviando(false)
     }
+    if (bloqueado) return  // mostrar pantalla de bloqueo, no la de resultado
+    setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
+    if (onProgreso) onProgreso(cursoId, aprobado ? 100 : score)
   }
 
-  // ─── render módulo expandido ─────────────────────────────────────────────────────────────────────────────────
+  // ─── render módulo expandido ─────────────────────────────────────────────────
   const renderContenidoModulo = (mod) => {
     const cp = mod.contenido_presentacion
     const slides = Array.isArray(cp) ? cp
@@ -113,18 +129,18 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
             <button onClick={() => setSlideActual(s => Math.max(0, s - 1))}
               disabled={slideActual === 0}
               style={{ background: '#F4F5F7', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: slideActual === 0 ? 'not-allowed' : 'pointer', color: slideActual === 0 ? '#ccc' : '#333' }}>
-              <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Anterior</>
+              <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Anterior</>
             </button>
             <span style={{ fontSize: 12, color: '#888' }}>{slideActual + 1} / {total}</span>
             {esUltimo ? (
               <button onClick={() => marcarCompleto(mod.id)}
                 style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Completar módulo</>
+                <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Completar módulo</>
               </button>
             ) : (
               <button onClick={() => setSlideActual(s => Math.min(total - 1, s + 1))}
                 style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>
-                <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle",marginLeft:4}} /></>
+                <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
               </button>
             )}
           </div>
@@ -148,7 +164,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
             <span style={{ fontSize: 12, color: '#888' }}>El módulo se marcará como completo al terminar el video.</span>
             <button onClick={() => marcarCompleto(mod.id)}
               style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Marcar como visto</>
+              <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
             </button>
           </div>
         </div>
@@ -166,7 +182,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button onClick={() => marcarCompleto(mod.id)}
               style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Marcar como visto</>
+              <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
             </button>
           </div>
         </div>
@@ -177,16 +193,16 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     if (mod.archivo_url) {
       return (
         <div style={{ textAlign: 'center', padding: 24 }}>
-          <Icon icon="lucide:presentation" width={36} style={{marginBottom:12,display:"block",color:"#888"}} />
+          <Icon icon="lucide:presentation" width={36} style={{marginBottom:12,display:'block',color:'#888',margin:'0 auto 12px'}} />
           <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Descarga la presentación para verla.</div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <a href={fileUrl(mod.archivo_url)} download target="_blank" rel="noreferrer"
               style={{ background: '#2B4BA0', color: '#fff', borderRadius: 8, padding: '9px 18px', fontSize: 13, textDecoration: 'none' }}>
-              <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Descargar PPT</>
+              <><Icon icon="lucide:download" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Descargar PPT</>
             </a>
             <button onClick={() => marcarCompleto(mod.id)}
               style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Marcar como visto</>
+              <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
             </button>
           </div>
         </div>
@@ -203,7 +219,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={() => marcarCompleto(mod.id)}
             style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Marcar como visto</>
+            <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
           </button>
         </div>
       </div>
@@ -221,30 +237,30 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
     }} onClick={onClose}>
       <div style={{
-        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680,
-        maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 820,
+        maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden'
       }} onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
-        <div style={{ padding: '20px 24px 0', borderBottom: '0.5px solid #E8E8E8', paddingBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        {/* ── Header ── */}
+        <div style={{ padding: '18px 24px 0', borderBottom: '0.5px solid #E8E8E8' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 600 }}>{curso?.nombre || '...'}</div>
-              {curso?.area && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{curso.area}</div>}
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{curso?.nombre || '...'}</div>
+              {curso?.area && <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{curso.area}</div>}
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4, display:'flex', alignItems:'center' }}><Icon icon="lucide:x" width={18} /></button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4, display: 'flex', alignItems: 'center' }}>
+              <Icon icon="lucide:x" width={18} />
+            </button>
           </div>
-          {curso?.descripcion && (
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>{curso.descripcion}</div>
-          )}
+
           {/* Barra de progreso */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, height: 6, background: '#F0F0F0', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${progreso}%`, background: progreso === 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div style={{ flex: 1, height: 5, background: '#F0F0F0', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
             </div>
             <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{progreso}%</span>
           </div>
@@ -281,9 +297,29 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
           )}
         </div>
 
-        {/* Body */}
+        {/* ── Body ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
-          {cargando ? (
+          {bloqueadoHasta ? (
+            /* ── CURSO BLOQUEADO ── */
+            <div style={{ textAlign: 'center', padding: '40px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <Icon icon="lucide:lock" width={56} style={{color:'#E8505B'}} />
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>Curso temporalmente bloqueado</div>
+              <div style={{ fontSize: 14, color: '#555', maxWidth: 380, lineHeight: 1.6 }}>
+                Has fallado este curso 2 veces. Podrás intentarlo nuevamente el{' '}
+                <strong>{bloqueadoHasta.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
+              </div>
+              <div style={{
+                background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12,
+                padding: '14px 24px', fontSize: 13, color: '#B91C1C', maxWidth: 360
+              }}>
+                Tu administrador de sede ha sido notificado. Aprovecha este tiempo para repasar los contenidos.
+              </div>
+              <button onClick={onClose}
+                style={{ background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
+                Cerrar
+              </button>
+            </div>
+          ) : cargando ? (
             <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>Cargando curso...</div>
 
           ) : paso === 'video' ? (
@@ -303,7 +339,9 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
               </video>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: '#888' }}>
-                  {videoVisto ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:3,color:'#16A34A'}} /> Video completado</> : 'El video debe terminar para continuar.'}
+                  {videoVisto
+                    ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:3,color:'#16A34A'}} /> Video completado</>
+                    : 'El video debe terminar para continuar.'}
                 </span>
                 <button
                   onClick={() => { setVideoVisto(true); setPaso('modulos') }}
@@ -313,7 +351,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                     borderRadius: 10, padding: '10px 24px', fontSize: 13, fontWeight: 600,
                     cursor: videoVisto ? 'pointer' : 'not-allowed'
                   }}>
-                  <>Comenzar módulos <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle",marginLeft:4}} /></>
+                  <>Comenzar módulos <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
                 </button>
               </div>
             </div>
@@ -322,14 +360,15 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
             /* ── PASO MÓDULOS ── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {!curso?.modulos?.length ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: 24 }}>No hay módulos en este curso.</div>
+                <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>No hay módulos en este curso.</div>
               ) : curso.modulos.map((mod, i) => {
-                const visto = visitados.includes(mod.id)
+                const completo = completados.has(mod.id)
+                const abierto = moduloAbierto === mod.id
                 return (
                   <div key={mod.id} style={{
-                    border: `1px solid ${visto ? '#BBF7D0' : '#E8E8E8'}`, borderRadius: 10,
-                    padding: '14px 16px', background: visto ? '#F0FDF4' : '#fff',
-                    display: 'flex', alignItems: 'center', gap: 12
+                    border: `1px solid ${completo ? '#BBF7D0' : abierto ? '#93C5FD' : '#E8E8E8'}`,
+                    borderRadius: 12, overflow: 'hidden',
+                    background: completo ? '#F0FDF4' : abierto ? '#EFF6FF' : '#fff'
                   }}>
                     {/* Cabecera del módulo */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: completo ? 'default' : 'pointer' }}
@@ -343,7 +382,13 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                         background: completo ? '#DCFCE7' : '#EEF2FF',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0
                       }}>
-                        {completo ? <Icon icon="lucide:check" color="#16A34A" width={16} /> : mod.tipo === 'video' ? <Icon icon="lucide:video" width={16} style={{color:'#2B4BA0'}} /> : mod.tipo === 'pdf' ? <Icon icon="lucide:file-text" width={16} style={{color:'#E8505B'}} /> : <Icon icon="lucide:presentation" width={16} style={{color:'#888'}} />}
+                        {completo
+                          ? <Icon icon="lucide:check" color="#16A34A" width={16} />
+                          : mod.tipo === 'video'
+                            ? <Icon icon="lucide:video" width={16} style={{color:'#2B4BA0'}} />
+                            : mod.tipo === 'pdf'
+                              ? <Icon icon="lucide:file-text" width={16} style={{color:'#E8505B'}} />
+                              : <Icon icon="lucide:presentation" width={16} style={{color:'#888'}} />}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: completo ? '#15803D' : '#1a1a1a' }}>
@@ -356,29 +401,24 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                           {abierto ? '▲ Cerrar' : '▼ Ver'}
                         </span>
                       )}
-                      {completo && <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 600, display:'flex', alignItems:'center', gap:3 }}><Icon icon="lucide:check" width={11} /> Completado</span>}
+                      {completo && (
+                        <span style={{ fontSize: 11, color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <Icon icon="lucide:check" width={11} /> Completado
+                        </span>
+                      )}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>
-                        {i + 1}. {mod.titulo}
-                        {visto && <span style={{ marginLeft: 8, fontSize: 10, color: '#16A34A' }}>✓ Visto</span>}
+
+                    {/* Contenido expandido */}
+                    {abierto && !completo && (
+                      <div style={{ padding: '0 16px 16px' }}>
+                        {renderContenidoModulo(mod)}
                       </div>
-                      {mod.descripcion && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{mod.descripcion}</div>}
-                      <div style={{ fontSize: 10, color: '#aaa', marginTop: 2, textTransform: 'uppercase' }}>{mod.tipo}</div>
-                    </div>
-                    {mod.archivo_url ? (
-                      <button onClick={() => abrirModulo(mod)} style={{
-                        background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8,
-                        padding: '7px 14px', fontSize: 12, cursor: 'pointer', flexShrink: 0
-                      }}>
-                        {visto ? 'Volver a ver' : 'Abrir'}
-                      </button>
-                    ) : (
-                      <span style={{ fontSize: 11, color: '#aaa' }}>Sin archivo</span>
                     )}
                   </div>
                 )
               })}
+
+              {/* Botón ir a evaluación */}
               {curso?.preguntas?.length > 0 && (
                 <div style={{ textAlign: 'center', marginTop: 12 }}>
                   {todosModulosCompletos ? (
@@ -386,33 +426,27 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                       background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10,
                       padding: '11px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
                     }}>
-                      <>Ir a la evaluación <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle",marginLeft:4}} /></>
+                      <>Ir a la evaluación <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
                     </button>
                   ) : (
                     <div style={{ fontSize: 12, color: '#888', background: '#F9F9F9', borderRadius: 10, padding: '10px 20px', display: 'inline-block' }}>
-                      <><Icon icon="lucide:lock" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Completa todos los módulos para acceder a la evaluación</>
-                      ({completados.size}/{curso.modulos.length} completados)
+                      <><Icon icon="lucide:lock" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Completa todos los módulos para acceder a la evaluación</>
+                      {' '}({completados.size}/{curso.modulos.length} completados)
                     </div>
                   )}
                 </div>
               )}
             </div>
+
           ) : (
-            /* TAB EVALUACIÓN */
+            /* ── PASO EVALUACIÓN ── */
             <div>
               {resultado ? (
-                <div style={{ textAlign: 'center', padding: 32 }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>{resultado.aprobado ? '🎉' : '😔'}</div>
-                  <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>
-                    {resultado.aprobado ? '¡Evaluación aprobada!' : 'No aprobaste esta vez'}
-                  </div>
-                  <div style={{ fontSize: 14, color: '#666', marginBottom: 20 }}>
-                    Obtuviste {resultado.correctas} de {resultado.total} respuestas correctas ({resultado.score}%)
-                  </div>
+                <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                   {resultado.aprobado ? (
                     /* ── CURSO FINALIZADO ── */
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                      <Icon icon="lucide:trophy" width={64} style={{marginBottom:8,display:"block",color:"#F5A623"}} />
+                      <Icon icon="lucide:trophy" width={64} style={{color:'#F5A623'}} />
                       <div style={{ fontSize: 22, fontWeight: 700, color: '#15803D' }}>¡Curso finalizado!</div>
                       <div style={{ fontSize: 14, color: '#555' }}>{curso?.nombre}</div>
 
@@ -447,7 +481,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                       </div>
 
                       <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
-                        <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Tu progreso ha sido registrado</>
+                        <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                       </div>
 
                       <button onClick={onClose}
@@ -458,7 +492,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                   ) : (
                     /* ── NO APROBADO ── */
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                      <Icon icon="lucide:frown" width={56} style={{marginBottom:8,display:"block",color:"#E8505B"}} />
+                      <Icon icon="lucide:frown" width={56} style={{color:'#E8505B'}} />
                       <div style={{ fontSize: 18, fontWeight: 600 }}>No aprobaste esta vez</div>
 
                       <div style={{
@@ -481,26 +515,23 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                   <div style={{ fontSize: 13, color: '#666' }}>
-                    Responde todas las preguntas para completar el curso. Necesitas al menos 60% para aprobar.
+                    Responde todas las preguntas. Necesitas al menos 60% para aprobar.
                   </div>
                   {curso.preguntas.map((preg, pi) => (
-                    <div key={preg.id} style={{ border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '16px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
-                        {pi + 1}. {preg.texto}
-                      </div>
+                    <div key={preg.id} style={{ border: '0.5px solid #E8E8E8', borderRadius: 10, padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{pi + 1}. {preg.texto}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {(preg.alternativas || []).map((alt, ai) => {
-                          const seleccionada = respuestas[preg.id] === ai
+                        {(preg.alternativas || []).filter(alt => alt?.texto?.trim()).slice(0, 4).map((alt, ai) => {
+                          const sel = respuestas[preg.id] === ai
                           return (
                             <label key={ai} style={{
-                              display: 'flex', alignItems: 'center', gap: 10,
-                              padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
-                              background: seleccionada ? '#EEF2FF' : '#F9F9F9',
-                              border: `1px solid ${seleccionada ? '#2B4BA0' : '#E8E8E8'}`,
-                              fontSize: 13
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                              borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                              background: sel ? '#EEF2FF' : '#F9F9F9',
+                              border: `1px solid ${sel ? '#2B4BA0' : '#E8E8E8'}`
                             }}>
-                              <input type="radio" name={`preg-${preg.id}`} checked={seleccionada}
-                                onChange={() => seleccionarRespuesta(preg.id, ai)}
+                              <input type="radio" name={`preg-${preg.id}`} checked={sel}
+                                onChange={() => setRespuestas(prev => ({ ...prev, [preg.id]: ai }))}
                                 style={{ accentColor: '#2B4BA0' }} />
                               {alt.texto}
                             </label>
@@ -513,7 +544,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                     background: todosRespondidos ? '#2B4BA0' : '#ccc', color: '#fff',
                     border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14,
                     fontWeight: 600, cursor: todosRespondidos ? 'pointer' : 'not-allowed',
-                    alignSelf: 'center', marginTop: 8
+                    alignSelf: 'center', marginTop: 4
                   }}>
                     {enviando ? 'Enviando...' : 'Enviar evaluación'}
                   </button>

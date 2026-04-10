@@ -344,9 +344,25 @@ export default function GeneradorIA() {
     setModoPPT(false)
     setSlideActual(0)
     if (presentaciones[i]) return
+
+    const mod = resultado.modulos[i]
+
+    // Usar presentacion ya generada (campo del servidor o contenido_presentacion del BD)
+    const fuente = mod.presentacion || mod.contenido_presentacion
+    if (fuente) {
+      let cp = typeof fuente === 'string' ? (() => { try { return JSON.parse(fuente) } catch { return null } })() : fuente
+      if (cp) {
+        const diapositivas = Array.isArray(cp) ? cp : Array.isArray(cp.diapositivas) ? cp.diapositivas : []
+        if (diapositivas.length > 0) {
+          setPresentaciones(prev => ({ ...prev, [i]: { diapositivas } }))
+          return
+        }
+      }
+    }
+
+    // Generar con IA si no hay contenido guardado
     setPresentaciones(prev => ({ ...prev, [i]: 'cargando' }))
     try {
-      const mod = resultado.modulos[i]
       const res = await api.post('/ia/generar-presentacion', {
         titulo: mod.titulo,
         descripcion: mod.descripcion,
@@ -358,11 +374,45 @@ export default function GeneradorIA() {
     }
   }
 
-  const cerrarModal = () => { setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false) }
+  const cerrarModal = () => {
+    // Auto-guardar si hay ediciones pendientes sin guardar
+    if (editandoPPT && pptEditData[presentacionActiva]) {
+      const editedPres = pptEditData[presentacionActiva]
+      const mod = resultado?.modulos?.[presentacionActiva]
+      if (mod?.id && resultado?.curso_id) {
+        api.put(`/cursos/${resultado.curso_id}`, {
+          modulos: [{ id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: editedPres }]
+        }).catch(() => {})
+        setPresentaciones(prev => ({ ...prev, [presentacionActiva]: editedPres }))
+        setResultado(prev => {
+          if (!prev?.modulos) return prev
+          const modulos = [...prev.modulos]
+          modulos[presentacionActiva] = { ...modulos[presentacionActiva], contenido_presentacion: editedPres }
+          return { ...prev, modulos }
+        })
+      }
+    }
+    setPresentacionActiva(null); setModoPPT(false); setSlideActual(0); setEditandoPPT(false)
+  }
 
 
   // Persistir resultado en sessionStorage cuando cambia
   useEffect(() => { guardarStorage(resultado) }, [resultado])
+
+  // Si resultado viene de session storage sin IDs de módulos, obtenerlos del servidor
+  useEffect(() => {
+    if (!resultado?.curso_id) return
+    if (resultado.modulos?.every(m => m.id)) return
+    api.get(`/cursos/${resultado.curso_id}`).then(r => {
+      const apiModulos = r.data.modulos || []
+      const modulos = resultado.modulos.map(m => {
+        if (m.id) return m
+        const found = apiModulos.find(am => am.titulo === m.titulo)
+        return { ...m, id: found?.id }
+      })
+      setResultado(prev => ({ ...prev, modulos }))
+    }).catch(() => {})
+  }, [resultado?.curso_id])
   // Persistir form cuando cambia
   useEffect(() => { guardarFormStorage(form) }, [form])
 
@@ -406,6 +456,15 @@ export default function GeneradorIA() {
         signal: abortRef.current.signal
       })
       setResultado(res.data)
+      // Pre-cargar presentaciones desde la respuesta (ya generadas en el servidor)
+      const presMap = {}
+      ;(res.data.modulos || []).forEach((mod, i) => {
+        const pres = mod.presentacion || mod.contenido_presentacion
+        if (!pres) return
+        const diapositivas = Array.isArray(pres) ? pres : pres?.diapositivas || []
+        if (diapositivas.length > 0) presMap[i] = { diapositivas }
+      })
+      if (Object.keys(presMap).length > 0) setPresentaciones(presMap)
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return // cancelado intencionalmente
       setError(err.response?.data?.error || 'Error al generar el curso')
@@ -694,10 +753,28 @@ export default function GeneradorIA() {
                             <button
                               onClick={() => {
                                 if (!editandoPPT) {
+                                  // Entrando a modo edición: copiar estado actual
                                   setPptEditData(prev => ({
                                     ...prev,
                                     [presentacionActiva]: JSON.parse(JSON.stringify(presentaciones[presentacionActiva]))
                                   }))
+                                } else if (pptEditData[presentacionActiva]) {
+                                  // Saliendo de edición: guardar inmediatamente en DB y en memoria
+                                  const editedPres = pptEditData[presentacionActiva]
+                                  const mod = resultado?.modulos?.[presentacionActiva]
+                                  if (mod?.id && resultado?.curso_id) {
+                                    api.put(`/cursos/${resultado.curso_id}`, {
+                                      modulos: [{ id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: editedPres }]
+                                    }).catch(() => {})
+                                  }
+                                  setPresentaciones(prev => ({ ...prev, [presentacionActiva]: editedPres }))
+                                  // También actualizar resultado.modulos para que session storage persista la imagen
+                                  setResultado(prev => {
+                                    if (!prev?.modulos) return prev
+                                    const modulos = [...prev.modulos]
+                                    modulos[presentacionActiva] = { ...modulos[presentacionActiva], contenido_presentacion: editedPres }
+                                    return { ...prev, modulos }
+                                  })
                                 }
                                 setEditandoPPT(e => !e)
                               }}
@@ -1083,6 +1160,18 @@ export default function GeneradorIA() {
                         onClick={async () => {
                           setEnviando(true)
                           try {
+                            // Guardar cualquier PPT editado pendiente antes de enviar
+                            if (Object.keys(pptEditData).length > 0 && resultado?.curso_id) {
+                              const modulosToSave = Object.entries(pptEditData)
+                                .map(([idxStr, pres]) => {
+                                  const mod = resultado.modulos?.[Number(idxStr)]
+                                  if (!mod?.id) return null
+                                  return { id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: pres }
+                                }).filter(Boolean)
+                              if (modulosToSave.length > 0) {
+                                await api.put(`/cursos/${resultado.curso_id}`, { modulos: modulosToSave }).catch(() => {})
+                              }
+                            }
                             await api.post('/ia/notificar-profesor', {
                               curso_id: resultado.curso_id,
                               curso_nombre: resultado.nombre,

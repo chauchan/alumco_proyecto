@@ -21,6 +21,12 @@ const fileFilter = (req, file, cb) => {
 };
 const upload = multer({ storage, fileFilter, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
 
+const videoFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('video/')) cb(null, true);
+  else cb(new Error('Solo se aceptan archivos de video'), false);
+};
+const uploadVideo = multer({ storage, fileFilter: videoFilter, limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB
+
 // GET /api/cursos — listar cursos
 router.get('/', verificarToken, async (req, res) => {
   const { rol, id, estamento } = req.usuario;
@@ -116,10 +122,7 @@ router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatur
 router.patch('/:id/publicar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { publicado } = req.body;
   try {
-    await pool.query(
-      'UPDATE cursos SET publicado = $1, updated_at = NOW() WHERE id = $2',
-      [publicado, req.params.id]
-    );
+    await pool.query('UPDATE cursos SET publicado = $1, updated_at = NOW() WHERE id = $2', [publicado, req.params.id]);
     res.json({ id: req.params.id, publicado });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar estado del curso' });
@@ -151,7 +154,7 @@ router.post('/:id/asignar', verificarToken, verificarRol('admin_sede', 'jefatura
   try {
     const inserts = usuario_ids.map((uid) =>
       pool.query(
-        'INSERT INTO asignaciones (usuario_id, curso_id, obligatorio, fecha_limite) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+        'INSERT IGNORE INTO asignaciones (usuario_id, curso_id, obligatorio, fecha_limite) VALUES ($1,$2,$3,$4)',
         [uid, req.params.id, obligatorio || false, fecha_limite || null]
       )
     );
@@ -162,19 +165,110 @@ router.post('/:id/asignar', verificarToken, verificarRol('admin_sede', 'jefatura
   }
 });
 
+// GET /api/cursos/:id/mi-progreso — estado de progreso del colaborador (incluye bloqueo)
+router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT porcentaje, completado, intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
+      [req.usuario.id, req.params.id]
+    );
+    res.json(r.rows[0] || { porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
+  } catch {
+    // Si las columnas no existen aún, devolver sin bloqueo
+    try {
+      const r2 = await pool.query(
+        'SELECT porcentaje, completado FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
+        [req.usuario.id, req.params.id]
+      );
+      res.json({ ...(r2.rows[0] || {}), intentos_fallidos: 0, bloqueado_hasta: null });
+    } catch {
+      res.json({ porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
+    }
+  }
+});
+
 // PATCH /api/cursos/:id/progreso — actualizar progreso del colaborador
 router.patch('/:id/progreso', verificarToken, verificarRol('colaborador'), async (req, res) => {
-  const { porcentaje } = req.body;
+  const { porcentaje, es_evaluacion } = req.body;
+  const aprobado = porcentaje >= 60;
   const completado = porcentaje >= 100;
+
+  // Si no es evaluación (ej: progreso de módulos), hacer upsert simple sin contar fallos
+  if (!es_evaluacion) {
+    try {
+      // $5,$6 repiten $3,$4 para evitar VALUES() deprecated en MySQL 8.0.20+
+      await pool.query(
+        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
+         VALUES ($1,$2,$3,$4,NOW())
+         ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, $5), completado = $6, ultimo_acceso = NOW()`,
+        [req.usuario.id, req.params.id, porcentaje, completado, porcentaje, completado]
+      );
+    } catch (e) { console.warn('[progreso] upsert módulos falló:', e.message); }
+    return res.json({ porcentaje, completado });
+  }
+
   try {
-    await pool.query(
-      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
-       VALUES ($1,$2,$3,$4,NOW())
-       ON CONFLICT (usuario_id, curso_id) DO UPDATE SET porcentaje = GREATEST(progreso.porcentaje, $3), completado = $4, ultimo_acceso = NOW()`,
-      [req.usuario.id, req.params.id, porcentaje, completado]
+    // Obtener estado actual — las columnas son garantizadas por addColumnIfMissing en startup
+    const actual = await pool.query(
+      'SELECT intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
+      [req.usuario.id, req.params.id]
     );
-    res.json({ porcentaje, completado });
+    let row = actual.rows[0];
+
+    let intentos_fallidos, bloqueado_hasta;
+    const DIAS_BLOQUEO = 7;
+
+    if (!row) {
+      // Primera vez
+      intentos_fallidos = aprobado ? 0 : 1;
+      bloqueado_hasta = (!aprobado && intentos_fallidos >= 2)
+        ? new Date(Date.now() + DIAS_BLOQUEO * 24 * 60 * 60 * 1000) : null;
+      await pool.query(
+        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
+         VALUES ($1,$2,$3,$4,NOW(),$5,$6)`,
+        [req.usuario.id, req.params.id, porcentaje, completado, intentos_fallidos, bloqueado_hasta]
+      );
+    } else {
+      const prevFallidos = row.intentos_fallidos || 0;
+      intentos_fallidos = aprobado ? 0 : prevFallidos + 1;
+      const yaEstabaBlockeado = row.bloqueado_hasta && new Date(row.bloqueado_hasta) > new Date();
+      bloqueado_hasta = aprobado ? null
+        : intentos_fallidos >= 2 ? new Date(Date.now() + DIAS_BLOQUEO * 24 * 60 * 60 * 1000)
+        : row.bloqueado_hasta;
+      await pool.query(
+        `UPDATE progreso SET porcentaje = GREATEST(porcentaje, $1), completado = $2,
+         ultimo_acceso = NOW(), intentos_fallidos = $3, bloqueado_hasta = $4
+         WHERE usuario_id = $5 AND curso_id = $6`,
+        [porcentaje, completado, intentos_fallidos, bloqueado_hasta, req.usuario.id, req.params.id]
+      );
+
+      // Notificar admin_sede solo cuando se activa el bloqueo por primera vez
+      if (!yaEstabaBlockeado && intentos_fallidos >= 2 && !aprobado) {
+        try {
+          const userInfo = await pool.query('SELECT sede_id, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
+          const { sede_id, nombre: nombreColab } = userInfo.rows[0] || {};
+          const cursoInfo = await pool.query('SELECT nombre FROM cursos WHERE id = $1', [req.params.id]);
+          const nombreCurso = cursoInfo.rows[0]?.nombre || 'Curso';
+          if (sede_id) {
+            const admins = await pool.query(
+              "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1", [sede_id]
+            );
+            for (const admin of admins.rows) {
+              await pool.query(
+                'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES ($1,$2,$3)',
+                [admin.id,
+                 'Colaborador bloqueado en curso',
+                 `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`]
+              );
+            }
+          }
+        } catch { /* notificación opcional, no bloquear la respuesta */ }
+      }
+    }
+
+    res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
   } catch (err) {
+    console.error('[progreso] Error al actualizar progreso:', err.message);
     res.status(500).json({ error: 'Error al actualizar progreso' });
   }
 });
@@ -198,12 +292,9 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
 // PATCH /api/cursos/:id/aprobar — profesor aprueba y publica el curso
 router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   try {
-    const r = await pool.query('SELECT id FROM cursos WHERE id = $1', [req.params.id]);
-    if (r.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
-    await pool.query(
-      'UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2',
-      [req.usuario.id, req.params.id]
-    );
+    const existe = await pool.query('SELECT id FROM cursos WHERE id = $1', [req.params.id]);
+    if (!existe.rows.length) return res.status(404).json({ error: 'Curso no encontrado' });
+    await pool.query('UPDATE cursos SET publicado = 1, profesor_id = $1, updated_at = NOW() WHERE id = $2', [req.usuario.id, req.params.id]);
     res.json({ id: req.params.id, publicado: 1 });
   } catch (err) {
     res.status(500).json({ error: 'Error al aprobar curso' });
@@ -238,28 +329,32 @@ router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_s
 router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { nombre, descripcion, modulos, preguntas, estamento_objetivo, obligatorio } = req.body;
   try {
-    await pool.query(
-      `UPDATE cursos SET
-        nombre = COALESCE($1, nombre),
-        descripcion = COALESCE($2, descripcion),
-        estamento_objetivo = CASE WHEN $3 IS NOT NULL THEN $3 ELSE estamento_objetivo END,
-        obligatorio = CASE WHEN $4 IS NOT NULL THEN $4 ELSE obligatorio END,
-        updated_at = NOW()
-       WHERE id = $5`,
-      [nombre || null, descripcion !== undefined ? descripcion : null,
-       estamento_objetivo !== undefined ? (estamento_objetivo || null) : null,
-       obligatorio !== undefined ? (obligatorio ? 1 : 0) : null,
-       req.params.id]
-    );
+    // Construcción dinámica del SET para evitar repetir parámetros posicionales en MySQL
+    const sets = ['updated_at = NOW()'];
+    const vals = [];
+    if (nombre !== undefined) { sets.unshift('nombre = ?'); vals.push(nombre || null); }
+    if (descripcion !== undefined) { sets.unshift('descripcion = ?'); vals.push(descripcion ?? null); }
+    if (estamento_objetivo !== undefined) { sets.unshift('estamento_objetivo = ?'); vals.push(estamento_objetivo || null); }
+    if (obligatorio !== undefined) { sets.unshift('obligatorio = ?'); vals.push(obligatorio ? 1 : 0); }
+    vals.push(req.params.id);
+    await pool.query(`UPDATE cursos SET ${sets.join(', ')} WHERE id = ?`, vals);
     if (modulos?.length) {
       for (const mod of modulos) {
-        if (mod.contenido_presentacion !== undefined) {
+        const tieneTitulo = mod.titulo !== undefined && mod.titulo !== null;
+        const tienePPT = mod.contenido_presentacion !== undefined;
+        if (tieneTitulo && tienePPT) {
           await pool.query(
             'UPDATE modulos SET titulo = $1, descripcion = $2, contenido_presentacion = $3 WHERE id = $4',
-            [mod.titulo, mod.descripcion, JSON.stringify(mod.contenido_presentacion), mod.id]
+            [mod.titulo, mod.descripcion ?? null, JSON.stringify(mod.contenido_presentacion), mod.id]
           );
-        } else {
-          await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion, mod.id]);
+        } else if (tieneTitulo) {
+          await pool.query('UPDATE modulos SET titulo = $1, descripcion = $2 WHERE id = $3', [mod.titulo, mod.descripcion ?? null, mod.id]);
+        } else if (tienePPT) {
+          // Solo actualizar contenido_presentacion (el profesor puede guardar sin tocar título)
+          await pool.query(
+            'UPDATE modulos SET contenido_presentacion = $1 WHERE id = $2',
+            [JSON.stringify(mod.contenido_presentacion), mod.id]
+          );
         }
       }
     }
@@ -274,6 +369,39 @@ router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefat
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar curso' });
+  }
+});
+
+// POST /api/cursos/:id/video-intro — sube video introductorio del curso
+router.post('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), (req, res, next) => {
+  uploadVideo.single('video')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Error al procesar el archivo' });
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Video requerido' });
+  try {
+    const url = `/uploads/${req.file.filename}`;
+    await pool.query('UPDATE cursos SET video_intro_url = $1, updated_at = NOW() WHERE id = $2', [url, req.params.id]);
+    res.json({ video_intro_url: url });
+  } catch (err) {
+    console.error('Error video-intro:', err.message);
+    res.status(500).json({ error: 'Error al guardar video: ' + err.message });
+  }
+});
+
+// DELETE /api/cursos/:id/video-intro — elimina video introductorio
+router.delete('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  try {
+    const cur = await pool.query('SELECT video_intro_url FROM cursos WHERE id = $1', [req.params.id]);
+    if (cur.rows[0]?.video_intro_url) {
+      const filePath = path.join(__dirname, '../../', cur.rows[0].video_intro_url);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    await pool.query('UPDATE cursos SET video_intro_url = NULL, updated_at = NOW() WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar video' });
   }
 });
 

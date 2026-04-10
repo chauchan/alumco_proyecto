@@ -61,6 +61,12 @@ export default function Profesor() {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [eliminandoMasivo, setEliminandoMasivo] = useState(false)
 
+  const [videoIntroUrl, setVideoIntroUrl] = useState(null)
+  const [subiendoVideo, setSubiendoVideo] = useState(false)
+  const [eliminandoVideo, setEliminandoVideo] = useState(false)
+  const [generandoTodosPPT, setGenerandoTodosPPT] = useState(false)
+  const [progresoPPT, setProgresoPPT] = useState({ hecho: 0, total: 0 })
+
   useEffect(() => {
     Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
       .then(([c, cert, bIA]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data) })
@@ -77,9 +83,29 @@ export default function Profesor() {
     setPptModuloIdx(idx)
     setPptSlide(0)
     if (pptPresentaciones[idx]) return
+
+    // Usar contenido_presentacion guardado en BD si existe
+    if (mod.contenido_presentacion) {
+      let cp = mod.contenido_presentacion
+      if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { cp = null } }
+      if (cp) {
+        // Normalizar a { diapositivas: [...] }
+        const diapositivas = Array.isArray(cp) ? cp : Array.isArray(cp.diapositivas) ? cp.diapositivas : []
+        if (diapositivas.length > 0) {
+          setPptPresentaciones(prev => ({ ...prev, [idx]: { diapositivas } }))
+          return
+        }
+      }
+    }
+
+    // Si no hay contenido guardado, generar con IA
     setPptPresentaciones(prev => ({ ...prev, [idx]: 'cargando' }))
     try {
       const res = await api.post('/ia/generar-presentacion', { titulo: mod.titulo, descripcion: mod.descripcion })
+      // Guardar en BD para no regenerar la próxima vez
+      await api.put(`/cursos/${cursoDetalle.id}`, {
+        modulos: [{ id: mod.id, titulo: mod.titulo, descripcion: mod.descripcion, contenido_presentacion: res.data.presentacion }]
+      })
       setPptPresentaciones(prev => ({ ...prev, [idx]: res.data.presentacion }))
     } catch {
       setPptPresentaciones(prev => ({ ...prev, [idx]: 'error' }))
@@ -93,6 +119,72 @@ export default function Profesor() {
     setEditandoModulos(false); setModulosEdit([])
     setEditandoPreguntas(false); setPreguntasEdit([])
     setTargeting({ estamento_objetivo: null, obligatorio: false })
+    setVideoIntroUrl(null)
+  }
+
+  const subirVideoIntro = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !cursoDetalle) return
+    const formData = new FormData()
+    formData.append('video', file)
+    setSubiendoVideo(true)
+    try {
+      const res = await api.post(`/cursos/${cursoDetalle.id}/video-intro`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setVideoIntroUrl(res.data.video_intro_url)
+      setCursoDetalle(prev => ({ ...prev, video_intro_url: res.data.video_intro_url }))
+    } catch {
+      alert('Error al subir el video')
+    } finally {
+      setSubiendoVideo(false)
+    }
+  }
+
+  const eliminarVideoIntro = async () => {
+    if (!cursoDetalle || !confirm('¿Eliminar el video introductorio?')) return
+    setEliminandoVideo(true)
+    try {
+      await api.delete(`/cursos/${cursoDetalle.id}/video-intro`)
+      setVideoIntroUrl(null)
+      setCursoDetalle(prev => ({ ...prev, video_intro_url: null }))
+    } catch {
+      alert('Error al eliminar el video')
+    } finally {
+      setEliminandoVideo(false)
+    }
+  }
+
+  const generarTodosPPT = async () => {
+    const modulos = cursoDetalle?.modulos || []
+    const sinPPT = modulos.filter(m => {
+      const cp = m.contenido_presentacion
+      if (!cp) return true
+      try {
+        const parsed = typeof cp === 'string' ? JSON.parse(cp) : cp
+        const slides = Array.isArray(parsed) ? parsed : parsed?.diapositivas || []
+        return slides.length === 0
+      } catch { return true }
+    })
+    if (sinPPT.length === 0) { alert('Todos los módulos ya tienen presentación generada.'); return }
+    if (!confirm(`¿Generar presentación PPT para ${sinPPT.length} módulo(s)? Esto puede tardar unos minutos.`)) return
+
+    setGenerandoTodosPPT(true)
+    setProgresoPPT({ hecho: 0, total: sinPPT.length })
+    let hecho = 0
+    for (const mod of sinPPT) {
+      try {
+        const res = await api.post(`/ia/modulo/${mod.id}/generar-ppt`)
+        const pres = res.data.presentacion
+        setCursoDetalle(prev => ({
+          ...prev,
+          modulos: prev.modulos.map(m => m.id === mod.id ? { ...m, contenido_presentacion: pres } : m)
+        }))
+      } catch { /* sigue con el siguiente */ }
+      hecho++
+      setProgresoPPT({ hecho, total: sinPPT.length })
+    }
+    setGenerandoTodosPPT(false)
   }
 
   const guardarTargeting = async () => {
@@ -239,7 +331,7 @@ export default function Profesor() {
                   </div>
                   {/* Tabs */}
                   <div style={{ display:'flex', gap:4, marginTop:14 }}>
-                    {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT'],['audiencia','Audiencia']].map(([key, label]) => (
+                    {[['modulos','Módulos'],['preguntas','Preguntas'],['ppt','Presentación PPT'],['audiencia','Audiencia'],['video','Video Intro']].map(([key, label]) => (
                       <button key={key} onClick={() => { setTabDetalle(key); setPptModuloIdx(null); setPptEditando(false) }} style={{
                         fontSize:12, padding:'5px 14px', borderRadius:6, border:'none', cursor:'pointer',
                         background: tabDetalle === key ? '#fff' : 'rgba(255,255,255,0.12)',
@@ -413,8 +505,7 @@ export default function Profesor() {
                                 {pptPresentaciones[i] === 'cargando' ? <Icon icon="lucide:loader-circle" width={13} /> : tienePPT ? <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Ver</> : <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Generar</>}
                               </button>
                             </div>
-                          )
-                          })}
+                          )}}
                         </>
                       ) : (() => {
                         const mod  = cursoDetalle.modulos[pptModuloIdx]
@@ -672,8 +763,19 @@ export default function Profesor() {
                     style={{ height: 32, padding: '0 14px', background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
                     onClick={async () => {
                       const detalle = await api.get(`/cursos/${curso.id}`)
-                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [] })
+                      setCursoDetalle({ ...curso, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
                       setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
+                      setVideoIntroUrl(detalle.data.video_intro_url || null)
+                      // Pre-cargar PPTs de todos los módulos que ya tienen contenido guardado
+                      const presMap = {}
+                      ;(detalle.data.modulos || []).forEach((mod, i) => {
+                        if (!mod.contenido_presentacion) return
+                        let cp = mod.contenido_presentacion
+                        if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { return } }
+                        const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+                        if (slides.length > 0) presMap[i] = { diapositivas: slides }
+                      })
+                      if (Object.keys(presMap).length > 0) setPptPresentaciones(presMap)
                       setTabDetalle('modulos')
                     }}>
                     Revisar

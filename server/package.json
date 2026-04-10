@@ -10,7 +10,8 @@
     "db:seed": "node seed.js",
     "db:estamentos": "node src/config/migrate_estamentos.js",
     "db:practicos": "node src/config/migrate_practicos.js",
-    "db:contacto": "node src/config/migrate_contacto.js"
+    "db:contacto": "node src/config/migrate_contacto.js",
+    "db:video-intro": "node src/config/migrate_video_intro.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

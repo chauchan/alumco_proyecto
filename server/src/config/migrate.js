@@ -72,11 +72,11 @@ async function migrate() {
       )
     `);
 
-    // Migración incremental: agregar columna si no existe en BDs previas
-    await conn.query(`
-      ALTER TABLE modulos ADD COLUMN IF NOT EXISTS contenido_presentacion JSON AFTER descripcion
-    `).catch(() => {}); // ignorar si ya existe o BD no soporta IF NOT EXISTS
-
+    // Migraciones incrementales: agregar columnas si no existen en BDs previas
+    await conn.query(`ALTER TABLE modulos ADD COLUMN IF NOT EXISTS contenido_presentacion JSON AFTER descripcion`).catch(() => {});
+    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS estamento_objetivo VARCHAR(150) DEFAULT NULL`).catch(() => {});
+    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS obligatorio TINYINT(1) DEFAULT 0`).catch(() => {});
+    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS video_intro_url VARCHAR(500) DEFAULT NULL`).catch(() => {});
     await conn.query(`
       CREATE TABLE IF NOT EXISTS asignaciones (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -99,11 +99,16 @@ async function migrate() {
         completado TINYINT(1) DEFAULT 0,
         porcentaje INT DEFAULT 0,
         ultimo_acceso DATETIME,
+        intentos_fallidos INT DEFAULT 0,
+        bloqueado_hasta DATETIME DEFAULT NULL,
         UNIQUE KEY uq_progreso (usuario_id, curso_id),
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
         FOREIGN KEY (curso_id) REFERENCES cursos(id)
       )
     `);
+    // Para BDs existentes que no tienen aún estas columnas
+    await conn.query(`ALTER TABLE progreso ADD COLUMN IF NOT EXISTS intentos_fallidos INT DEFAULT 0`).catch(() => {});
+    await conn.query(`ALTER TABLE progreso ADD COLUMN IF NOT EXISTS bloqueado_hasta DATETIME DEFAULT NULL`).catch(() => {});
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS preguntas (

@@ -14,9 +14,11 @@ const { notificarProfesor } = require('../config/mailer');
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
 const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
-const OPENROUTER_KEY    = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL  = process.env.OPENROUTER_MODEL  || 'nvidia/nemotron-3-super-120b-a12b:free';
-const OPENROUTER_URL    = 'https://openrouter.ai/api/v1/chat/completions';
+// ── OpenRouter deshabilitado temporalmente — descomentar para reactivar ──────
+// const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
+// const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
+// const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_KEY = null; // forzar siempre Ollama
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
 function pdfToImages(pdfPath, outDir, maxPages = 4) {
@@ -52,64 +54,64 @@ async function describirImagen(imagePath) {
   return data.response || '';
 }
 
-// ── Extrae imágenes embebidas del PDF, filtra las pequeñas y guarda las útiles
+// ── Extrae imágenes embebidas del PDF filtrando logos repetidos (por MD5) ──────
 async function extraerImagenesPDF(pdfPath, cursoId) {
+  const crypto = require('crypto');
   const sharp = require('sharp');
   const outDir = path.join(__dirname, '../../uploads/imagenes', String(cursoId));
   fs.mkdirSync(outDir, { recursive: true });
-  const outPrefix = path.join(outDir, 'img');
 
-  await new Promise((resolve, reject) => {
+  // Limpiar imágenes anteriores
+  fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
+
+  const outPrefix = path.join(outDir, 'img');
+  await new Promise((resolve) => {
     execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
-      if (err) return reject(err);
+      if (err) console.warn('[IA] pdfimages error:', err.message);
       resolve();
     });
   });
 
-  // Filtrar imágenes por tamaño mínimo (ancho y alto >= 150px, archivo >= 15KB)
   const archivos = fs.readdirSync(outDir)
     .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
     .sort();
 
+  // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
+  const hashCount = {};
+  const fileHashes = {};
+  for (const archivo of archivos) {
+    try {
+      const buf = fs.readFileSync(path.join(outDir, archivo));
+      const h = crypto.createHash('md5').update(buf).digest('hex');
+      fileHashes[archivo] = h;
+      hashCount[h] = (hashCount[h] || 0) + 1;
+    } catch {}
+  }
+
   const utiles = [];
   for (const archivo of archivos) {
     const fullPath = path.join(outDir, archivo);
-    const stat = fs.statSync(fullPath);
-    if (stat.size < 15 * 1024) continue; // descartar < 15KB
-
     try {
-      // Convertir PPM a PNG si es necesario
+      const stat = fs.statSync(fullPath);
+      // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
+      if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
+        fs.unlinkSync(fullPath); continue;
+      }
       let finalPath = fullPath;
       if (archivo.endsWith('.ppm')) {
         finalPath = fullPath.replace('.ppm', '.png');
         await sharp(fullPath).png().toFile(finalPath);
         fs.unlinkSync(fullPath);
       }
-
       const meta = await sharp(finalPath).metadata();
-      if ((meta.width || 0) < 150 || (meta.height || 0) < 150) {
-        fs.unlinkSync(finalPath);
-        continue;
+      if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
+        fs.unlinkSync(finalPath); continue;
       }
-
-      // Escalar imágenes pequeñas a mínimo 1200px de ancho para que el texto sea legible
-      if ((meta.width || 0) < 1200) {
-        const escaladoPath = finalPath.replace('.png', '_hd.png');
-        await sharp(finalPath)
-          .resize({ width: 1200, withoutEnlargement: false })
-          .png({ compressionLevel: 8 })
-          .toFile(escaladoPath);
-        fs.unlinkSync(finalPath);
-        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(escaladoPath)}`);
-      } else {
-        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-      }
-    } catch {
-      // ignorar archivos corruptos
-    }
+      utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
+    } catch {}
   }
 
-  console.log('[IA] Imágenes útiles extraídas del PDF:', utiles.length);
+  console.log('[IA] Imágenes útiles del PDF (sin logos duplicados):', utiles.length);
   return utiles;
 }
 
@@ -139,55 +141,53 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-async function llamarOpenRouter(prompt, timeoutMs = 180000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await undiciFetch(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_KEY}`,
-        'HTTP-Referer': 'https://alumco.cl',
-        'X-Title': 'ALUMCO - Generador de Cursos'
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un experto en diseño instruccional. Tu tarea es SOLO generar el JSON solicitado. NO expliques tu razonamiento. NO agregues texto antes o después. Responde ÚNICAMENTE con el objeto JSON.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 12000,
-        stream: false
-      })
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`OpenRouter HTTP ${response.status}: ${body}`);
-    }
-    const data = await response.json();
-    const finishReason = data.choices?.[0]?.finish_reason;
-    const content = data.choices?.[0]?.message?.content || '';
-    const reasoning = data.choices?.[0]?.message?.reasoning || '';
-    console.log(`[IA] OpenRouter finish_reason=${finishReason} tokens=${data.usage?.total_tokens || '?'}`);
-
-    // El modelo de razonamiento puede poner el JSON dentro de su campo reasoning
-    // Intentar ambos campos — primero content, luego reasoning
-    const candidato = content.includes('{') ? content : (reasoning.includes('{') ? reasoning : '');
-    if (!candidato) throw new Error(`OpenRouter no devolvió JSON (finish_reason: ${finishReason})`);
-    if (finishReason === 'length') {
-      console.warn('[IA] OpenRouter cortó la respuesta por longitud — puede estar incompleta');
-    }
-    return candidato;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// ── OpenRouter deshabilitado temporalmente ───────────────────────────────────
+// async function llamarOpenRouter(prompt, timeoutMs = 180000) {
+//   const controller = new AbortController();
+//   const timer = setTimeout(() => controller.abort(), timeoutMs);
+//   try {
+//     const response = await undiciFetch(OPENROUTER_URL, {
+//       method: 'POST',
+//       headers: {
+//         'Content-Type': 'application/json',
+//         'Authorization': `Bearer ${OPENROUTER_KEY}`,
+//         'HTTP-Referer': 'https://alumco.cl',
+//         'X-Title': 'ALUMCO - Generador de Cursos'
+//       },
+//       signal: controller.signal,
+//       body: JSON.stringify({
+//         model: OPENROUTER_MODEL,
+//         messages: [
+//           {
+//             role: 'system',
+//             content: 'Eres un experto en diseño instruccional. Tu tarea es SOLO generar el JSON solicitado. NO expliques tu razonamiento. NO agregues texto antes o después. Responde ÚNICAMENTE con el objeto JSON.'
+//           },
+//           { role: 'user', content: prompt }
+//         ],
+//         temperature: 0.1,
+//         max_tokens: 12000,
+//         stream: false
+//       })
+//     });
+//     if (!response.ok) {
+//       const body = await response.text().catch(() => '');
+//       throw new Error(`OpenRouter HTTP ${response.status}: ${body}`);
+//     }
+//     const data = await response.json();
+//     const finishReason = data.choices?.[0]?.finish_reason;
+//     const content = data.choices?.[0]?.message?.content || '';
+//     const reasoning = data.choices?.[0]?.message?.reasoning || '';
+//     console.log(`[IA] OpenRouter finish_reason=${finishReason} tokens=${data.usage?.total_tokens || '?'}`);
+//     const candidato = content.includes('{') ? content : (reasoning.includes('{') ? reasoning : '');
+//     if (!candidato) throw new Error(`OpenRouter no devolvió JSON (finish_reason: ${finishReason})`);
+//     if (finishReason === 'length') {
+//       console.warn('[IA] OpenRouter cortó la respuesta por longitud — puede estar incompleta');
+//     }
+//     return candidato;
+//   } finally {
+//     clearTimeout(timer);
+//   }
+// }
 
 async function llamarOllama(prompt, timeoutMs = 480000) {
   const controller = new AbortController();
@@ -218,29 +218,63 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
 }
 
 async function llamarIA(prompt, timeoutMs = 480000) {
-  if (OPENROUTER_KEY) {
-    console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
-    try {
-      return await llamarOpenRouter(prompt, timeoutMs);
-    } catch (err) {
-      console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`);
-    }
-  }
+  // Para reactivar OpenRouter: descomentar las constantes arriba y reemplazar esta
+  // función con la versión con fallback:
+  // if (OPENROUTER_KEY) {
+  //   console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
+  //   try { return await llamarOpenRouter(prompt, timeoutMs); }
+  //   catch (err) { console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`); }
+  // }
   console.log(`[IA] Usando Ollama local → ${OLLAMA_MODEL}`);
   return await llamarOllama(prompt, timeoutMs);
 }
 
 function parsearJSON(texto) {
   if (!texto) throw new Error('La IA no devolvió contenido');
+  // Eliminar bloques <think>...</think> de modelos de razonamiento
+  let t = texto.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   // Intento directo
-  try { return JSON.parse(texto.trim()); } catch {}
-  // El modelo puede incluir razonamiento antes del JSON — extraer el bloque más grande
-  const candidatos = texto.match(/\{[\s\S]*\}/);
-  if (candidatos) { try { return JSON.parse(candidatos[0]); } catch {} }
+  try { return JSON.parse(t); } catch {}
   // Bloque de código markdown ```json ... ```
-  const mdMatch = texto.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const mdMatch = t.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (mdMatch) { try { return JSON.parse(mdMatch[1].trim()); } catch {} }
+  // Extraer el bloque JSON más grande (puede haber texto antes/después)
+  const candidatos = [...t.matchAll(/\{[\s\S]*?\}/g)].map(m => m[0]).sort((a,b) => b.length - a.length);
+  for (const c of candidatos) { try { return JSON.parse(c); } catch {} }
   throw new Error('La IA no devolvió un JSON válido');
+}
+
+// ── Helper: genera slides PPT para un módulo ─────────────────────────────────
+async function generarPPTModulo(titulo, descripcion) {
+  const prompt = `Genera una presentación educativa COMPLETA en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
+Responde SOLO con este JSON exacto, sin texto adicional:
+{"diapositivas":[
+  {"tipo":"objetivos","titulo":"Objetivos de aprendizaje","lista":["Al finalizar podrás... 1","Al finalizar podrás... 2","Al finalizar podrás... 3"]},
+  {"tipo":"desempeno","titulo":"Objetivo de desempeño","descripcion":"Al finalizar este módulo, el trabajador será capaz de [acción concreta]"},
+  {"tipo":"introduccion","titulo":"Introducción","texto":"párrafo de 3-4 oraciones que contextualice el tema"},
+  {"tipo":"seccion","titulo":"título del primer tema","texto":"explicación en 3-4 oraciones","puntos":["punto 1","punto 2","punto 3"]},
+  {"tipo":"seccion","titulo":"título del segundo tema","texto":"explicación en 3-4 oraciones","puntos":["punto 1","punto 2","punto 3"]},
+  {"tipo":"puntos_clave","titulo":"Puntos claves","puntos":["clave 1","clave 2","clave 3","clave 4"]},
+  {"tipo":"importante","titulo":"Cosas importantes","puntos":["importante 1","importante 2","importante 3"]},
+  {"tipo":"conclusion","titulo":"Conclusión","texto":"párrafo de cierre","mensaje":"frase motivacional corta"}
+]}
+
+Módulo: ${titulo}
+Descripción: ${descripcion || titulo}
+Responde SOLO el JSON.`;
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      // 300s por intento para Ollama local. Con OpenRouter usar 90000.
+      const resp = await llamarIA(prompt, 300000);
+      const parsed = parsearJSON(resp);
+      if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
+      return parsed;
+    } catch (e) {
+      console.warn(`[IA] Error generando PPT para "${titulo}" (intento ${intento}/2):`, e.message);
+      if (intento < 2) await new Promise(r => setTimeout(r, 2000)); // 2s antes del reintento
+    }
+  }
+  return null;
 }
 
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
@@ -281,8 +315,8 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const modulosFijo = num_modulos ? parseInt(num_modulos) : null;
     const modulosMin = modulosFijo || (totalChars > 15000 ? 5 : totalChars > 8000 ? 4 : 3);
     const modulosMax = modulosFijo || (totalChars > 15000 ? 7 : totalChars > 8000 ? 6 : 4);
-    // OpenRouter soporta contexto largo; Ollama limitado a ~6000 chars
-    const limiteChars = OPENROUTER_KEY ? 40000 : 6000;
+    // Ollama limitado a ~6000 chars. Con OpenRouter reactivado usar 40000.
+    const limiteChars = 6000; // OPENROUTER_KEY ? 40000 : 6000
     const textoParaOllama = textoPdf.slice(0, limiteChars);
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
 
@@ -336,7 +370,16 @@ Reglas:
       }
     }));
 
-    const borrador = { modulos };
+    // ── Paso 3c: generar PPT para cada módulo (secuencial para evitar rate limit) ─
+    console.log('[IA] Paso 3c: generando presentaciones PPT...');
+    const modulosConPPT = [];
+    for (const mod of modulos) {
+      console.log(`[IA] Generando PPT: "${mod.titulo}"`);
+      const presentacion = await generarPPTModulo(mod.titulo, mod.descripcion);
+      modulosConPPT.push({ ...mod, presentacion });
+    }
+
+    const borrador = { modulos: modulosConPPT };
     const modulosGenerados = borrador.modulos.length;
     console.log('[IA] Paso 5: módulos generados:', modulosGenerados);
 
@@ -371,12 +414,16 @@ Reglas:
     const cursoId = cursoResult.lastID;
     console.log('[IA] Paso 6: curso insertado, id:', cursoId);
 
+    const modulosConId = [];
     for (let i = 0; i < borrador.modulos.length; i++) {
       const mod = borrador.modulos[i];
-      await pool.query(
-        'INSERT INTO modulos (curso_id, titulo, descripcion, orden) VALUES ($1,$2,$3,$4)',
-        [cursoId, mod.titulo, mod.descripcion, i + 1]
+      const insM = await pool.query(
+        'INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, orden) VALUES ($1,$2,$3,$4,$5,$6)',
+        [cursoId, mod.titulo, mod.descripcion,
+         mod.presentacion ? JSON.stringify(mod.presentacion) : null,
+         'ppt', i + 1]
       );
+      modulosConId.push({ ...mod, id: insM.lastID });
       for (const pregunta of (mod.preguntas || [])) {
         await pool.query(
           'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1,$2,$3)',
@@ -399,7 +446,7 @@ Reglas:
       curso_id: cursoId,
       nombre: nombre_curso,
       generado_por_ia: true,
-      modulos: borrador.modulos,
+      modulos: modulosConId,
       preguntas_count: totalPreguntas,
       nombre_archivo: nombreArchivo,
       imagenes_protocolo: imagenesProtocolo,
@@ -510,6 +557,28 @@ Responde SOLO el JSON.`;
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
     res.status(500).json({ error: 'Error al generar la presentación.' });
+  }
+});
+
+// ─── POST /api/ia/modulo/:id/generar-ppt ──────────────────────────────────────
+// Genera y guarda el PPT de un módulo existente (accesible a todos los roles)
+router.post('/modulo/:id/generar-ppt', verificarToken, async (req, res) => {
+  try {
+    const mod = await pool.query('SELECT id, titulo, descripcion, contenido_presentacion FROM modulos WHERE id = $1', [req.params.id]);
+    if (!mod.rows.length) return res.status(404).json({ error: 'Módulo no encontrado' });
+    const m = mod.rows[0];
+    // Si ya tiene contenido, devolverlo sin regenerar
+    if (m.contenido_presentacion) {
+      const cp = typeof m.contenido_presentacion === 'string' ? JSON.parse(m.contenido_presentacion) : m.contenido_presentacion;
+      return res.json({ presentacion: cp });
+    }
+    const presentacion = await generarPPTModulo(m.titulo, m.descripcion);
+    if (!presentacion) return res.status(500).json({ error: 'No se pudo generar la presentación' });
+    await pool.query('UPDATE modulos SET contenido_presentacion = $1 WHERE id = $2', [JSON.stringify(presentacion), m.id]);
+    res.json({ presentacion });
+  } catch (err) {
+    console.error('[IA] Error generar-ppt módulo:', err.message);
+    res.status(500).json({ error: 'Error al generar la presentación' });
   }
 });
 
