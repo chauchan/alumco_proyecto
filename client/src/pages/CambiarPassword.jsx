@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
@@ -142,7 +143,7 @@ export default function CambiarPassword() {
                 borderRadius: 8, padding: '10px 14px',
                 fontSize: 13, color: '#1A7A45', marginBottom: 16
               }}>
-                ✓ {exito}
+                <Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}
               </div>
             )}
 

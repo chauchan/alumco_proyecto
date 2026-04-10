@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
@@ -129,8 +130,8 @@ export default function CertificadosGlobales() {
             {cargando ? (
               <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
             ) : filtrados.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+              <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
+                <Icon icon="lucide:clipboard-list" width={32} style={{marginBottom:8,display:"block",color:"#CCC"}} />
                 <div style={{ fontSize: 14, fontWeight: 500 }}>No se encontraron certificados</div>
               </div>
             ) : (
@@ -174,7 +175,7 @@ export default function CertificadosGlobales() {
                             href={`/api/certificados/${cert.id}/descargar`}
                             style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px' }}
                           >
-                            ↓ Descargar
+                            <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
                           </a>
                         ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
                           <button

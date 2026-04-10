@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -176,7 +177,7 @@ export default function Practicos() {
               {googleConectado ? (
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                   <span style={{ fontSize:12, color:'#1A7A45', background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:6, padding:'4px 10px' }}>
-                    ✓ Google Calendar conectado
+                    <Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Google Calendar conectado
                   </span>
                   <button className="btn-outline-dark" style={{ fontSize:12 }}
                     onClick={() => { setMostrarModalEvento(true); setError(''); setExito('') }}>
@@ -188,19 +189,19 @@ export default function Practicos() {
                 </div>
               ) : (
                 <button className="btn-outline-dark" onClick={conectarGoogle}>
-                  📅 Conectar Google Calendar
+                  <><Icon icon="lucide:calendar" width={14} style={{verticalAlign:"middle",marginRight:4}} /> Conectar Google Calendar</>
                 </button>
               )}
               {puedeCrear && (
                 <button className="btn-primary" onClick={() => { setMostrarForm(!mostrarForm); setError(''); setExito('') }}>
-                  {mostrarForm ? '✕ Cancelar' : '+ Nuevo práctico'}
+                  {mostrarForm ? <><Icon icon="lucide:x" width={13} /> Cancelar</> : '+ Nuevo práctico'}
                 </button>
               )}
             </div>
           </div>
 
-          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}>✓ {exito}</div>}
-          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}>✗ {error}</div>}
+          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}><Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}</div>}
+          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}><Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}</div>}
 
           {/* Formulario crear práctico */}
           {mostrarForm && puedeCrear && (
@@ -253,10 +254,10 @@ export default function Practicos() {
               {/* Navegación mes */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                 <button onClick={() => { if (mes === 0) { setMes(11); setAnio(anio-1) } else setMes(mes-1) }}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', fontSize:14 }}>‹</button>
+                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-left" width={16} /></button>
                 <span style={{ fontSize:15, fontWeight:500 }}>{MESES[mes]} {anio}</span>
                 <button onClick={() => { if (mes === 11) { setMes(0); setAnio(anio+1) } else setMes(mes+1) }}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', fontSize:14 }}>›</button>
+                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-right" width={16} /></button>
               </div>
 
               {/* Días de la semana */}
@@ -323,19 +324,19 @@ export default function Practicos() {
                   ) : practicosDelDia.map(p => (
                     <div key={p.id} style={{ border:`0.5px solid ${p.origen === 'google' ? '#4285F4' : '#E8E8E8'}`, borderRadius:8, padding:12, marginBottom:8 }}>
                       {p.origen === 'google' && (
-                        <div style={{ fontSize:10, color:'#4285F4', fontWeight:500, marginBottom:4 }}>📅 Google Calendar</div>
+                        <div style={{ fontSize:10, color:'#4285F4', fontWeight:500, marginBottom:4, display:'flex', alignItems:'center', gap:3 }}><Icon icon="lucide:calendar" width={10} /> Google Calendar</div>
                       )}
                       <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>{p.titulo}</div>
                       {p.curso_nombre && (
-                        <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>📋 {p.curso_nombre}</div>
+                        <div style={{ fontSize:11, color:'#888', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:clipboard-list" width={11} /> {p.curso_nombre}</div>
                       )}
                       {p.hora_inicio && (
                         <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>
-                          🕐 {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}
+                          <><Icon icon="lucide:clock" width={11} style={{marginRight:3}} /> {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}</>
                         </div>
                       )}
                       {p.sede_nombre && (
-                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>📍 {p.sede_nombre}</div>
+                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}><><Icon icon="lucide:map-pin" width={11} style={{marginRight:3}} /> {p.sede_nombre}</></div>
                       )}
                       {p.descripcion && (
                         <div style={{ fontSize:11, color:'#888', marginTop:6, lineHeight:1.5 }}>{p.descripcion}</div>
@@ -365,8 +366,8 @@ export default function Practicos() {
                   ))}
                 </div>
               ) : (
-                <div className="card" style={{ textAlign:'center', padding:24 }}>
-                  <div style={{ fontSize:28, marginBottom:8 }}>📅</div>
+                <div className="card" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center',textAlign:'center', padding:24 }}>
+                  <Icon icon="lucide:calendar" width={28} style={{marginBottom:8,display:"block",color:"#CCC"}} />
                   <div style={{ fontSize:13, color:'#888' }}>Selecciona un día para ver los prácticos programados</div>
                 </div>
               )}
@@ -424,7 +425,7 @@ export default function Practicos() {
                 <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Se agregará a tu Google Calendar</div>
               </div>
               <button onClick={() => setMostrarModalEvento(false)}
-                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', lineHeight:1 }}>✕</button>
+                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', lineHeight:1 }}><Icon icon="lucide:x" width={18} /></button>
             </div>
 
             <form onSubmit={handleCrearEvento} style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -438,7 +439,7 @@ export default function Practicos() {
 
               {/* Fecha */}
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>📅 Fecha *</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:calendar" width={13} style={{marginRight:4}} /> Fecha *</label>
                 <input type="date"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.fecha} onChange={e => setFormEvento({...formEvento, fecha:e.target.value})} />
@@ -447,13 +448,13 @@ export default function Practicos() {
               {/* Horas */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div className="field">
-                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>🕐 Hora inicio *</label>
+                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora inicio *</label>
                   <input type="time"
                     style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                     value={formEvento.hora_inicio} onChange={e => setFormEvento({...formEvento, hora_inicio:e.target.value})} />
                 </div>
                 <div className="field">
-                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>🕐 Hora término</label>
+                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora término</label>
                   <input type="time"
                     style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                     value={formEvento.hora_fin} onChange={e => setFormEvento({...formEvento, hora_fin:e.target.value})} />
@@ -462,7 +463,7 @@ export default function Practicos() {
 
               {/* Ubicación */}
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>📍 Ubicación</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:map-pin" width={13} style={{marginRight:4}} /> Ubicación</label>
                 <input type="text" placeholder="Añadir ubicación"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.lugar} onChange={e => setFormEvento({...formEvento, lugar:e.target.value})} />
@@ -470,7 +471,7 @@ export default function Practicos() {
 
               {/* Descripción */}
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>☰ Descripción</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:align-left" width={13} style={{marginRight:4}} /> Descripción</label>
                 <textarea rows={3} placeholder="Añadir descripción"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box', resize:'none' }}
                   value={formEvento.descripcion} onChange={e => setFormEvento({...formEvento, descripcion:e.target.value})} />

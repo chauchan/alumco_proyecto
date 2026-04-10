@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -70,10 +71,10 @@ export default function MisCertificados() {
           {/* Lista */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {cargando ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
+              <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
             ) : filtrados.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🏅</div>
+              <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center',textAlign: 'center', color: '#888', padding: 40 }}>
+                <Icon icon="lucide:medal" width={32} style={{marginBottom:8,display:"block",color:"#F5A623"}} />
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
                   {busqueda ? 'No se encontraron resultados' : 'Aún no tienes certificados'}
                 </div>
@@ -127,7 +128,7 @@ export default function MisCertificados() {
                               alignItems: 'center', gap: 4
                             }}
                           >
-                            ↓ Descargar
+                            <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
                           </a>
                         ) : (
                           <span style={{ fontSize: 11, color: '#AAA' }}>—</span>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
@@ -80,7 +81,7 @@ export default function AdminSede() {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Colaboradores — estado</span>
-                <span className="card-link">Ver todos →</span>
+                <span className="card-link">Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
               </div>
               {usuarios.slice(0,5).map((u, i) => (
                 <div key={u.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
@@ -100,7 +101,7 @@ export default function AdminSede() {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Progreso por curso</span>
-                <span className="card-link">Detalle →</span>
+                <span className="card-link">Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
               </div>
               {cursos.slice(0,5).map(c => (
                 <div key={c.id} style={{ marginBottom:14 }}>
@@ -120,7 +121,7 @@ export default function AdminSede() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Alertas y acciones requeridas</span>
-              <span className="card-link">Gestionar →</span>
+              <span className="card-link">Gestionar <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
             </div>
             {[
               { color:'#E8505B', text:"Un colaborador falló 2 veces en 'Plan de emergencia' — requiere refuerzo presencial", time:'Hoy' },

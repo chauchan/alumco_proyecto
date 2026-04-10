@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
@@ -88,7 +89,7 @@ export default function Protocolos() {
                   <input ref={inputRef} type="file" accept=".pdf" style={{ display: 'none' }}
                     onChange={e => setArchivo(e.target.files[0])} />
                   {archivo ? (
-                    <><div style={{ fontSize: 20, marginBottom: 4 }}>✓</div>
+                    <><Icon icon="lucide:check" width={24} style={{marginBottom:4,display:"block",color:"#1A7A45"}} />
                       <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div></>
                   ) : (
                     <><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Arrastra o selecciona el PDF</div>
@@ -97,7 +98,7 @@ export default function Protocolos() {
                 </div>
                 {error && <p style={{ color: '#E8505B', fontSize: 12, marginBottom: 8 }}>{error}</p>}
                 <button type="submit" disabled={subiendo} className="btn-primary" style={{ width: '100%', height: 40 }}>
-                  {subiendo ? '⏳ Subiendo...' : '📁 Guardar protocolo'}
+                  {subiendo ? 'Subiendo...' : <><Icon icon="lucide:folder-open" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar protocolo</>}
                 </button>
               </form>
             </div>
@@ -106,12 +107,12 @@ export default function Protocolos() {
           {/* Lista de protocolos */}
           {cargando ? (
             <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+              <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:10,display:"block",color:"#888"}} />
               <div style={{ fontSize: 13 }}>Cargando protocolos...</div>
             </div>
           ) : protocolos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '4rem 0', color: '#CCC' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+              <Icon icon="lucide:folder-open" width={40} style={{marginBottom:12,display:"block",color:"#CCC"}} />
               <div style={{ fontSize: 14, fontWeight: 500, color: '#AAA' }}>No hay protocolos guardados</div>
               <div style={{ fontSize: 12, marginTop: 6 }}>Sube el primer protocolo con el botón de arriba</div>
             </div>
@@ -140,7 +141,7 @@ export default function Protocolos() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📄</div>
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon icon="lucide:file-text" width={18} style={{color:'#2B4BA0'}} /></div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#222', marginBottom: 2 }}>{p.nombre}</div>
                         {p.descripcion && <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{p.descripcion}</div>}
@@ -151,11 +152,11 @@ export default function Protocolos() {
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                         <button onClick={() => setEditando({ id: p.id, nombre: p.nombre, descripcion: p.descripcion })}
                           style={{ height: 30, padding: '0 10px', background: 'none', border: '0.5px solid #CCC', borderRadius: 6, fontSize: 11, cursor: 'pointer', color: '#555' }}>
-                          ✎ Editar
+                          <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar</>
                         </button>
                         <button onClick={() => eliminar(p.id, p.nombre)}
                           style={{ height: 30, padding: '0 10px', background: 'none', border: '0.5px solid #E8505B', borderRadius: 6, fontSize: 11, cursor: 'pointer', color: '#E8505B' }}>
-                          🗑 Eliminar
+                          <><Icon icon="lucide:trash-2" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar</>
                         </button>
                       </div>
                     </div>

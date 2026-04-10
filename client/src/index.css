@@ -12,6 +12,71 @@
   --azul-claro: #EEF2FF;
 }
 
+/* ── Accesibilidad: texto grande ─────────────────────────────────────────── */
+/* zoom escala todo incluyendo inline px, rem y em */
+html.texto-grande body { zoom: 1.22; }
+
+/* ── Accesibilidad: alto contraste (amigable con dislexia) ──────────────── */
+html.alto-contraste {
+  --gris-fondo:  #FFFBEF;
+  --gris-borde:  #BBA96A;
+  --texto:       #1A1000;
+  --texto-sec:   #3A2A00;
+  --azul-claro:  #FFF3C4;
+}
+html.alto-contraste body {
+  background: #FFFBEF !important;
+  color: #1A1000 !important;
+  font-size: 1rem;
+  line-height: 1.75 !important;
+  letter-spacing: 0.02em !important;
+  word-spacing: 0.08em !important;
+}
+html.alto-contraste .card {
+  background: #FFFEF5 !important;
+  border: 1.5px solid #BBA96A !important;
+  color: #1A1000 !important;
+}
+html.alto-contraste .sidebar {
+  background: #FFF8E1 !important;
+  border-right: 1.5px solid #BBA96A !important;
+}
+html.alto-contraste .main-content { background: #FFFBEF !important; }
+html.alto-contraste .nav-item { color: #2C1800 !important; font-weight: 500; }
+html.alto-contraste .nav-item.active,
+html.alto-contraste .nav-item:hover {
+  background: #FFF0B0 !important;
+  color: #1A1000 !important;
+  border-left-color: #B8860B !important;
+}
+html.alto-contraste input,
+html.alto-contraste select,
+html.alto-contraste textarea {
+  background: #FFFEF0 !important;
+  color: #1A1000 !important;
+  border: 1.5px solid #8B6914 !important;
+}
+html.alto-contraste .btn-primary {
+  background: #8B4513 !important;
+  color: #fff !important;
+  letter-spacing: 0.04em;
+}
+html.alto-contraste .stat-card {
+  background: #FFF8D6 !important;
+  border: 1.5px solid #BBA96A !important;
+}
+html.alto-contraste .page-title { color: #1A1000 !important; }
+html.alto-contraste .page-sub,
+html.alto-contraste .stat-label,
+html.alto-contraste .stat-sub { color: #3A2A00 !important; }
+html.alto-contraste .status-pill { border: 1px solid currentColor !important; font-weight: 600 !important; }
+html.alto-contraste a { color: #7B3F00 !important; font-weight: 600 !important; }
+html.alto-contraste .notice {
+  background: #FFF0B0 !important;
+  border-color: #B8860B !important;
+  color: #2C1800 !important;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -33,7 +98,7 @@ a { color: var(--azul); text-decoration: none; }
 
 /* Topbar */
 .topbar {
-  background: #2B4BA0; height: 56px;
+  background: #0D2B5E ; height: 56px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 1.5rem; position: sticky; top: 0; z-index: 100;
 }
@@ -173,7 +238,7 @@ a { color: var(--azul); text-decoration: none; }
 
 /* Greeting bar */
 .greeting-bar {
-  background: linear-gradient(135deg, #2B4BA0 0%, #1E3A6E 100%);
+  background: linear-gradient(135deg, #0D2B5E 0%, #2B4BA0 100%);
   border-radius: 12px; padding: 1.25rem 1.5rem;
   display: flex; justify-content: space-between; align-items: center;
 }

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -119,7 +120,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
                 position: 'absolute', top: -6, right: -6, width: 18, height: 18,
                 borderRadius: '50%', background: '#E8505B', color: '#fff', border: 'none',
                 fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>✕</button>
+              }}><Icon icon="lucide:x" width={18} /></button>
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
@@ -535,22 +536,6 @@ export default function GeneradorIA() {
 
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          <div>
-            <div className="page-title">Generador de cursos con IA</div>
-            <div className="page-sub">Sube un protocolo institucional en PDF y genera un borrador de curso automáticamente</div>
-          </div>
-
-          <div style={{ background: '#1E3A6E', borderRadius: 12, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: 24 }}>
-            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22 }}>✨</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 500, color: '#fff', marginBottom: 3 }}>Generación automática de cursos</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-                La IA analiza el protocolo, extrae los conceptos clave y genera módulos con preguntas y presentaciones estilo PPT.
-              </div>
-            </div>
-            <span className="ia-badge">Beta</span>
-          </div>
-
           <div className="three-col">
             {[
               { num: 1, color: '#2B4BA0', title: 'Sube el protocolo', desc: 'Selecciona el PDF del protocolo institucional a digitalizar.' },
@@ -592,7 +577,7 @@ export default function GeneradorIA() {
               ok:    { bg: '#F0FBF4', border: '#A8D8B0', text: '#1A7A45' },
             }
             const c = colores[tipo]
-            const icono = tipo === 'menos' ? '⚠️' : tipo === 'mas' ? '💡' : '✅'
+            const icono = tipo === 'menos' ? <Icon icon="lucide:alert-triangle" width={20} style={{color:'#B45309',flexShrink:0}} /> : tipo === 'mas' ? <Icon icon="lucide:lightbulb" width={20} style={{color:'#B45309',flexShrink:0}} /> : <Icon icon="lucide:check-circle" width={20} style={{color:'#1A7A45',flexShrink:0}} />
 
             return (
               <div style={{
@@ -600,7 +585,7 @@ export default function GeneradorIA() {
                 borderRadius: 10, border: `1.5px solid ${c.border}`, background: c.bg,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
               }}>
-                <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{icono}</span>
+                <span style={{ flexShrink: 0, lineHeight: 1 }}>{icono}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: c.text, marginBottom: 2 }}>{titulo}</div>
                   <div style={{ fontSize: 12, color: c.text, lineHeight: 1.55 }}>{mensaje}</div>
@@ -616,7 +601,7 @@ export default function GeneradorIA() {
               <form onSubmit={handleSubmit}>
                 {/* Toggle fuente PDF */}
                 <div style={{ display: 'flex', background: '#F0F2F5', borderRadius: 8, padding: 3, gap: 2, marginBottom: 14 }}>
-                  {[['subir','📤 Subir PDF'],['biblioteca','📁 Desde biblioteca']].map(([val, lbl]) => (
+                  {[['subir', <><Icon icon="lucide:upload" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Subir PDF</>],['biblioteca', <><Icon icon="lucide:folder-open" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Desde biblioteca</>]].map(([val, lbl]) => (
                     <button key={val} type="button" onClick={() => setFuentePDF(val)} style={{
                       flex: 1, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: fuentePDF === val ? 600 : 400,
                       background: fuentePDF === val ? '#fff' : 'transparent',
@@ -630,7 +615,7 @@ export default function GeneradorIA() {
                   <div className="upload-zone" style={{ marginBottom: 16 }} onClick={() => document.getElementById('input-pdf').click()}>
                     <input id="input-pdf" type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => setArchivo(e.target.files[0])} />
                     {archivo ? (
-                      <><div style={{ fontSize: 20, marginBottom: 4 }}>✓</div>
+                      <><Icon icon="lucide:check" width={20} style={{marginBottom:4,display:"block",color:"#1A7A45"}} />
                         <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div>
                         <span className="format-tag tag-pdf" style={{ marginTop: 6, display: 'inline-block' }}>PDF</span></>
                     ) : (
@@ -642,7 +627,7 @@ export default function GeneradorIA() {
                   <div style={{ marginBottom: 16 }}>
                     {protocolos.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F4F5F7', borderRadius: 8, fontSize: 12, color: '#888' }}>
-                        No hay protocolos guardados. <a href="/jefatura/protocolos" style={{ color: '#1E3A6E' }}>Ir a la biblioteca →</a>
+                        No hay protocolos guardados. <a href="/jefatura/protocolos" style={{ color: '#1E3A6E' }}>Ir a la biblioteca <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></a>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
@@ -653,12 +638,12 @@ export default function GeneradorIA() {
                             background: protocoloSeleccionado?.id === p.id ? '#F0F4FF' : '#fff',
                             display: 'flex', alignItems: 'center', gap: 10
                           }}>
-                            <span style={{ fontSize: 16 }}>📄</span>
+                            <Icon icon="lucide:file-text" width={16} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 500, color: '#222' }}>{p.nombre}</div>
                               {p.descripcion && <div style={{ fontSize: 10, color: '#888' }}>{p.descripcion}</div>}
                             </div>
-                            {protocoloSeleccionado?.id === p.id && <span style={{ color: '#1E3A6E', fontSize: 14 }}>✓</span>}
+                            {protocoloSeleccionado?.id === p.id && <Icon icon="lucide:check" color="#1E3A6E" width={14} />}
                           </div>
                         ))}
                       </div>
@@ -700,7 +685,7 @@ export default function GeneradorIA() {
                   borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                 }}>
-                  {cargando ? '⏳ Generando...' : '✨ Generar curso con IA'}
+                  {cargando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Generando...</> : <><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Generar curso con IA</>}
                 </button>
               </form>
             </div>
@@ -714,15 +699,15 @@ export default function GeneradorIA() {
 
               {cargando && (
                 <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+                  <Icon icon="lucide:loader-circle" width={32} style={{marginBottom:12,display:"block",color:"#888"}} />
                   <div style={{ fontSize: 13 }}>Analizando el protocolo...</div>
                   <div style={{ fontSize: 11, marginTop: 6 }}>Esto puede tomar 30–60 segundos</div>
                 </div>
               )}
 
               {!resultado && !cargando && (
-                <div style={{ textAlign: 'center', padding: '3rem 0', color: '#CCC' }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>🤖</div>
+                <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0', color: '#CCC' }}>
+                  <Icon icon="lucide:bot" width={40} style={{marginBottom:12,display:"block",color:"#888"}} />
                   <div style={{ fontSize: 13 }}>El borrador aparecerá aquí</div>
                 </div>
               )}
@@ -761,7 +746,7 @@ export default function GeneradorIA() {
                                 background: modoPPT ? '#1E3A6E' : 'transparent',
                                 color: modoPPT ? '#fff' : '#888',
                                 fontWeight: modoPPT ? 600 : 400
-                              }}>▶ Presentación</button>
+                              , display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:play" width={11} /> Presentación</button>
                             </div>
                           )}
                           {modoPPT && pres && pres !== 'cargando' && pres !== 'error' && (
@@ -800,10 +785,10 @@ export default function GeneradorIA() {
                                 color: editandoPPT ? '#fff' : '#555',
                                 cursor: 'pointer', fontWeight: 500
                               }}>
-                              {editandoPPT ? '← Vista previa' : '✎ Editar slides'}
+                              {editandoPPT ? <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Vista previa</> : <><Icon icon="lucide:pencil" width={13} style={{verticalAlign:'middle',marginRight:3}} /> Editar slides</>}
                             </button>
                           )}
-                          <button onClick={cerrarModal} style={{ background: 'none', border: 'none', fontSize: 18, color: '#AAA', cursor: 'pointer' }}>✕</button>
+                          <button onClick={cerrarModal} style={{ background: 'none', border: 'none', fontSize: 18, color: '#AAA', cursor: 'pointer', display:'flex', alignItems:'center' }}><Icon icon="lucide:x" width={18} /></button>
                         </div>
 
                         {/* Cuerpo modal */}
@@ -812,7 +797,7 @@ export default function GeneradorIA() {
                           {/* Estado cargando */}
                           {(!pres || pres === 'cargando') && (
                             <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                              <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+                              <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:10,display:"block",color:"#888"}} />
                               <div style={{ fontSize: 13 }}>Generando presentación con IA...</div>
                               <div style={{ fontSize: 11, marginTop: 4 }}>Puede tomar unos segundos</div>
                             </div>
@@ -981,7 +966,7 @@ export default function GeneradorIA() {
                                     background: slideActual === 0 ? '#F4F5F7' : '#fff', color: slideActual === 0 ? '#CCC' : '#333',
                                     fontSize: 12, cursor: slideActual === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6
                                   }}>
-                                  ← Anterior
+                                  <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Anterior</>
                                 </button>
 
                                 {/* Puntos indicadores */}
@@ -1005,7 +990,7 @@ export default function GeneradorIA() {
                                     cursor: slideActual === slides.length - 1 ? 'default' : 'pointer',
                                     display: 'flex', alignItems: 'center', gap: 6
                                   }}>
-                                  Siguiente →
+                                  <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle",marginLeft:4}} /></>
                                 </button>
                               </div>
                             </div>
@@ -1036,7 +1021,7 @@ export default function GeneradorIA() {
                           fontSize: 10, background: '#1E3A6E', color: '#fff', border: 'none',
                           borderRadius: 5, padding: '3px 8px', cursor: 'pointer', flexShrink: 0,
                           display: 'flex', alignItems: 'center', gap: 4
-                        }}>▶ PPT</button>
+                        , display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:play" width={11} /> PPT</button>
                         <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{m.preguntas?.length || 0} preg.</span>
                         <span className="format-tag tag-borrador" style={{ flexShrink: 0 }}>Módulo</span>
                         <span style={{ fontSize: 12, color: '#AAA', flexShrink: 0 }}>{moduloExpandido === i ? '▲' : '▼'}</span>
@@ -1061,7 +1046,7 @@ export default function GeneradorIA() {
                                   {p.alternativas?.map((alt, k) => (
                                     <div key={k} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '3px 0', color: alt.correcta ? '#1A7A45' : '#555' }}>
                                       <span style={{ width: 14, height: 14, borderRadius: '50%', border: alt.correcta ? '2px solid #1A7A45' : '1.5px solid #CCC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, flexShrink: 0, background: alt.correcta ? '#E8F5ED' : 'transparent' }}>
-                                        {alt.correcta ? '✓' : ''}
+                                        {alt.correcta ? <Icon icon="lucide:check" color="#1A7A45" width={9} /> : null}
                                       </span>
                                       {alt.texto}
                                     </div>
@@ -1144,7 +1129,7 @@ export default function GeneradorIA() {
                                           return { ...prev, modulos: mods }
                                         })}
                                         style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid #CCC' }} />
-                                      {alt.correcta && <span style={{ fontSize: 10, color: '#1A7A45', fontWeight: 700 }}>✓</span>}
+                                      {alt.correcta && <span style={{ fontSize: 10, color: '#1A7A45', fontWeight: 700, display:'flex', alignItems:'center' }}><Icon icon="lucide:check" width={10} /></span>}
                                     </div>
                                   ))}
                                 </div>
@@ -1202,7 +1187,7 @@ export default function GeneradorIA() {
                             alert('No se pudo enviar la notificación. Verifica la configuración de email.')
                           } finally { setEnviando(false) }
                         }}>
-                        {enviando ? '⏳ Enviando...' : enviado ? '✓ Enviado' : 'Enviar al profesor'}
+                        {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}
                       </button>
                       <button
                         style={{ flex: 1, height: 38, background: 'none', color: '#1E3A6E', border: '0.5px solid #1E3A6E', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
@@ -1218,7 +1203,7 @@ export default function GeneradorIA() {
                   )}
 
                   <p style={{ fontSize: 10, color: '#F5A623', textAlign: 'center', marginTop: 10 }}>
-                    ⚠ El contenido no se publica sin validación del profesor
+                    <Icon icon="lucide:alert-triangle" width={13} style={{verticalAlign:"middle",marginRight:4}} /> El contenido no se publica sin validación del profesor
                   </p>
                 </>
               )}
