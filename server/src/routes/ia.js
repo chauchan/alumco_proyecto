@@ -425,6 +425,8 @@ Reglas:
       );
       modulosConId.push({ ...mod, id: insM.lastID });
       for (const pregunta of (mod.preguntas || [])) {
+        // Saltar preguntas malformadas que Ollama devuelve sin alternativas
+        if (!pregunta.texto || !Array.isArray(pregunta.alternativas) || pregunta.alternativas.length === 0) continue;
         await pool.query(
           'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1,$2,$3)',
           [cursoId, pregunta.texto, JSON.stringify(pregunta.alternativas)]

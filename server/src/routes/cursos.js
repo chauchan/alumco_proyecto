@@ -66,12 +66,11 @@ router.get('/', verificarToken, async (req, res) => {
 router.get('/pendientes-ia', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.*, COUNT(m.id) as modulos_count, COUNT(p.id) as preguntas_count
+      `SELECT c.*,
+         (SELECT COUNT(*) FROM modulos m WHERE m.curso_id = c.id) as modulos_count,
+         (SELECT COUNT(*) FROM preguntas p WHERE p.curso_id = c.id) as preguntas_count
        FROM cursos c
-       LEFT JOIN modulos m ON m.curso_id = c.id
-       LEFT JOIN preguntas p ON p.curso_id = c.id
        WHERE c.generado_por_ia = 1 AND c.publicado = 0
-       GROUP BY c.id
        ORDER BY c.created_at DESC`
     );
     res.json(result.rows);
@@ -174,7 +173,7 @@ router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
     );
     res.json(r.rows[0] || { porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
   } catch {
-    // Si las columnas no existen aún, devolver sin bloqueo
+    // Si las columnas de bloqueo no existen aún, rescatar al menos porcentaje/completado
     try {
       const r2 = await pool.query(
         'SELECT porcentaje, completado FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
@@ -195,82 +194,103 @@ router.patch('/:id/progreso', verificarToken, verificarRol('colaborador'), async
 
   // Si no es evaluación (ej: progreso de módulos), hacer upsert simple sin contar fallos
   if (!es_evaluacion) {
+    const comp = completado ? 1 : 0;
     try {
       // $5,$6 repiten $3,$4 para evitar VALUES() deprecated en MySQL 8.0.20+
-      await pool.query(
+      const r = await pool.query(
         `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
          VALUES ($1,$2,$3,$4,NOW())
          ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, $5), completado = $6, ultimo_acceso = NOW()`,
-        [req.usuario.id, req.params.id, porcentaje, completado, porcentaje, completado]
+        [req.usuario.id, req.params.id, porcentaje, comp, porcentaje, comp]
       );
-    } catch (e) { console.warn('[progreso] upsert módulos falló:', e.message); }
+      const affected = r.rows[0]?.affectedRows ?? r.rows[0]?.changedRows ?? '?';
+      console.log(`[progreso] upsert uid=${req.usuario.id} curso=${req.params.id} pct=${porcentaje} affected=${affected}`);
+    } catch (e) { console.error('[progreso] upsert módulos falló:', e.message); }
     return res.json({ porcentaje, completado });
   }
 
+  const DIAS_BLOQUEO = 7;
+  const comp = completado ? 1 : 0;
+
+  // Intentar leer el estado de bloqueo (columnas pueden no existir en BDs antiguas)
+  let prevFallidos = 0;
+  let bloqueadoActivo = false;
+  let bloqueadoHastaActual = null;
   try {
-    // Obtener estado actual — las columnas son garantizadas por addColumnIfMissing en startup
     const actual = await pool.query(
       'SELECT intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
       [req.usuario.id, req.params.id]
     );
-    let row = actual.rows[0];
-
-    let intentos_fallidos, bloqueado_hasta;
-    const DIAS_BLOQUEO = 7;
-
-    if (!row) {
-      // Primera vez
-      intentos_fallidos = aprobado ? 0 : 1;
-      bloqueado_hasta = (!aprobado && intentos_fallidos >= 2)
-        ? new Date(Date.now() + DIAS_BLOQUEO * 24 * 60 * 60 * 1000) : null;
-      await pool.query(
-        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
-         VALUES ($1,$2,$3,$4,NOW(),$5,$6)`,
-        [req.usuario.id, req.params.id, porcentaje, completado, intentos_fallidos, bloqueado_hasta]
-      );
-    } else {
-      const prevFallidos = row.intentos_fallidos || 0;
-      intentos_fallidos = aprobado ? 0 : prevFallidos + 1;
-      const yaEstabaBlockeado = row.bloqueado_hasta && new Date(row.bloqueado_hasta) > new Date();
-      bloqueado_hasta = aprobado ? null
-        : intentos_fallidos >= 2 ? new Date(Date.now() + DIAS_BLOQUEO * 24 * 60 * 60 * 1000)
-        : row.bloqueado_hasta;
-      await pool.query(
-        `UPDATE progreso SET porcentaje = GREATEST(porcentaje, $1), completado = $2,
-         ultimo_acceso = NOW(), intentos_fallidos = $3, bloqueado_hasta = $4
-         WHERE usuario_id = $5 AND curso_id = $6`,
-        [porcentaje, completado, intentos_fallidos, bloqueado_hasta, req.usuario.id, req.params.id]
-      );
-
-      // Notificar admin_sede solo cuando se activa el bloqueo por primera vez
-      if (!yaEstabaBlockeado && intentos_fallidos >= 2 && !aprobado) {
-        try {
-          const userInfo = await pool.query('SELECT sede_id, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
-          const { sede_id, nombre: nombreColab } = userInfo.rows[0] || {};
-          const cursoInfo = await pool.query('SELECT nombre FROM cursos WHERE id = $1', [req.params.id]);
-          const nombreCurso = cursoInfo.rows[0]?.nombre || 'Curso';
-          if (sede_id) {
-            const admins = await pool.query(
-              "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1", [sede_id]
-            );
-            for (const admin of admins.rows) {
-              await pool.query(
-                'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES ($1,$2,$3)',
-                [admin.id,
-                 'Colaborador bloqueado en curso',
-                 `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`]
-              );
-            }
-          }
-        } catch { /* notificación opcional, no bloquear la respuesta */ }
-      }
+    const row = actual.rows[0];
+    if (row) {
+      prevFallidos = parseInt(row.intentos_fallidos || 0, 10);
+      bloqueadoHastaActual = row.bloqueado_hasta || null;
+      bloqueadoActivo = !!bloqueadoHastaActual && new Date(bloqueadoHastaActual) > new Date();
     }
-
-    res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
-  } catch (err) {
-    console.error('[progreso] Error al actualizar progreso:', err.message);
-    res.status(500).json({ error: 'Error al actualizar progreso' });
+  } catch {
+    // Columnas de bloqueo no existen aún — continuar sin bloqueo
   }
+
+  // Si el usuario ya está bloqueado, rechazar sin contar un nuevo intento
+  if (bloqueadoActivo) {
+    return res.status(403).json({ error: 'Curso bloqueado', bloqueado_hasta: bloqueadoHastaActual });
+  }
+
+  const intentos_fallidos = aprobado ? 0 : prevFallidos + 1;
+  const bloqueado_hasta = aprobado ? null
+    : intentos_fallidos >= 2 ? new Date(Date.now() + DIAS_BLOQUEO * 24 * 60 * 60 * 1000)
+    : bloqueadoHastaActual;
+
+  console.log(`[bloqueo] uid=${req.usuario.id} curso=${req.params.id} pct=${porcentaje} aprobado=${aprobado} prevFallidos=${prevFallidos} → intentos=${intentos_fallidos} bloqueado_hasta=${bloqueado_hasta}`);
+
+  try {
+    // Upsert con columnas de bloqueo
+    await pool.query(
+      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
+       VALUES ($1,$2,$3,$4,NOW(),$5,$6)
+       ON DUPLICATE KEY UPDATE
+         porcentaje = GREATEST(porcentaje, $7),
+         completado = $8,
+         ultimo_acceso = NOW(),
+         intentos_fallidos = $9,
+         bloqueado_hasta = $10`,
+      [req.usuario.id, req.params.id, porcentaje, comp, intentos_fallidos, bloqueado_hasta,
+       porcentaje, comp, intentos_fallidos, bloqueado_hasta]
+    );
+  } catch {
+    // Fallback: guardar solo porcentaje/completado si las columnas de bloqueo faltan
+    await pool.query(
+      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, $5), completado = $6, ultimo_acceso = NOW()`,
+      [req.usuario.id, req.params.id, porcentaje, comp, porcentaje, comp]
+    );
+  }
+
+  // Notificar admin_sede cuando se activa el bloqueo
+  if (intentos_fallidos >= 2 && !aprobado) {
+    try {
+      const userInfo = await pool.query('SELECT sede_id, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
+      const { sede_id, nombre: nombreColab } = userInfo.rows[0] || {};
+      const cursoInfo = await pool.query('SELECT nombre FROM cursos WHERE id = $1', [req.params.id]);
+      const nombreCurso = cursoInfo.rows[0]?.nombre || 'Curso';
+      if (sede_id) {
+        const admins = await pool.query(
+          "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1", [sede_id]
+        );
+        for (const admin of admins.rows) {
+          await pool.query(
+            'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES ($1,$2,$3)',
+            [admin.id,
+             'Colaborador bloqueado en curso',
+             `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`]
+          );
+        }
+      }
+    } catch { /* notificación opcional */ }
+  }
+
+  res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
 });
 
 // POST /api/cursos/:id/preguntas — agregar pregunta de evaluación
@@ -301,12 +321,13 @@ router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sed
   }
 });
 
-// DELETE /api/cursos/:id — elimina un curso borrador
+// DELETE /api/cursos/:id — elimina un curso (borrador o publicado)
 router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   try {
-    await pool.query('DELETE FROM cursos WHERE id = $1 AND publicado = 0', [req.params.id]);
+    await pool.query('DELETE FROM cursos WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
+    console.error('[cursos] DELETE error:', err.message);
     res.status(500).json({ error: 'Error al eliminar curso' });
   }
 });

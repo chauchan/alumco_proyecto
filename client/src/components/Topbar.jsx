@@ -165,7 +165,8 @@ export default function Topbar({ seccion }) {
                         api.patch(`/notificaciones/${n.id}/leer`)
                         setNoLeidas(prev => Math.max(0, prev - (n.leida ? 0 : 1)))
                         setNotificaciones(prev => prev.map(x => x.id === n.id ? { ...x, leida: true } : x))
-                        navigate('/practicos')
+                        // Si la notificación viene de un práctico, ir a prácticos; si no, ir al inicio del rol
+                        navigate(n.practico_id ? '/practicos' : (rutaInicio[usuario?.rol] || '/'))
                         setNotifAbierto(false)
                       }}
                     >

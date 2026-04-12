@@ -86,9 +86,13 @@ export default function Colaborador() {
               <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
                 <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0 }} />
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:500 }}>
+                  <div style={{ fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {curso.nombre}
-                    <span className="badge-nuevo" style={{ marginLeft:8 }}>Nuevo</span>
+                    {curso.obligatorio ? (
+                      <span style={{ fontSize:9, background:'#E8505B', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span>
+                    ) : (
+                      <span className="badge-nuevo">Nuevo</span>
+                    )}
                   </div>
                   <div style={{ fontSize:11, color:'#888', marginTop:3 }}>{curso.area || 'General'}</div>
                   <div className="progress-bar-wrap" style={{ marginTop:6 }}>

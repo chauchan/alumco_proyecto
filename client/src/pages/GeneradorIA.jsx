@@ -1021,7 +1021,7 @@ export default function GeneradorIA() {
                           fontSize: 10, background: '#1E3A6E', color: '#fff', border: 'none',
                           borderRadius: 5, padding: '3px 8px', cursor: 'pointer', flexShrink: 0,
                           display: 'flex', alignItems: 'center', gap: 4
-                        , display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:play" width={11} /> PPT</button>
+                        }}><Icon icon="lucide:play" width={11} /> PPT</button>
                         <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{m.preguntas?.length || 0} preg.</span>
                         <span className="format-tag tag-borrador" style={{ flexShrink: 0 }}>Módulo</span>
                         <span style={{ fontSize: 12, color: '#AAA', flexShrink: 0 }}>{moduloExpandido === i ? '▲' : '▼'}</span>

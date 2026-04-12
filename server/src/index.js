@@ -69,6 +69,28 @@ async function start() {
   await addColumnIfMissing('progreso', 'bloqueado_hasta', 'DATETIME DEFAULT NULL');
   console.log('✓ Schema de bloqueo listo');
 
+  // Garantizar UNIQUE KEY en progreso(usuario_id, curso_id) — requisito para ON DUPLICATE KEY UPDATE
+  try {
+    const idxCheck = await pool.query(
+      `SELECT COUNT(*) as cnt FROM information_schema.statistics
+       WHERE table_schema = DATABASE() AND table_name = 'progreso' AND index_name = 'uniq_usuario_curso'`
+    );
+    const yaExiste = Number(idxCheck.rows[0]?.cnt ?? 0) > 0;
+    if (!yaExiste) {
+      // Eliminar filas duplicadas (conservar la de id más alto por par usuario/curso)
+      await pool.query(`
+        DELETE p1 FROM progreso p1
+        INNER JOIN progreso p2
+          ON p1.usuario_id = p2.usuario_id AND p1.curso_id = p2.curso_id
+        WHERE p1.id < p2.id
+      `);
+      await pool.query(`ALTER TABLE progreso ADD UNIQUE KEY uniq_usuario_curso (usuario_id, curso_id)`);
+      console.log('✓ UNIQUE KEY uniq_usuario_curso creado en progreso');
+    }
+  } catch (err) {
+    console.warn('⚠ UNIQUE KEY progreso:', err.message);
+  }
+
   // Crear tabla notificaciones si no existe (puede faltar si no se corrió migrate_practicos)
   try {
     await pool.query(`
