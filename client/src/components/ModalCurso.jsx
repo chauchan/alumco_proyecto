@@ -21,6 +21,7 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
   const [resultado, setResultado] = useState(null)
   const [enviando, setEnviando] = useState(false)
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
+  const [intentosRestantes, setIntentosRestantes] = useState(2)
   const videoRef = useRef(null)
 
   useEffect(() => {
@@ -39,20 +40,58 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
         })
         const c = { ...cursoRes.data, preguntas, modulos }
         setCurso(c)
-        // Verificar bloqueo
-        const bh = progresoRes.data?.bloqueado_hasta
+        // Leer estado de bloqueo local (backup cuando la BD no persiste correctamente)
+        const localBloqueoRaw = localStorage.getItem(`curso_${cursoId}_bloqueo`)
+        const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
+
+        // Tomar el valor más restrictivo entre BD y localStorage
+        const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
+        const intentosFallidosLocal = parseInt(localBloqueo?.intentos_fallidos || 0, 10)
+        const intentosFallidos = Math.max(intentosFallidosDB, intentosFallidosLocal)
+        setIntentosRestantes(Math.max(0, 2 - intentosFallidos))
+
+        // Bloqueo: usar la fecha más tardía entre BD y localStorage
+        const bhDB = progresoRes.data?.bloqueado_hasta || null
+        const bhLocal = localBloqueo?.bloqueado_hasta || null
+        const bh = [bhDB, bhLocal].filter(Boolean).sort().reverse()[0] || null
+
         if (bh && new Date(bh) > new Date()) {
           setBloqueadoHasta(new Date(bh))
         } else {
-          // Si tiene progreso guardado, saltar el video y restaurar módulos como completados
           const pctGuardado = progresoRes.data?.porcentaje || 0
-          if (pctGuardado > 0 && modulos.length > 0) {
-            setCompletados(new Set(modulos.map(m => m.id)))
-            // Si porcentaje >= 70 ya completó módulos → ir directo a evaluación
-            if (pctGuardado >= 70 && c.preguntas?.length > 0) {
+          const yaCompletado = progresoRes.data?.completado === 1 || progresoRes.data?.completado === true
+
+          // Restaurar módulos completados: localStorage tiene prioridad sobre el % de la BD
+          const localKey = `curso_${cursoId}_completados`
+          const localRaw = localStorage.getItem(localKey)
+          const localIds = localRaw ? JSON.parse(localRaw) : null
+
+          if (localIds && localIds.length > 0) {
+            // Progreso guardado localmente — restaurar módulos exactos
+            setCompletados(new Set(localIds))
+            setVideoVisto(true)
+            if (yaCompletado) {
+              const totalPreg = c.preguntas?.length || 0
+              setResultado({ score: 100, correctas: totalPreg, total: totalPreg, aprobado: true })
               setPaso('evaluacion')
             } else {
-              setPaso('modulos') // saltar el video aunque exista
+              setPaso('modulos')
+            }
+          } else if (pctGuardado > 0) {
+            // Sin localStorage pero hay % en BD — asumir todos los módulos vistos
+            setVideoVisto(true)
+            if (modulos.length > 0) {
+              setCompletados(new Set(modulos.map(m => m.id)))
+            }
+            if (yaCompletado) {
+              // Ya aprobó el curso — mostrar pantalla de aprobado directamente
+              const totalPreg = c.preguntas?.length || 0
+              setResultado({ score: 100, correctas: totalPreg, total: totalPreg, aprobado: true })
+              setPaso('evaluacion')
+            } else if (pctGuardado >= 70 && c.preguntas?.length > 0) {
+              setPaso('evaluacion')
+            } else {
+              setPaso('modulos')
             }
           } else {
             // Sin progreso previo — solo saltar video si no hay video_intro
@@ -81,7 +120,9 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     setCompletados(nuevos)
     setModuloAbierto(null)
     setSlideActual(0)
-    // Guarda progreso parcial
+    // Persistir módulos completados en localStorage (fuente de verdad local)
+    localStorage.setItem(`curso_${cursoId}_completados`, JSON.stringify([...nuevos]))
+    // Guarda progreso parcial en BD
     const total = curso.modulos?.length || 1
     const tieneEval = curso.preguntas?.length > 0
     const pct = Math.round((nuevos.size / total) * (tieneEval ? 70 : 100))
@@ -106,16 +147,52 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
     const aprobado = score >= 60
     setEnviando(true)
     let bloqueado = false
+    // Calcular intentos fallidos localmente (fuente de verdad local)
+    const intentosFallidosLocales = aprobado ? 0 : (2 - intentosRestantes) + 1
+    const bloqueadoHastaLocal = (!aprobado && intentosFallidosLocales >= 2)
+      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      : null
     try {
       const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
-      const bh = r.data?.bloqueado_hasta
-      if (bh && new Date(bh) > new Date()) {
-        setBloqueadoHasta(new Date(bh))
+      // Usar respuesta del servidor si disponible, si no, usar cálculo local
+      const fallidosFinal = aprobado ? 0 : parseInt(r.data?.intentos_fallidos ?? intentosFallidosLocales, 10)
+      const bhFinal = r.data?.bloqueado_hasta ?? bloqueadoHastaLocal
+      if (bhFinal && new Date(bhFinal) > new Date()) {
+        setBloqueadoHasta(new Date(bhFinal))
         bloqueado = true
+        // Guardar bloqueo en localStorage
+        localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: bhFinal }))
+      } else {
+        setIntentosRestantes(Math.max(0, 2 - fallidosFinal))
+        if (!aprobado) {
+          // Guardar intentos fallidos en localStorage aunque no esté bloqueado aún
+          localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: null }))
+        }
+      }
+      if (aprobado) {
+        // Curso aprobado — limpiar localStorage
+        localStorage.removeItem(`curso_${cursoId}_completados`)
+        localStorage.removeItem(`curso_${cursoId}_bloqueo`)
       }
     } catch (err) {
-      console.error('[evaluacion] error al guardar progreso:', err?.response?.data || err?.message)
-      // Si falla guardar progreso, mostrar resultado igual
+      // 403 = el backend confirmó que el usuario está bloqueado
+      const bh403 = err?.response?.data?.bloqueado_hasta
+      if (err?.response?.status === 403 && bh403) {
+        setBloqueadoHasta(new Date(bh403))
+        bloqueado = true
+        localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh403 }))
+      } else {
+        console.error('[evaluacion] error al guardar progreso:', err?.response?.data || err?.message)
+        // Usar cálculo local si el servidor no respondió
+        if (!aprobado) {
+          setIntentosRestantes(Math.max(0, 2 - intentosFallidosLocales))
+          if (bloqueadoHastaLocal) {
+            setBloqueadoHasta(new Date(bloqueadoHastaLocal))
+            bloqueado = true
+          }
+          localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: intentosFallidosLocales, bloqueado_hasta: bloqueadoHastaLocal }))
+        }
+      }
     } finally {
       setEnviando(false)
     }
@@ -360,7 +437,12 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                     : 'El video debe terminar para continuar.'}
                 </span>
                 <button
-                  onClick={() => { setVideoVisto(true); setPaso('modulos') }}
+                  onClick={() => {
+                    setVideoVisto(true);
+                    setPaso('modulos');
+                    api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: 1 })
+                      .catch(err => console.error('[progreso video]', err?.response?.data || err?.message));
+                  }}
                   disabled={!videoVisto}
                   style={{
                     background: videoVisto ? '#2B4BA0' : '#ccc', color: '#fff', border: 'none',
@@ -521,10 +603,29 @@ export default function ModalCurso({ cursoId, onClose, onProgreso }) {
                         </div>
                       </div>
 
-                      <button onClick={() => { setResultado(null); setRespuestas({}) }}
-                        style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                        Intentar nuevamente
-                      </button>
+                      {/* Contador de intentos */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        background: intentosRestantes <= 0 ? '#FFF5F5' : '#F9F9F9',
+                        border: `1px solid ${intentosRestantes <= 0 ? '#FECACA' : '#E8E8E8'}`,
+                        borderRadius: 10, padding: '10px 20px', fontSize: 13
+                      }}>
+                        <Icon icon="lucide:refresh-cw" width={14} style={{color: intentosRestantes <= 0 ? '#E8505B' : '#888'}} />
+                        <span style={{ color: intentosRestantes <= 0 ? '#E8505B' : '#555', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
+                          Intentos restantes: <strong>{intentosRestantes}/2</strong>
+                        </span>
+                      </div>
+
+                      {intentosRestantes <= 0 ? (
+                        <div style={{ fontSize: 13, color: '#E8505B', textAlign: 'center', maxWidth: 300 }}>
+                          Has agotado tus intentos. El curso quedará bloqueado por 7 días.
+                        </div>
+                      ) : (
+                        <button onClick={() => { setResultado(null); setRespuestas({}) }}
+                          style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                          Intentar nuevamente
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

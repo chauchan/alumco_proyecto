@@ -10,12 +10,44 @@ export default function AdminSede() {
   const [resumen, setResumen] = useState(null)
   const [usuarios, setUsuarios] = useState([])
   const [cursos, setCursos] = useState([])
+  const [notificaciones, setNotificaciones] = useState([])
 
   useEffect(() => {
-    Promise.all([api.get('/reportes/resumen'), api.get('/usuarios'), api.get('/reportes/cursos')])
-      .then(([r, u, c]) => { setResumen(r.data); setUsuarios(u.data); setCursos(c.data) })
+    Promise.all([
+      api.get('/reportes/resumen'),
+      api.get('/usuarios'),
+      api.get('/reportes/cursos'),
+      api.get('/notificaciones'),
+    ])
+      .then(([r, u, c, n]) => {
+        setResumen(r.data)
+        setUsuarios(u.data)
+        setCursos(c.data)
+        setNotificaciones(n.data.notificaciones || [])
+      })
       .catch(() => {})
   }, [])
+
+  const marcarLeida = (id) => {
+    api.patch(`/notificaciones/${id}/leer`).catch(() => {})
+    setNotificaciones(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n))
+  }
+
+  const marcarTodasLeidas = () => {
+    api.patch('/notificaciones/leer-todas').catch(() => {})
+    setNotificaciones(prev => prev.map(n => ({ ...n, leida: true })))
+  }
+
+  const tiempoRelativo = (fecha) => {
+    const diff = Date.now() - new Date(fecha).getTime()
+    const dias = Math.floor(diff / 86400000)
+    if (dias === 0) return 'Hoy'
+    if (dias === 1) return 'Ayer'
+    if (dias < 7) return `Hace ${dias} días`
+    return new Date(fecha).toLocaleDateString('es-CL')
+  }
+
+  const noLeidas = notificaciones.filter(n => !n.leida).length
 
   const navItems = [
     { label:'Resumen', active:true, badge:null },
@@ -120,17 +152,41 @@ export default function AdminSede() {
           {/* Alertas */}
           <div className="card">
             <div className="card-header">
-              <span className="card-title">Alertas y acciones requeridas</span>
-              <span className="card-link">Gestionar <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
+              <span className="card-title">
+                Alertas y acciones requeridas
+                {noLeidas > 0 && (
+                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                    {noLeidas}
+                  </span>
+                )}
+              </span>
+              {noLeidas > 0 && (
+                <button onClick={marcarTodasLeidas}
+                  style={{ fontSize:11, color:'#2B4BA0', background:'none', border:'none', cursor:'pointer' }}>
+                  Marcar todas como leídas
+                </button>
+              )}
             </div>
-            {[
-              { color:'#E8505B', text:"Un colaborador falló 2 veces en 'Plan de emergencia' — requiere refuerzo presencial", time:'Hoy' },
-              { color:'#F5A623', text:'Certificado de Protocolo de caídas vence próximamente para varios colaboradores', time:'En 14 días' },
-            ].map((a,i) => (
-              <div key={i} className="row-divider" style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 0' }}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background:a.color, marginTop:4, flexShrink:0 }} />
-                <span style={{ fontSize:12, flex:1 }}>{a.text}</span>
-                <span style={{ fontSize:11, color:'#888', whiteSpace:'nowrap' }}>{a.time}</span>
+            {notificaciones.length === 0 ? (
+              <div style={{ padding:'20px 0', textAlign:'center', color:'#aaa', fontSize:12 }}>
+                <Icon icon="lucide:check-circle" width={20} style={{display:'block',margin:'0 auto 8px',color:'#22C55E'}} />
+                Sin alertas pendientes
+              </div>
+            ) : notificaciones.map(n => (
+              <div key={n.id}
+                className="row-divider"
+                style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 0', cursor:'pointer', opacity: n.leida ? 0.55 : 1 }}
+                onClick={() => marcarLeida(n.id)}
+              >
+                <div style={{
+                  width:8, height:8, borderRadius:'50%', marginTop:4, flexShrink:0,
+                  background: n.leida ? '#CCC' : '#E8505B'
+                }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, fontWeight: n.leida ? 400 : 600, color:'#1a1a1a', marginBottom:2 }}>{n.titulo}</div>
+                  <div style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>{n.mensaje}</div>
+                </div>
+                <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>{tiempoRelativo(n.created_at)}</span>
               </div>
             ))}
           </div>
