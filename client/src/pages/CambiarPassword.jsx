@@ -11,6 +11,7 @@ export default function CambiarPassword() {
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
   const [cargando, setCargando] = useState(false)
+  const [ver, setVer] = useState({ actual: false, nueva: false, confirmar: false })
 
   const rutaVolver = {
     colaborador: '/colaborador',
@@ -96,35 +97,53 @@ export default function CambiarPassword() {
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label>Contraseña actual</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={form.password_actual}
-                onChange={e => setForm({ ...form, password_actual: e.target.value })}
-                style={{ height: 42 }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={ver.actual ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={form.password_actual}
+                  onChange={e => setForm({ ...form, password_actual: e.target.value })}
+                  style={{ height: 42, width: '100%', paddingRight: 40 }}
+                />
+                <button type="button" onClick={() => setVer(v => ({ ...v, actual: !v.actual }))}
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  <Icon icon={ver.actual ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
+                </button>
+              </div>
             </div>
 
             <div className="field">
               <label>Nueva contraseña</label>
-              <input
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={form.password_nueva}
-                onChange={e => setForm({ ...form, password_nueva: e.target.value })}
-                style={{ height: 42 }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={ver.nueva ? 'text' : 'password'}
+                  placeholder="Mínimo 6 caracteres"
+                  value={form.password_nueva}
+                  onChange={e => setForm({ ...form, password_nueva: e.target.value })}
+                  style={{ height: 42, width: '100%', paddingRight: 40 }}
+                />
+                <button type="button" onClick={() => setVer(v => ({ ...v, nueva: !v.nueva }))}
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  <Icon icon={ver.nueva ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
+                </button>
+              </div>
             </div>
 
             <div className="field">
               <label>Confirmar nueva contraseña</label>
-              <input
-                type="password"
-                placeholder="Repite la nueva contraseña"
-                value={form.password_confirmar}
-                onChange={e => setForm({ ...form, password_confirmar: e.target.value })}
-                style={{ height: 42 }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={ver.confirmar ? 'text' : 'password'}
+                  placeholder="Repite la nueva contraseña"
+                  value={form.password_confirmar}
+                  onChange={e => setForm({ ...form, password_confirmar: e.target.value })}
+                  style={{ height: 42, width: '100%', paddingRight: 40 }}
+                />
+                <button type="button" onClick={() => setVer(v => ({ ...v, confirmar: !v.confirmar }))}
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  <Icon icon={ver.confirmar ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
+                </button>
+              </div>
             </div>
 
             {error && (

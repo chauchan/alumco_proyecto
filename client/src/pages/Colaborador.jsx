@@ -83,7 +83,7 @@ export default function Colaborador() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Cursos pendientes</span>
-              <span className="card-link">Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span className="card-link" onClick={() => navigate('/capacitaciones')} style={{ cursor:'pointer' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {cargando ? (
               <div className="card" style={{ textAlign:'center', color:'#888', padding:24 }}>Cargando cursos...</div>
