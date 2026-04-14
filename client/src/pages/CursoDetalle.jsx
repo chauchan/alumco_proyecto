@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { Slide } from './GeneradorIA'
 
@@ -11,6 +12,8 @@ const fileUrl = (url) => url || ''
 export default function CursoDetalle() {
   const { id: cursoId } = useParams()
   const navigate = useNavigate()
+  const { usuario } = useAuth()
+  const userId = usuario?.id
 
   const [curso, setCurso] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -46,7 +49,7 @@ export default function CursoDetalle() {
         const c = { ...cursoRes.data, preguntas, modulos }
         setCurso(c)
 
-        const localBloqueoRaw = localStorage.getItem(`curso_${cursoId}_bloqueo`)
+        const localBloqueoRaw = localStorage.getItem(`curso_${userId}_${cursoId}_bloqueo`)
         const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
 
         const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
@@ -64,7 +67,7 @@ export default function CursoDetalle() {
           const pctGuardado = progresoRes.data?.porcentaje || 0
           const yaCompletado = progresoRes.data?.completado === 1 || progresoRes.data?.completado === true
 
-          const localKey = `curso_${cursoId}_completados`
+          const localKey = `curso_${userId}_${cursoId}_completados`
           const localRaw = localStorage.getItem(localKey)
           const localIds = localRaw ? JSON.parse(localRaw) : null
 
@@ -131,7 +134,7 @@ export default function CursoDetalle() {
       const siguiente = curso.modulos.slice(idx + 1).find(m => !nuevos.has(m.id))
       if (siguiente) setModuloActivo(siguiente.id)
     }
-    localStorage.setItem(`curso_${cursoId}_completados`, JSON.stringify([...nuevos]))
+    localStorage.setItem(`curso_${userId}_${cursoId}_completados`, JSON.stringify([...nuevos]))
     const total = curso.modulos?.length || 1
     const tieneEval = curso.preguntas?.length > 0
     const pct = Math.round((nuevos.size / total) * (tieneEval ? 70 : 100))
@@ -166,23 +169,23 @@ export default function CursoDetalle() {
       if (bhFinal && new Date(bhFinal) > new Date()) {
         setBloqueadoHasta(new Date(bhFinal))
         bloqueado = true
-        localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: bhFinal }))
+        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: bhFinal }))
       } else {
         setIntentosRestantes(Math.max(0, 2 - fallidosFinal))
         if (!aprobado) {
-          localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: null }))
+          localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: null }))
         }
       }
       if (aprobado) {
-        localStorage.removeItem(`curso_${cursoId}_completados`)
-        localStorage.removeItem(`curso_${cursoId}_bloqueo`)
+        localStorage.removeItem(`curso_${userId}_${cursoId}_completados`)
+        localStorage.removeItem(`curso_${userId}_${cursoId}_bloqueo`)
       }
     } catch (err) {
       const bh403 = err?.response?.data?.bloqueado_hasta
       if (err?.response?.status === 403 && bh403) {
         setBloqueadoHasta(new Date(bh403))
         bloqueado = true
-        localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh403 }))
+        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh403 }))
       } else {
         console.error('[evaluacion] error al guardar progreso:', err?.response?.data || err?.message)
         if (!aprobado) {
@@ -191,7 +194,7 @@ export default function CursoDetalle() {
             setBloqueadoHasta(new Date(bloqueadoHastaLocal))
             bloqueado = true
           }
-          localStorage.setItem(`curso_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: intentosFallidosLocales, bloqueado_hasta: bloqueadoHastaLocal }))
+          localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: intentosFallidosLocales, bloqueado_hasta: bloqueadoHastaLocal }))
         }
       }
     } finally {
