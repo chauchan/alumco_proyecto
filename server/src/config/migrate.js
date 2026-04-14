@@ -52,6 +52,12 @@ async function migrate() {
     await conn.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(20) DEFAULT NULL`).catch(() => {});
     await conn.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS estamento VARCHAR(100) DEFAULT NULL`).catch(() => {});
 
+    // Actualizar usuarios existentes sin estamento: jefatura → 'Dirección'
+    await conn.query(`
+      UPDATE usuarios SET estamento = 'Dirección'
+      WHERE rol = 'jefatura' AND (estamento IS NULL OR estamento = '')
+    `).catch(() => {});
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS cursos (
         id INT PRIMARY KEY AUTO_INCREMENT,

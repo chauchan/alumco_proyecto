@@ -157,7 +157,7 @@ export default function Capacitaciones() {
           {cargando ? (
             <div className="card" style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando capacitaciones...</div>
           ) : cursosFiltrados.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', color: '#888', padding: 40 }}>
+            <div className="card" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
               <Icon icon="lucide:book-open" width={32} style={{marginBottom:12,display:"block",color:"#CCC"}} />
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
                 {busqueda || filtroArea ? 'No se encontraron cursos con ese criterio' : 'No hay cursos disponibles aún'}

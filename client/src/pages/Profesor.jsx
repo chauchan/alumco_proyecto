@@ -193,7 +193,7 @@ export default function Profesor() {
     try {
       await api.patch(`/cursos/${cursoDetalle.id}/targeting`, payload)
       setCursoDetalle(prev => ({ ...prev, ...payload }))
-    } catch { alert('Error al guardar la configuración') }
+    } catch (err) { alert('Error al guardar la configuración: ' + (err?.response?.data?.detalle || err?.message || 'sin detalle')) }
     finally { setGuardandoTargeting(false) }
   }
 

@@ -33,19 +33,19 @@ router.get('/', verificarToken, async (req, res) => {
   try {
     let query, params = [];
     if (rol === 'colaborador') {
-      const { sede_id } = req.usuario;
-      // Cursos visibles: dirigidos a su estamento y su sede
+      // Leer estamento y sede_id desde la BD (no del JWT, que puede estar desactualizado)
       query = `SELECT c.*, u.nombre as profesor_nombre, c.obligatorio as obligatorio, a.fecha_limite,
                COALESCE(p.porcentaje, 0) as progreso, COALESCE(p.completado, false) as completado
                FROM cursos c
                LEFT JOIN asignaciones a ON a.curso_id = c.id AND a.usuario_id = $1
                LEFT JOIN usuarios u ON c.profesor_id = u.id
-               LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
+               LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $2
+               JOIN usuarios me ON me.id = $3
                WHERE c.publicado = 1
-               AND (c.estamento_objetivo IS NULL OR JSON_CONTAINS(c.estamento_objetivo, JSON_QUOTE($2)))
-               AND (c.sede_objetivo IS NULL OR c.sede_objetivo = $3)
+               AND (c.estamento_objetivo IS NULL OR JSON_CONTAINS(c.estamento_objetivo, JSON_QUOTE(COALESCE(me.estamento, ''))))
+               AND (c.sede_objetivo IS NULL OR c.sede_objetivo = COALESCE(me.sede_id, 0))
                ORDER BY c.obligatorio DESC, c.nombre`;
-      params = [id, estamento || '', sede_id || 0];
+      params = [id, id, id];
     } else if (rol === 'profesor') {
       query = `SELECT c.*, COUNT(DISTINCT a.usuario_id) as inscritos
                FROM cursos c LEFT JOIN asignaciones a ON a.curso_id = c.id
@@ -68,7 +68,6 @@ router.get('/', verificarToken, async (req, res) => {
 router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
   const { id } = req.usuario;
   try {
-    const { estamento, sede_id } = req.usuario;
     const result = await pool.query(
       `SELECT c.*, u.nombre as profesor_nombre,
               COALESCE(p.porcentaje, 0) as progreso,
@@ -78,11 +77,12 @@ router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
        FROM cursos c
        LEFT JOIN usuarios u ON c.profesor_id = u.id
        LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
+       JOIN usuarios me ON me.id = $2
        WHERE c.publicado = 1 AND c.obligatorio = 1
-       AND (c.estamento_objetivo IS NULL OR JSON_CONTAINS(c.estamento_objetivo, JSON_QUOTE($2)))
-       AND (c.sede_objetivo IS NULL OR c.sede_objetivo = $3)
+       AND (c.estamento_objetivo IS NULL OR JSON_CONTAINS(c.estamento_objetivo, JSON_QUOTE(COALESCE(me.estamento, ''))))
+       AND (c.sede_objetivo IS NULL OR c.sede_objetivo = COALESCE(me.sede_id, 0))
        ORDER BY c.nombre`,
-      [id, estamento || '', sede_id || 0]
+      [id, id]
     );
     res.json(result.rows);
   } catch (err) {
@@ -369,12 +369,13 @@ router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_s
   const sedeVal = sede_objetivo ? parseInt(sede_objetivo) : null;
   try {
     await pool.query(
-      'UPDATE cursos SET estamento_objetivo = $1, sede_objetivo = $2, obligatorio = $3, updated_at = NOW() WHERE id = $4',
+      'UPDATE cursos SET estamento_objetivo = ?, sede_objetivo = ?, obligatorio = ? WHERE id = ?',
       [estStr, sedeVal, obligatorio ? 1 : 0, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar targeting' });
+    console.error('[targeting] Error al guardar:', err.message, '| body:', JSON.stringify(req.body));
+    res.status(500).json({ error: 'Error al actualizar targeting', detalle: err.message });
   }
 });
 
