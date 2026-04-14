@@ -5,7 +5,6 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
-import ModalCurso from '../components/ModalCurso'
 
 const FORMATO_CLASS = { pdf: 'tag-pdf', video: 'tag-video', ppt: 'tag-ppt' }
 
@@ -17,7 +16,7 @@ export default function Capacitaciones() {
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroArea, setFiltroArea] = useState('')
-  const [cursoAbierto, setCursoAbierto] = useState(null)
+
 
   const esRolNoColaborador = usuario?.rol && usuario.rol !== 'colaborador'
 
@@ -116,7 +115,7 @@ export default function Capacitaciones() {
                       </div>
                       <div style={{ flexShrink: 0 }}>
                         <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
-                          onClick={() => setCursoAbierto(curso.id)}>
+                          onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
                           {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
                         </button>
                       </div>
@@ -208,7 +207,7 @@ export default function Capacitaciones() {
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     {usuario?.rol === 'colaborador' && (
                       <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
-                        onClick={() => setCursoAbierto(curso.id)}>
+                        onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
                         {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
                       </button>
                     )}
@@ -240,16 +239,7 @@ export default function Capacitaciones() {
         </main>
       </div>
 
-      {cursoAbierto && (
-        <ModalCurso
-          cursoId={cursoAbierto}
-          onClose={() => setCursoAbierto(null)}
-          onProgreso={(id, pct) => {
-            setCursos(prev => prev.map(c => c.id === id ? { ...c, progreso: pct, completado: pct >= 100 } : c))
-            setMisCursos(prev => prev.map(c => c.id === id ? { ...c, progreso: pct, completado: pct >= 100 } : c))
-          }}
-        />
-      )}
+
     </div>
   )
 }
