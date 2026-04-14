@@ -26,6 +26,8 @@ router.post('/login', async (req, res) => {
     const ok = await bcrypt.compare(password, usuario.password_hash);
     if (!ok) return res.status(401).json({ error: 'Credenciales incorrectas' });
 
+    await pool.query('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?', [usuario.id]);
+
     const token = jwt.sign(
       {
         id: usuario.id,
@@ -64,7 +66,7 @@ router.get('/me', verificarToken, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT u.id, u.nombre, u.identificador, u.rol, u.tipo_contrato,
               u.estamento, u.sede_id, u.email, u.telefono, u.activo,
-              s.nombre as sede_nombre
+              u.ultimo_acceso, s.nombre as sede_nombre
        FROM usuarios u
        LEFT JOIN sedes s ON u.sede_id = s.id
        WHERE u.id = ?`,

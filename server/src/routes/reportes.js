@@ -11,15 +11,21 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
   const filtroSede = rol === 'admin_sede' ? `AND u.sede_id = ${sede_id}` : '';
   try {
     const totalUsuarios = await pool.query(`SELECT COUNT(*) as total FROM usuarios u WHERE u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}`);
-    const capacitados = await pool.query(`SELECT COUNT(DISTINCT p.usuario_id) as total FROM progreso p JOIN usuarios u ON p.usuario_id = u.id WHERE p.completado = 1 AND u.activo = 1 ${filtroSede}`);
+    const capacitados = await pool.query(`SELECT COUNT(DISTINCT p.usuario_id) as total FROM progreso p JOIN usuarios u ON p.usuario_id = u.id WHERE p.completado = 1 AND u.activo = 1 AND u.rol = 'colaborador' ${filtroSede}`);
     const certificados = await pool.query(`SELECT COUNT(*) as total FROM certificados cert JOIN usuarios u ON cert.usuario_id = u.id WHERE cert.estado = 'aprobado' ${filtroSede}`);
-    // Usa progreso.intentos_fallidos (la tabla 'intentos' no existe en este esquema)
     const alertas = await pool.query(`
-      SELECT COUNT(*) as total FROM (
+      SELECT COUNT(DISTINCT usuario_id) as total FROM (
         SELECT p.usuario_id FROM progreso p
         JOIN usuarios u ON p.usuario_id = u.id
-        WHERE p.intentos_fallidos >= 2 ${filtroSede}
-      ) as dobles`);
+        WHERE p.intentos_fallidos >= 2 AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
+        UNION
+        SELECT a.usuario_id FROM asignaciones a
+        JOIN usuarios u ON a.usuario_id = u.id
+        LEFT JOIN progreso p ON p.curso_id = a.curso_id AND p.usuario_id = a.usuario_id
+        WHERE a.fecha_limite IS NOT NULL AND a.fecha_limite < NOW()
+          AND (p.completado IS NULL OR p.completado = 0)
+          AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
+      ) as alertas`);
     res.json({
       total_colaboradores: parseInt(totalUsuarios.rows[0].total),
       capacitados_al_dia: parseInt(capacitados.rows[0].total),

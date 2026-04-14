@@ -41,8 +41,9 @@ router.get('/', verificarToken, async (req, res) => {
                LEFT JOIN usuarios u ON c.profesor_id = u.id
                LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
                WHERE c.publicado = 1
-                 AND (c.estamento_objetivo IS NULL OR c.estamento_objetivo = $2)
-               ORDER BY c.obligatorio DESC, c.nombre`;
+               ORDER BY c.obligatorio DESC,
+                        (CASE WHEN c.estamento_objetivo IS NULL OR c.estamento_objetivo = $2 THEN 0 ELSE 1 END),
+                        c.nombre`;
       params = [id, estamento || ''];
     } else if (rol === 'profesor') {
       query = `SELECT c.*, COUNT(DISTINCT a.usuario_id) as inscritos
@@ -59,6 +60,29 @@ router.get('/', verificarToken, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener cursos' });
+  }
+});
+
+// GET /api/cursos/mis-capacitaciones — cursos publicados con progreso personal (cualquier rol)
+router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
+  const { id } = req.usuario;
+  try {
+    const result = await pool.query(
+      `SELECT c.*, u.nombre as profesor_nombre,
+              COALESCE(p.porcentaje, 0) as progreso,
+              COALESCE(p.completado, 0) as completado,
+              COALESCE(p.intentos_fallidos, 0) as intentos_fallidos,
+              p.bloqueado_hasta
+       FROM cursos c
+       LEFT JOIN usuarios u ON c.profesor_id = u.id
+       LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
+       WHERE c.publicado = 1 AND c.obligatorio = 1
+       ORDER BY c.nombre`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener capacitaciones' });
   }
 });
 
@@ -147,7 +171,7 @@ router.post('/:id/modulos', verificarToken, verificarRol('profesor', 'admin_sede
 });
 
 // POST /api/cursos/:id/asignar — asignar curso a usuario(s)
-router.post('/:id/asignar', verificarToken, verificarRol('admin_sede', 'jefatura'), async (req, res) => {
+router.post('/:id/asignar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { usuario_ids, obligatorio, fecha_limite } = req.body;
   if (!usuario_ids?.length) return res.status(400).json({ error: 'usuario_ids requerido' });
   try {
@@ -186,8 +210,8 @@ router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
   }
 });
 
-// PATCH /api/cursos/:id/progreso — actualizar progreso del colaborador
-router.patch('/:id/progreso', verificarToken, verificarRol('colaborador'), async (req, res) => {
+// PATCH /api/cursos/:id/progreso — actualizar progreso del usuario
+router.patch('/:id/progreso', verificarToken, async (req, res) => {
   const { porcentaje, es_evaluacion } = req.body;
   const aprobado = porcentaje >= 60;
   const completado = porcentaje >= 100;

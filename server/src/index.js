@@ -110,6 +110,16 @@ async function start() {
     console.warn('⚠ notificaciones table:', err.message);
   }
 
+  // Agregar columna ultimo_acceso a usuarios si no existe
+  try {
+    await pool.query(`ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL`);
+    console.log('✓ Columna ultimo_acceso agregada a usuarios');
+  } catch (err) {
+    if (!err.message?.includes('Duplicate column')) {
+      console.warn('⚠ ultimo_acceso column:', err.message);
+    }
+  }
+
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
 
   // Timeout amplio para peticiones largas (generación IA con múltiples módulos)
