@@ -72,9 +72,38 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       );
     }
 
-    // Si doble fallo, notificar (log por ahora, en producción enviar notificación)
+    // Si doble fallo, notificar al admin_sede
     if (!cursoAprobado && numero_intento === 2) {
-      console.log(`[ALERTA] Doble fallo: usuario ${usuario_id} en curso ${curso_id}`);
+      try {
+        const userInfo = await pool.query(
+          'SELECT sede_id, nombre FROM usuarios WHERE id = $1',
+          [usuario_id]
+        );
+        const { sede_id, nombre: nombreColab } = userInfo.rows[0] || {};
+        const cursoInfo = await pool.query(
+          'SELECT nombre FROM cursos WHERE id = $1',
+          [curso_id]
+        );
+        const nombreCurso = cursoInfo.rows[0]?.nombre || 'Curso';
+        if (sede_id) {
+          const admins = await pool.query(
+            "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1",
+            [sede_id]
+          );
+          for (const admin of admins.rows) {
+            await pool.query(
+              'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES ($1,$2,$3)',
+              [
+                admin.id,
+                'Colaborador bloqueado en curso',
+                `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`
+              ]
+            );
+          }
+        }
+      } catch (notifErr) {
+        console.error('[ALERTA] Error al enviar notificación de doble fallo:', notifErr.message);
+      }
     }
 
     res.json({
@@ -98,7 +127,13 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
 router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { sede_id, rol } = req.usuario;
   try {
-    let query = `
+    const params = [];
+    let whereExtra = '';
+    if (rol === 'admin_sede') {
+      whereExtra = ' AND u.sede_id = $1';
+      params.push(sede_id);
+    }
+    const query = `
       SELECT u.id as usuario_id, u.nombre as usuario_nombre, u.sede_id,
              s.nombre as sede_nombre, c.id as curso_id, c.nombre as curso_nombre,
              MAX(i.fecha) as ultimo_intento
@@ -106,16 +141,11 @@ router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sed
       JOIN usuarios u ON i.usuario_id = u.id
       JOIN cursos c ON i.curso_id = c.id
       LEFT JOIN sedes s ON u.sede_id = s.id
-      WHERE i.aprobado = false
+      WHERE i.aprobado = false${whereExtra}
       GROUP BY u.id, u.nombre, u.sede_id, s.nombre, c.id, c.nombre
       HAVING COUNT(i.id) >= 2
+      ORDER BY ultimo_intento DESC
     `;
-    const params = [];
-    if (rol === 'admin_sede') {
-      query += ` AND u.sede_id = $1`;
-      params.push(sede_id);
-    }
-    query += ' ORDER BY ultimo_intento DESC';
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {

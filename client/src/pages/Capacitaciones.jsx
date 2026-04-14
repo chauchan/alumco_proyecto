@@ -13,14 +13,22 @@ export default function Capacitaciones() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
   const [cursos, setCursos] = useState([])
+  const [misCursos, setMisCursos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroArea, setFiltroArea] = useState('')
   const [cursoAbierto, setCursoAbierto] = useState(null)
 
+  const esRolNoColaborador = usuario?.rol && usuario.rol !== 'colaborador'
+
   const cargarCursos = () => {
-    api.get('/cursos')
-      .then(res => setCursos(res.data))
+    const peticiones = [api.get('/cursos')]
+    if (esRolNoColaborador) peticiones.push(api.get('/cursos/mis-capacitaciones'))
+    Promise.all(peticiones)
+      .then(([res, misRes]) => {
+        setCursos(res.data)
+        if (misRes) setMisCursos(misRes.data)
+      })
       .catch(() => {})
       .finally(() => setCargando(false))
   }
@@ -67,6 +75,64 @@ export default function Capacitaciones() {
               </button>
             )}
           </div>
+
+          {/* Mis capacitaciones (solo roles no-colaborador) */}
+          {esRolNoColaborador && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 10 }}>
+                Mis capacitaciones
+              </div>
+              {misCursos.length === 0 ? (
+                <div className="card" style={{ textAlign: 'center', color: '#888', padding: 24, fontSize: 13 }}>
+                  No hay capacitaciones publicadas disponibles
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {misCursos.map(curso => (
+                    <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                        background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <Icon icon="lucide:clipboard-list" width={22} style={{ color: '#2B4BA0' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</span>
+                          {curso.obligatorio === 1 && (
+                            <span style={{ fontSize: 10, background: '#FFF0F0', color: '#C0392B', borderRadius: 20, padding: '2px 7px', fontWeight: 600 }}>OBLIGATORIO</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#888' }}>
+                          {curso.area && <span>{curso.area}</span>}
+                          {curso.profesor_nombre && <span>Prof. {curso.profesor_nombre}</span>}
+                        </div>
+                        <div style={{ marginTop: 6 }}>
+                          <div className="progress-bar-wrap" style={{ width: 200 }}>
+                            <div className="progress-bar-fill" style={{ width: `${curso.progreso || 0}%` }} />
+                          </div>
+                          <span style={{ fontSize: 10, color: '#888' }}>{curso.progreso || 0}% completado</span>
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0 }}>
+                        <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
+                          onClick={() => setCursoAbierto(curso.id)}>
+                          {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Separador y título de gestión */}
+          {esRolNoColaborador && (
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginTop: 4 }}>
+              {usuario?.rol === 'profesor' ? 'Mis cursos creados' : 'Gestión de cursos'}
+            </div>
+          )}
 
           {/* Filtros */}
           <div className="card" style={{ padding: '12px 16px' }}>
@@ -180,6 +246,7 @@ export default function Capacitaciones() {
           onClose={() => setCursoAbierto(null)}
           onProgreso={(id, pct) => {
             setCursos(prev => prev.map(c => c.id === id ? { ...c, progreso: pct, completado: pct >= 100 } : c))
+            setMisCursos(prev => prev.map(c => c.id === id ? { ...c, progreso: pct, completado: pct >= 100 } : c))
           }}
         />
       )}

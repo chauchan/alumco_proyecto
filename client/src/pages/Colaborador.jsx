@@ -30,6 +30,15 @@ export default function Colaborador() {
   const completados = cursos.filter(c => c.completado).length
   const certAprobados = certificados.filter(c => c.estado === 'aprobado')
 
+  const ultimoAcceso = (() => {
+    const fecha = usuario?.ultimo_acceso
+    if (!fecha) return 'Primera sesión'
+    return new Date(fecha).toLocaleString('es-CL', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
+  })()
+
   return (
     <div className="app-shell">
       <Topbar seccion="Mi capacitación" />
@@ -60,7 +69,7 @@ export default function Colaborador() {
             {[
               { val: completados, label:'Cursos completados', sub:'este período' },
               { val: certAprobados.length, label:'Certificados obtenidos', sub:'disponibles para descarga' },
-              { val:'Hoy', label:'Último acceso', sub:'sesión activa' },
+              { val: ultimoAcceso, label:'Último acceso', sub:'sesión activa' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">{s.label}</div>

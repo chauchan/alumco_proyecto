@@ -15,6 +15,13 @@ const ESTAMENTOS = [
   'Directivos',
 ]
 
+const ROL_LABEL = {
+  colaborador: 'Colaborador',
+  profesor: 'Profesor',
+  admin_sede: 'Admin. de Sede',
+  jefatura: 'Jefatura',
+}
+
 export default function AsignarCurso() {
   const navigate = useNavigate()
   const { id: cursoId } = useParams()
@@ -34,7 +41,7 @@ export default function AsignarCurso() {
       api.get('/usuarios')
     ]).then(([c, u]) => {
       setCurso(c.data)
-      setUsuarios(u.data.filter(u => u.rol === 'colaborador' && u.activo))
+      setUsuarios(u.data.filter(u => u.activo))
     }).catch(() => {})
     .finally(() => setCargando(false))
   }, [cursoId])
@@ -51,15 +58,17 @@ export default function AsignarCurso() {
     )
   }
 
-  const usuariosPorEstamento = (est) => usuarios.filter(u => u.estamento === est)
+  const colaboradores = usuarios.filter(u => u.rol === 'colaborador')
+  const usuariosPorEstamento = (est) => colaboradores.filter(u => u.estamento === est)
+  const usuariosPorRol = (rol) => usuarios.filter(u => u.rol === rol)
 
   const usuariosAAsignar = modo === 'estamento'
-    ? usuarios.filter(u => estamentosSeleccionados.includes(u.estamento)).map(u => u.id)
+    ? colaboradores.filter(u => estamentosSeleccionados.includes(u.estamento)).map(u => u.id)
     : seleccionados
 
   const handleAsignar = async () => {
     if (usuariosAAsignar.length === 0) {
-      return setError('Selecciona al menos un estamento o colaborador')
+      return setError('Selecciona al menos un estamento o persona')
     }
     setError('')
     try {
@@ -67,7 +76,7 @@ export default function AsignarCurso() {
         usuario_ids: usuariosAAsignar,
         obligatorio
       })
-      setExito(`Curso asignado a ${usuariosAAsignar.length} colaborador${usuariosAAsignar.length !== 1 ? 'es' : ''} correctamente`)
+      setExito(`Curso asignado a ${usuariosAAsignar.length} persona${usuariosAAsignar.length !== 1 ? 's' : ''} correctamente`)
       setTimeout(() => navigate('/profesor'), 2000)
     } catch (err) {
       setError(err.response?.data?.error || 'Error al asignar el curso')
@@ -98,7 +107,7 @@ export default function AsignarCurso() {
             <div style={{ display: 'flex', gap: 10 }}>
               {[
                 { value: 'estamento', label: 'Por estamento', desc: 'Asigna a todos los colaboradores de uno o varios estamentos' },
-                { value: 'individual', label: 'Individual', desc: 'Selecciona colaboradores específicos' },
+                { value: 'individual', label: 'Individual', desc: 'Selecciona personas específicas de cualquier rol' },
               ].map(m => (
                 <div key={m.value}
                   onClick={() => setModo(m.value)}
@@ -162,40 +171,77 @@ export default function AsignarCurso() {
           {/* Individual */}
           {modo === 'individual' && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom: 12 }}>Seleccionar colaboradores</div>
+              <div className="card-title" style={{ marginBottom: 12 }}>Seleccionar personas</div>
               {usuarios.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>No hay colaboradores activos</div>
-              ) : ESTAMENTOS.map(est => {
-                const grupo = usuariosPorEstamento(est)
-                if (grupo.length === 0) return null
-                return (
-                  <div key={est} style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{est}</div>
-                    {grupo.map(u => (
-                      <div key={u.id}
-                        onClick={() => toggleUsuario(u.id)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                          border: `0.5px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#E8E8E8'}`,
-                          borderRadius: 8, cursor: 'pointer', marginBottom: 4,
-                          background: seleccionados.includes(u.id) ? '#EEF2FF' : 'white'
-                        }}
-                      >
-                        <div style={{
-                          width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-                          border: `2px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#CCC'}`,
-                          background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}>
-                          {seleccionados.includes(u.id) && <Icon icon="lucide:check" color="white" width={10} />}
-                        </div>
-                        <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
-                        <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>
+                <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>No hay usuarios activos</div>
+              ) : (
+                <>
+                  {/* Colaboradores agrupados por estamento */}
+                  {ESTAMENTOS.map(est => {
+                    const grupo = usuariosPorEstamento(est)
+                    if (grupo.length === 0) return null
+                    return (
+                      <div key={est} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{est}</div>
+                        {grupo.map(u => (
+                          <div key={u.id}
+                            onClick={() => toggleUsuario(u.id)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                              border: `0.5px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#E8E8E8'}`,
+                              borderRadius: 8, cursor: 'pointer', marginBottom: 4,
+                              background: seleccionados.includes(u.id) ? '#EEF2FF' : 'white'
+                            }}
+                          >
+                            <div style={{
+                              width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                              border: `2px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#CCC'}`,
+                              background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              {seleccionados.includes(u.id) && <Icon icon="lucide:check" color="white" width={10} />}
+                            </div>
+                            <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
+                            <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )
-              })}
+                    )
+                  })}
+                  {/* Otros roles agrupados */}
+                  {['profesor', 'admin_sede', 'jefatura'].map(rol => {
+                    const grupo = usuariosPorRol(rol)
+                    if (grupo.length === 0) return null
+                    return (
+                      <div key={rol} style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{ROL_LABEL[rol]}</div>
+                        {grupo.map(u => (
+                          <div key={u.id}
+                            onClick={() => toggleUsuario(u.id)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                              border: `0.5px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#E8E8E8'}`,
+                              borderRadius: 8, cursor: 'pointer', marginBottom: 4,
+                              background: seleccionados.includes(u.id) ? '#EEF2FF' : 'white'
+                            }}
+                          >
+                            <div style={{
+                              width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                              border: `2px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#CCC'}`,
+                              background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              {seleccionados.includes(u.id) && <Icon icon="lucide:check" color="white" width={10} />}
+                            </div>
+                            <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
+                            <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </>
+              )}
             </div>
           )}
 
@@ -205,7 +251,7 @@ export default function AsignarCurso() {
               <input type="checkbox" id="obligatorio" checked={obligatorio}
                 onChange={e => setObligatorio(e.target.checked)} style={{ width: 16, height: 16 }} />
               <label htmlFor="obligatorio" style={{ fontSize: 13, cursor: 'pointer' }}>
-                Marcar como <strong>curso obligatorio</strong> para los colaboradores asignados
+                Marcar como <strong>curso obligatorio</strong> para las personas asignadas
               </label>
             </div>
           </div>
@@ -214,7 +260,7 @@ export default function AsignarCurso() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn-primary" onClick={handleAsignar} disabled={usuariosAAsignar.length === 0}
               style={{ opacity: usuariosAAsignar.length === 0 ? 0.5 : 1 }}>
-              Asignar a {usuariosAAsignar.length > 0 ? `${usuariosAAsignar.length} colaborador${usuariosAAsignar.length !== 1 ? 'es' : ''}` : 'colaboradores'}
+              Asignar a {usuariosAAsignar.length > 0 ? `${usuariosAAsignar.length} persona${usuariosAAsignar.length !== 1 ? 's' : ''}` : 'personas'}
             </button>
             <button onClick={() => navigate('/profesor')}
               style={{ background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '8px 16px', fontSize: 13, color: '#888', cursor: 'pointer' }}>
