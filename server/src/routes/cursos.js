@@ -33,7 +33,8 @@ router.get('/', verificarToken, async (req, res) => {
   try {
     let query, params = [];
     if (rol === 'colaborador') {
-      // Cursos visibles: dirigidos a su estamento O dirigidos a todos (NULL)
+      const { sede_id } = req.usuario;
+      // Cursos visibles: dirigidos a su estamento y su sede
       query = `SELECT c.*, u.nombre as profesor_nombre, c.obligatorio as obligatorio, a.fecha_limite,
                COALESCE(p.porcentaje, 0) as progreso, COALESCE(p.completado, false) as completado
                FROM cursos c
@@ -41,10 +42,10 @@ router.get('/', verificarToken, async (req, res) => {
                LEFT JOIN usuarios u ON c.profesor_id = u.id
                LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
                WHERE c.publicado = 1
-               ORDER BY c.obligatorio DESC,
-                        (CASE WHEN c.estamento_objetivo IS NULL OR c.estamento_objetivo = $2 THEN 0 ELSE 1 END),
-                        c.nombre`;
-      params = [id, estamento || ''];
+               AND (c.estamento_objetivo IS NULL OR JSON_CONTAINS(c.estamento_objetivo, JSON_QUOTE($2)))
+               AND (c.sede_objetivo IS NULL OR c.sede_objetivo = $3)
+               ORDER BY c.obligatorio DESC, c.nombre`;
+      params = [id, estamento || '', sede_id || 0];
     } else if (rol === 'profesor') {
       query = `SELECT c.*, COUNT(DISTINCT a.usuario_id) as inscritos
                FROM cursos c LEFT JOIN asignaciones a ON a.curso_id = c.id
@@ -67,6 +68,7 @@ router.get('/', verificarToken, async (req, res) => {
 router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
   const { id } = req.usuario;
   try {
+    const { estamento, sede_id } = req.usuario;
     const result = await pool.query(
       `SELECT c.*, u.nombre as profesor_nombre,
               COALESCE(p.porcentaje, 0) as progreso,
@@ -77,8 +79,10 @@ router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
        LEFT JOIN usuarios u ON c.profesor_id = u.id
        LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = $1
        WHERE c.publicado = 1 AND c.obligatorio = 1
+       AND (c.estamento_objetivo IS NULL OR JSON_CONTAINS(c.estamento_objetivo, JSON_QUOTE($2)))
+       AND (c.sede_objetivo IS NULL OR c.sede_objetivo = $3)
        ORDER BY c.nombre`,
-      [id]
+      [id, estamento || '', sede_id || 0]
     );
     res.json(result.rows);
   } catch (err) {
@@ -356,13 +360,17 @@ router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'je
   }
 });
 
-// PATCH /api/cursos/:id/targeting — actualiza estamento_objetivo y obligatorio
+// PATCH /api/cursos/:id/targeting — actualiza estamento_objetivo (array), sede_objetivo y obligatorio
 router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { estamento_objetivo, obligatorio } = req.body;
+  const { estamento_objetivo, sede_objetivo, obligatorio } = req.body;
+  const estStr = Array.isArray(estamento_objetivo) && estamento_objetivo.length > 0
+    ? JSON.stringify(estamento_objetivo)
+    : null;
+  const sedeVal = sede_objetivo ? parseInt(sede_objetivo) : null;
   try {
     await pool.query(
-      'UPDATE cursos SET estamento_objetivo = $1, obligatorio = $2, updated_at = NOW() WHERE id = $3',
-      [estamento_objetivo || null, obligatorio ? 1 : 0, req.params.id]
+      'UPDATE cursos SET estamento_objetivo = $1, sede_objetivo = $2, obligatorio = $3, updated_at = NOW() WHERE id = $4',
+      [estStr, sedeVal, obligatorio ? 1 : 0, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -372,14 +380,20 @@ router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_s
 
 // PUT /api/cursos/:id — actualiza nombre, descripción, módulos, preguntas y PPT de un curso borrador
 router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { nombre, descripcion, modulos, preguntas, estamento_objetivo, obligatorio } = req.body;
+  const { nombre, descripcion, modulos, preguntas, estamento_objetivo, sede_objetivo, obligatorio } = req.body;
   try {
     // Construcción dinámica del SET para evitar repetir parámetros posicionales en MySQL
     const sets = ['updated_at = NOW()'];
     const vals = [];
     if (nombre !== undefined) { sets.unshift('nombre = ?'); vals.push(nombre || null); }
     if (descripcion !== undefined) { sets.unshift('descripcion = ?'); vals.push(descripcion ?? null); }
-    if (estamento_objetivo !== undefined) { sets.unshift('estamento_objetivo = ?'); vals.push(estamento_objetivo || null); }
+    if (estamento_objetivo !== undefined) {
+      const estStr = Array.isArray(estamento_objetivo) && estamento_objetivo.length > 0
+        ? JSON.stringify(estamento_objetivo)
+        : null;
+      sets.unshift('estamento_objetivo = ?'); vals.push(estStr);
+    }
+    if (sede_objetivo !== undefined) { sets.unshift('sede_objetivo = ?'); vals.push(sede_objetivo ? parseInt(sede_objetivo) : null); }
     if (obligatorio !== undefined) { sets.unshift('obligatorio = ?'); vals.push(obligatorio ? 1 : 0); }
     vals.push(req.params.id);
     await pool.query(`UPDATE cursos SET ${sets.join(', ')} WHERE id = ?`, vals);

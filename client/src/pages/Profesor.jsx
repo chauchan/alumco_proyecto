@@ -4,16 +4,16 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { Slide, SlideEditor } from './GeneradorIA'
+import { useAuth } from '../context/AuthContext'
 
 const ESTAMENTOS = [
-  'Equipo Directivo',
-  'Personal de Administración',
-  'Profesionales de Salud',
-  'Equipo de Atención Directa No Profesional',
-  'TENS Intermedios',
+  'Profesional de Atención Directa',
+  'Técnico de Atención Directa',
+  'Asistente de Trato Directo',
   'Auxiliares de Servicio',
-  'Manipuladoras de Alimento',
-  'Personal No Contratado',
+  'Manipuladores de Alimentos',
+  'Administración y Apoyo',
+  'Directivos',
 ]
 
 function buildSlidesProfesor(mod, pres) {
@@ -32,6 +32,7 @@ function buildSlidesProfesor(mod, pres) {
 }
 
 export default function Profesor() {
+  const { usuario } = useAuth()
   const [cursos, setCursos] = useState([])
   const [certificados, setCertificados] = useState([])
   const [borradoresIA, setBorradoresIA] = useState([])
@@ -45,8 +46,8 @@ export default function Profesor() {
   const [pptEditando, setPptEditando] = useState(false)
   const [pptEditData, setPptEditData] = useState({})   // idx → slides[]
   const [pptGuardando, setPptGuardando] = useState(false)
-  // targeting (estamento + obligatorio)
-  const [targeting, setTargeting] = useState({ estamento_objetivo: null, obligatorio: false })
+  // targeting (estamento + sede + obligatorio)
+  const [targeting, setTargeting] = useState({ estamento_objetivo: null, sede_objetivo: null, obligatorio: false })
   const [guardandoTargeting, setGuardandoTargeting] = useState(false)
   // edición de módulos
   const [editandoModulos, setEditandoModulos] = useState(false)
@@ -116,14 +117,25 @@ export default function Profesor() {
     setPptEditando(false); setPptEditData({})
     setEditandoModulos(false); setModulosEdit([])
     setEditandoPreguntas(false); setPreguntasEdit([])
-    setTargeting({ estamento_objetivo: null, obligatorio: false })
+    setTargeting({ estamento_objetivo: null, sede_objetivo: null, obligatorio: false })
     setVideoIntroUrl(null)
   }
 
   const abrirDetalleCurso = async (c) => {
     const detalle = await api.get(`/cursos/${c.id}`)
     setCursoDetalle({ ...c, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
-    setTargeting({ estamento_objetivo: detalle.data.estamento_objetivo || null, obligatorio: !!detalle.data.obligatorio })
+    // estamento_objetivo puede venir como JSON string array o null
+    const rawEst = detalle.data.estamento_objetivo
+    let parsedEst = null
+    if (rawEst) {
+      try { parsedEst = typeof rawEst === 'string' ? JSON.parse(rawEst) : rawEst }
+      catch { parsedEst = [rawEst] } // compatibilidad con valores legacy string
+    }
+    setTargeting({
+      estamento_objetivo: parsedEst,
+      sede_objetivo: detalle.data.sede_objetivo || null,
+      obligatorio: !!detalle.data.obligatorio
+    })
     setVideoIntroUrl(detalle.data.video_intro_url || null)
     const presMap = {}
     ;(detalle.data.modulos || []).forEach((mod, i) => {
@@ -172,10 +184,15 @@ export default function Profesor() {
 
 
   const guardarTargeting = async () => {
+    const payload = {
+      estamento_objetivo: targeting.estamento_objetivo,
+      sede_objetivo: targeting.sede_objetivo,
+      obligatorio: Array.isArray(targeting.estamento_objetivo) && targeting.estamento_objetivo.length > 0
+    }
     setGuardandoTargeting(true)
     try {
-      await api.patch(`/cursos/${cursoDetalle.id}/targeting`, targeting)
-      setCursoDetalle(prev => ({ ...prev, ...targeting }))
+      await api.patch(`/cursos/${cursoDetalle.id}/targeting`, payload)
+      setCursoDetalle(prev => ({ ...prev, ...payload }))
     } catch { alert('Error al guardar la configuración') }
     finally { setGuardandoTargeting(false) }
   }
@@ -588,32 +605,44 @@ export default function Profesor() {
                   {tabDetalle === 'audiencia' && (
                     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
-                      {/* Obligatorio */}
+                      {/* Sede */}
                       <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                          <div>
-                            <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:3 }}>Curso obligatorio</div>
-                            <div style={{ fontSize:11, color:'#888', lineHeight:1.5 }}>
-                              Los colaboradores verán una etiqueta de obligatorio y tendrá prioridad en su lista.
-                            </div>
-                          </div>
-                          <div onClick={() => setTargeting(t => ({ ...t, obligatorio: !t.obligatorio }))}
-                            style={{ width:44, height:24, borderRadius:12, background: targeting.obligatorio ? '#E8505B' : '#CCC', cursor:'pointer', position:'relative', transition:'background 0.2s', flexShrink:0 }}>
-                            <div style={{ width:18, height:18, borderRadius:'50%', background:'#fff', position:'absolute', top:3, left: targeting.obligatorio ? 23 : 3, transition:'left 0.2s', boxShadow:'0 1px 4px rgba(0,0,0,0.2)' }} />
-                          </div>
+                        <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:6 }}>¿En qué sede se publica?</div>
+                        <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>
+                          Publica en tu sede o en todas las sedes.
                         </div>
+                        {[
+                          { label: 'Todas las sedes', sub: 'El curso será visible en todas las sedes', value: null },
+                          { label: `Solo ${usuario?.sede_nombre || 'mi sede'}`, sub: 'El curso será visible únicamente en tu sede', value: usuario?.sede_id },
+                        ].map(op => {
+                          const sel = targeting.sede_objetivo === op.value
+                          return (
+                            <div key={String(op.value)} onClick={() => setTargeting(t => ({ ...t, sede_objetivo: op.value }))}
+                              style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:4, cursor:'pointer',
+                                border: sel ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                                background: sel ? '#F0F4FF' : '#FAFAFA' }}>
+                              <div style={{ width:16, height:16, borderRadius:'50%', border: sel ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: sel ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                {sel && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
+                              </div>
+                              <div>
+                                <div style={{ fontSize:12, fontWeight: sel ? 600 : 400, color:'#222' }}>{op.label}</div>
+                                <div style={{ fontSize:10, color:'#888' }}>{op.sub}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
 
-                      {/* Audiencia */}
+                      {/* Estamentos */}
                       <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
                         <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:6 }}>¿A quién va dirigido?</div>
                         <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>
-                          Elige un estamento específico o déjalo en "Todos" para que todos los colaboradores lo vean.
+                          Selecciona uno o más estamentos. Si no seleccionas ninguno, el curso será visible para todos.
                         </div>
 
                         {/* Opción Todos */}
                         <div onClick={() => setTargeting(t => ({ ...t, estamento_objetivo: null }))}
-                          style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:6, cursor:'pointer',
+                          style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:8, cursor:'pointer',
                             border: targeting.estamento_objetivo === null ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
                             background: targeting.estamento_objetivo === null ? '#F0F4FF' : '#FAFAFA' }}>
                           <div style={{ width:16, height:16, borderRadius:'50%', border: targeting.estamento_objetivo === null ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: targeting.estamento_objetivo === null ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -625,27 +654,38 @@ export default function Profesor() {
                           </div>
                         </div>
 
-                        {/* Estamentos específicos */}
-                        {ESTAMENTOS.map(est => (
-                          <div key={est} onClick={() => setTargeting(t => ({ ...t, estamento_objetivo: est }))}
-                            style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:4, cursor:'pointer',
-                              border: targeting.estamento_objetivo === est ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
-                              background: targeting.estamento_objetivo === est ? '#F0F4FF' : '#FAFAFA' }}>
-                            <div style={{ width:16, height:16, borderRadius:'50%', border: targeting.estamento_objetivo === est ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: targeting.estamento_objetivo === est ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                              {targeting.estamento_objetivo === est && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
+                        {/* Estamentos específicos — checkboxes multiselect */}
+                        <div style={{ fontSize:11, fontWeight:500, color:'#888', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>
+                          O elige estamentos específicos:
+                        </div>
+                        {ESTAMENTOS.map(est => {
+                          const seleccionado = Array.isArray(targeting.estamento_objetivo) && targeting.estamento_objetivo.includes(est)
+                          const toggleEst = () => setTargeting(t => {
+                            const actual = Array.isArray(t.estamento_objetivo) ? t.estamento_objetivo : []
+                            const siguiente = seleccionado ? actual.filter(e => e !== est) : [...actual, est]
+                            return { ...t, estamento_objetivo: siguiente.length === 0 ? null : siguiente }
+                          })
+                          return (
+                            <div key={est} onClick={toggleEst}
+                              style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:4, cursor:'pointer',
+                                border: seleccionado ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                                background: seleccionado ? '#F0F4FF' : '#FAFAFA' }}>
+                              <div style={{ width:16, height:16, borderRadius:4, border: seleccionado ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: seleccionado ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                                {seleccionado && <Icon icon="lucide:check" color="white" width={10} />}
+                              </div>
+                              <span style={{ fontSize:12, fontWeight: seleccionado ? 600 : 400, color:'#222' }}>{est}</span>
                             </div>
-                            <span style={{ fontSize:12, fontWeight: targeting.estamento_objetivo === est ? 600 : 400, color:'#222' }}>{est}</span>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
 
                       {/* Resumen + Guardar */}
                       <div style={{ background:'#F4F5F7', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
                         <div style={{ fontSize:12, color:'#555' }}>
-                          {targeting.estamento_objetivo
-                            ? <>Dirigido a: <strong>{targeting.estamento_objetivo}</strong></>
-                            : <><strong>Todos</strong> los colaboradores</>}
-                          {targeting.obligatorio && <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:4, fontSize:10, padding:'2px 7px', fontWeight:600 }}>OBLIGATORIO</span>}
+                          {targeting.sede_objetivo ? <>Sede: <strong>{usuario?.sede_nombre}</strong> · </> : <>Todas las sedes · </>}
+                          {Array.isArray(targeting.estamento_objetivo) && targeting.estamento_objetivo.length > 0
+                            ? <>Obligatorio para: <strong>{targeting.estamento_objetivo.length === 1 ? targeting.estamento_objetivo[0] : `${targeting.estamento_objetivo.length} estamentos`}</strong></>
+                            : <>Todos los estamentos (opcional)</>}
                         </div>
                         <button onClick={guardarTargeting} disabled={guardandoTargeting}
                           style={{ fontSize:12, padding:'6px 16px', borderRadius:7, border:'none', background:'#1E3A6E', color:'#fff', cursor:'pointer', fontWeight:500, flexShrink:0 }}>
@@ -823,16 +863,20 @@ export default function Profesor() {
                           {c.publicado ? 'Publicado' : 'Borrador'}
                         </span>
                         {c.obligatorio ? <span style={{ fontSize:9, background:'#E8505B', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span> : null}
-                        {c.estamento_objetivo
-                          ? <span style={{ fontSize:9, background:'#EEF2FF', color:'#2B4BA0', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>{c.estamento_objetivo.split(' ').slice(0,2).join(' ')}</span>
-                          : <span style={{ fontSize:9, background:'#F0FBF4', color:'#1A7A45', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>Todos</span>
-                        }
+                        {(() => {
+                          let ests = null
+                          try { ests = c.estamento_objetivo ? (typeof c.estamento_objetivo === 'string' ? JSON.parse(c.estamento_objetivo) : c.estamento_objetivo) : null } catch { ests = c.estamento_objetivo ? [c.estamento_objetivo] : null }
+                          return ests && ests.length > 0
+                            ? <span style={{ fontSize:9, background:'#EEF2FF', color:'#2B4BA0', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>{ests.length === 1 ? ests[0].split(' ').slice(0,2).join(' ') : `${ests.length} estamentos`}</span>
+                            : <span style={{ fontSize:9, background:'#F0FBF4', color:'#1A7A45', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>Todos</span>
+                        })()}
                       </div>
                     </div>
                     {!modoSeleccion && (
-                      !c.publicado
-                        ? <button className="btn-sm btn-sm-primary" onClick={() => api.patch(`/cursos/${c.id}/publicar`, { publicado:true }).then(recargar)}>Publicar</button>
-                        : <button className="btn-sm btn-sm-outline" onClick={() => abrirDetalleCurso(c)}>Editar</button>
+                      <button className={`btn-sm ${c.publicado ? 'btn-sm-outline' : 'btn-sm-primary'}`}
+                        onClick={() => abrirDetalleCurso(c)}>
+                        {c.publicado ? 'Editar' : 'Editar / Publicar'}
+                      </button>
                     )}
                   </div>
                 ))}
