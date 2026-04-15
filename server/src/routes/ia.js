@@ -18,7 +18,7 @@ const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
 const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
 const GEMINI_KEY       = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL     = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const GEMINI_MODEL     = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
