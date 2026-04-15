@@ -30,4 +30,13 @@ async function uploadBuffer(buffer, key, contentType) {
   return `${PUBLIC_URL}/${key}`;
 }
 
-module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer };
+/**
+ * Devuelve la URL pública de un archivo subido con multer-s3.
+ * req.file.location puede quedar undefined con endpoints custom (Railway),
+ * en ese caso la construimos desde el key.
+ */
+function fileLocation(file) {
+  return file.location || `${PUBLIC_URL}/${file.key}`;
+}
+
+module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation };

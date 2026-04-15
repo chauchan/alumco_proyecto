@@ -232,7 +232,7 @@ export default function NuevoCurso() {
                 <label htmlFor="input-archivo">
                   <div className="upload-zone" style={{ cursor:'pointer' }}>
                     {subiendo ? (
-                      <div style={{ fontSize:13, color:'#888' }}>Subiendo archivo...</div>
+                      <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', fontSize:13, color:'#888' }}>Subiendo archivo...</div>
                     ) : (
                       <>
                         <Icon icon="lucide:folder-open" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />

@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { s3, BUCKET } = require('../config/s3');
+const { s3, BUCKET, fileLocation } = require('../config/s3');
 
 const storage = multerS3({
   s3,
@@ -51,7 +51,7 @@ router.post('/', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.
   try {
     const result = await pool.query(
       'INSERT INTO protocolos (nombre, descripcion, archivo_nombre, archivo_path, creado_por) VALUES ($1,$2,$3,$4,$5)',
-      [nombre, descripcion || null, req.file.originalname, req.file.location, req.usuario?.id || null]
+      [nombre, descripcion || null, req.file.originalname, fileLocation(req.file), req.usuario?.id || null]
     );
     const nuevo = await pool.query('SELECT * FROM protocolos WHERE id = $1', [result.lastID]);
     res.status(201).json(nuevo.rows[0]);

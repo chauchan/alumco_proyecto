@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { s3, BUCKET } = require('../config/s3');
+const { s3, BUCKET, fileLocation } = require('../config/s3');
 
 // Configuración de subida de archivos → Railway Object Storage (S3)
 const storage = multerS3({
@@ -169,7 +169,7 @@ router.post('/:id/modulos', verificarToken, verificarRol('profesor', 'admin_sede
   try {
     const ins = await pool.query(
       'INSERT INTO modulos (curso_id, titulo, descripcion, tipo, archivo_url, orden) VALUES ($1,$2,$3,$4,$5,$6)',
-      [req.params.id, titulo, descripcion, tipo, req.file.location, orden || 1]
+      [req.params.id, titulo, descripcion, tipo, fileLocation(req.file), orden || 1]
     );
     const nuevo = await pool.query('SELECT * FROM modulos WHERE id = $1', [ins.lastID]);
     res.status(201).json(nuevo.rows[0]);
@@ -445,7 +445,7 @@ router.post('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_
 }, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Video requerido' });
   try {
-    const url = req.file.location;
+    const url = fileLocation(req.file);
     await pool.query('UPDATE cursos SET video_intro_url = $1, updated_at = NOW() WHERE id = $2', [url, req.params.id]);
     res.json({ video_intro_url: url });
   } catch (err) {
