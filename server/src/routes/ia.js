@@ -14,11 +14,9 @@ const { notificarProfesor } = require('../config/mailer');
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
 const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
-// ── OpenRouter deshabilitado temporalmente — descomentar para reactivar ──────
-// const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
-// const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
-// const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_KEY = null; // forzar siempre Ollama
+const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
+const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
 function pdfToImages(pdfPath, outDir, maxPages = 4) {
@@ -141,53 +139,52 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-// ── OpenRouter deshabilitado temporalmente ───────────────────────────────────
-// async function llamarOpenRouter(prompt, timeoutMs = 180000) {
-//   const controller = new AbortController();
-//   const timer = setTimeout(() => controller.abort(), timeoutMs);
-//   try {
-//     const response = await undiciFetch(OPENROUTER_URL, {
-//       method: 'POST',
-//       headers: {
-//         'Content-Type': 'application/json',
-//         'Authorization': `Bearer ${OPENROUTER_KEY}`,
-//         'HTTP-Referer': 'https://alumco.cl',
-//         'X-Title': 'ALUMCO - Generador de Cursos'
-//       },
-//       signal: controller.signal,
-//       body: JSON.stringify({
-//         model: OPENROUTER_MODEL,
-//         messages: [
-//           {
-//             role: 'system',
-//             content: 'Eres un experto en diseño instruccional. Tu tarea es SOLO generar el JSON solicitado. NO expliques tu razonamiento. NO agregues texto antes o después. Responde ÚNICAMENTE con el objeto JSON.'
-//           },
-//           { role: 'user', content: prompt }
-//         ],
-//         temperature: 0.1,
-//         max_tokens: 12000,
-//         stream: false
-//       })
-//     });
-//     if (!response.ok) {
-//       const body = await response.text().catch(() => '');
-//       throw new Error(`OpenRouter HTTP ${response.status}: ${body}`);
-//     }
-//     const data = await response.json();
-//     const finishReason = data.choices?.[0]?.finish_reason;
-//     const content = data.choices?.[0]?.message?.content || '';
-//     const reasoning = data.choices?.[0]?.message?.reasoning || '';
-//     console.log(`[IA] OpenRouter finish_reason=${finishReason} tokens=${data.usage?.total_tokens || '?'}`);
-//     const candidato = content.includes('{') ? content : (reasoning.includes('{') ? reasoning : '');
-//     if (!candidato) throw new Error(`OpenRouter no devolvió JSON (finish_reason: ${finishReason})`);
-//     if (finishReason === 'length') {
-//       console.warn('[IA] OpenRouter cortó la respuesta por longitud — puede estar incompleta');
-//     }
-//     return candidato;
-//   } finally {
-//     clearTimeout(timer);
-//   }
-// }
+async function llamarOpenRouter(prompt, timeoutMs = 90000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await undiciFetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://alumco.cl',
+        'X-Title': 'ALUMCO - Generador de Cursos'
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un experto en diseño instruccional. Tu tarea es SOLO generar el JSON solicitado. NO expliques tu razonamiento. NO agregues texto antes o después. Responde ÚNICAMENTE con el objeto JSON.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 12000,
+        stream: false
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`OpenRouter HTTP ${response.status}: ${body}`);
+    }
+    const data = await response.json();
+    const finishReason = data.choices?.[0]?.finish_reason;
+    const content = data.choices?.[0]?.message?.content || '';
+    const reasoning = data.choices?.[0]?.message?.reasoning || '';
+    console.log(`[IA] OpenRouter finish_reason=${finishReason} tokens=${data.usage?.total_tokens || '?'}`);
+    const candidato = content.includes('{') ? content : (reasoning.includes('{') ? reasoning : '');
+    if (!candidato) throw new Error(`OpenRouter no devolvió JSON (finish_reason: ${finishReason})`);
+    if (finishReason === 'length') {
+      console.warn('[IA] OpenRouter cortó la respuesta por longitud — puede estar incompleta');
+    }
+    return candidato;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function llamarOllama(prompt, timeoutMs = 480000) {
   const controller = new AbortController();
@@ -218,13 +215,11 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
 }
 
 async function llamarIA(prompt, timeoutMs = 480000) {
-  // Para reactivar OpenRouter: descomentar las constantes arriba y reemplazar esta
-  // función con la versión con fallback:
-  // if (OPENROUTER_KEY) {
-  //   console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
-  //   try { return await llamarOpenRouter(prompt, timeoutMs); }
-  //   catch (err) { console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`); }
-  // }
+  if (OPENROUTER_KEY) {
+    console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
+    try { return await llamarOpenRouter(prompt, timeoutMs); }
+    catch (err) { console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`); }
+  }
   console.log(`[IA] Usando Ollama local → ${OLLAMA_MODEL}`);
   return await llamarOllama(prompt, timeoutMs);
 }
@@ -264,8 +259,7 @@ Descripción: ${descripcion || titulo}
 Responde SOLO el JSON.`;
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      // 300s por intento para Ollama local. Con OpenRouter usar 90000.
-      const resp = await llamarIA(prompt, 300000);
+      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 90000 : 300000);
       const parsed = parsearJSON(resp);
       if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
       return parsed;
@@ -296,6 +290,19 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
   try {
     console.log('[IA] Paso 1: archivo recibido', req.file.originalname);
 
+    // Si el archivo viene del bucket S3 (URL), descargarlo a un temp local
+    if (req.file._fromLib && req.file.path.startsWith('http')) {
+      console.log('[IA] Descargando protocolo desde S3:', req.file.path);
+      const resp = await undiciFetch(req.file.path);
+      if (!resp.ok) throw new Error(`No se pudo descargar el protocolo: HTTP ${resp.status}`);
+      const arrayBuf = await resp.arrayBuffer();
+      const tmpPath = path.join(os.tmpdir(), `protocolo_${Date.now()}.pdf`);
+      fs.writeFileSync(tmpPath, Buffer.from(arrayBuf));
+      req.file.path = tmpPath;
+      req.file._tmpDownload = true;
+      console.log('[IA] Protocolo descargado a:', tmpPath);
+    }
+
     const pdfBuffer = fs.readFileSync(req.file.path);
 
     // ── Paso 2: moondream describe páginas del PDF (texto + imágenes) ──
@@ -315,8 +322,7 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const modulosFijo = num_modulos ? parseInt(num_modulos) : null;
     const modulosMin = modulosFijo || (totalChars > 15000 ? 5 : totalChars > 8000 ? 4 : 3);
     const modulosMax = modulosFijo || (totalChars > 15000 ? 7 : totalChars > 8000 ? 6 : 4);
-    // Ollama limitado a ~6000 chars. Con OpenRouter reactivado usar 40000.
-    const limiteChars = 6000; // OPENROUTER_KEY ? 40000 : 6000
+    const limiteChars = OPENROUTER_KEY ? 40000 : 6000;
     const textoParaOllama = textoPdf.slice(0, limiteChars);
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
 
@@ -441,8 +447,10 @@ Reglas:
     // Extraer imágenes embebidas del PDF y guardarlas permanentemente
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
 
-    // Solo borrar el PDF si fue un upload temporal (no de la biblioteca)
-    if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
+    // Borrar el PDF si fue upload temporal o descarga temporal desde S3
+    if (!req.file._fromLib || req.file._tmpDownload) {
+      if (fs.existsSync(pdfPathGuardado)) fs.unlinkSync(pdfPathGuardado);
+    }
 
     res.status(201).json({
       curso_id: cursoId,
@@ -460,7 +468,7 @@ Reglas:
 
   } catch (err) {
     console.error('[IA] Error completo:', err);
-    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (req.file?.path && (!req.file._fromLib || req.file._tmpDownload) && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
