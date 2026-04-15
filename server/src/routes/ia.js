@@ -10,6 +10,7 @@ const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
+const { uploadBuffer } = require('../config/s3');
 
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
@@ -83,7 +84,6 @@ async function describirImagen(imagePath) {
 async function extraerImagenesPDF(pdfPath, cursoId) {
   const crypto = require('crypto');
   const sharp = require('sharp');
-  const { uploadBuffer } = require('../config/s3');
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `alumco-imgs-${cursoId}-`));
 
   try {
