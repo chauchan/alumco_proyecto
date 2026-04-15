@@ -16,7 +16,7 @@ const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:114
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
 const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
 const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
