@@ -247,8 +247,7 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
 async function llamarIA(prompt, timeoutMs = 480000) {
   if (OPENROUTER_KEY) {
     console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
-    try { return await llamarOpenRouter(prompt, timeoutMs); }
-    catch (err) { console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`); }
+    return await llamarOpenRouter(prompt, timeoutMs);
   }
   console.log(`[IA] Usando Ollama local → ${OLLAMA_MODEL}`);
   return await llamarOllama(prompt, timeoutMs);
