@@ -111,7 +111,7 @@ export default function Protocolos() {
               <div style={{ fontSize: 13 }}>Cargando protocolos...</div>
             </div>
           ) : protocolos.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '4rem 0', color: '#CCC' }}>
+            <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '4rem 0', color: '#CCC' }}>
               <Icon icon="lucide:folder-open" width={40} style={{marginBottom:12,display:"block",color:"#CCC"}} />
               <div style={{ fontSize: 14, fontWeight: 500, color: '#AAA' }}>No hay protocolos guardados</div>
               <div style={{ fontSize: 12, marginTop: 6 }}>Sube el primer protocolo con el botón de arriba</div>

@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const pool = require('./config/db');
+const { makeBucketPublic } = require('./config/s3');
 
 const authRoutes          = require('./routes/auth');
 const usuariosRoutes      = require('./routes/usuarios');
@@ -65,9 +66,18 @@ async function addColumnIfMissing(tabla, columna, definicion) {
 }
 
 async function start() {
+  await makeBucketPublic();
+
   await addColumnIfMissing('progreso', 'intentos_fallidos', 'INT DEFAULT 0');
   await addColumnIfMissing('progreso', 'bloqueado_hasta', 'DATETIME DEFAULT NULL');
   console.log('✓ Schema de bloqueo listo');
+
+  // Columnas de targeting en cursos
+  await addColumnIfMissing('cursos', 'sede_objetivo', 'INT DEFAULT NULL');
+  await addColumnIfMissing('cursos', 'estamento_objetivo', 'TEXT DEFAULT NULL');
+  await addColumnIfMissing('cursos', 'obligatorio', 'TINYINT(1) DEFAULT 0');
+  await addColumnIfMissing('cursos', 'video_intro_url', 'VARCHAR(500) DEFAULT NULL');
+  console.log('✓ Schema de targeting listo');
 
   // Garantizar UNIQUE KEY en progreso(usuario_id, curso_id) — requisito para ON DUPLICATE KEY UPDATE
   try {

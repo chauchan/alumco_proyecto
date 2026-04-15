@@ -4,16 +4,30 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
+import { useAuth } from '../context/AuthContext'
+
+const ESTAMENTOS = [
+  'Profesional de Atención Directa',
+  'Técnico de Atención Directa',
+  'Asistente de Trato Directo',
+  'Auxiliares de Servicio',
+  'Manipuladores de Alimentos',
+  'Administración y Apoyo',
+  'Directivos',
+]
 
 export default function NuevoCurso() {
   const navigate = useNavigate()
-  const [paso, setPaso] = useState(1) // 1: info, 2: módulos, 3: evaluación
+  const { usuario } = useAuth()
+  const [paso, setPaso] = useState(1) // 1: info, 2: módulos, 3: evaluación, 4: audiencia
   const [cursoId, setCursoId] = useState(null)
   const [form, setForm] = useState({ nombre:'', descripcion:'', area:'' })
   const [modulos, setModulos] = useState([])
   const [preguntas, setPreguntas] = useState([
     { texto:'', alternativas:[{texto:'',correcta:true},{texto:'',correcta:false},{texto:'',correcta:false},{texto:'',correcta:false}] }
   ])
+  const [estamentosObjetivo, setEstamentosObjetivo] = useState(null) // null = todos, array = específicos
+  const [sedeObjetivo, setSedeObjetivo] = useState(null) // null = todas, sede_id = solo esa sede
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
 
@@ -53,11 +67,10 @@ export default function NuevoCurso() {
     }
   }
 
-  // Paso 3: guardar preguntas y publicar
-  const handlePublicar = async () => {
+  // Paso 3: guardar preguntas (avanza a paso 4)
+  const handleGuardarPreguntas = async () => {
     setError('')
     try {
-      // Guardar preguntas
       for (const p of preguntas) {
         if (p.texto.trim()) {
           await api.post(`/cursos/${cursoId}/preguntas`, {
@@ -66,6 +79,22 @@ export default function NuevoCurso() {
           })
         }
       }
+      setPaso(4)
+    } catch (err) {
+      setError('Error al guardar las preguntas')
+    }
+  }
+
+  // Paso 4: guardar audiencia y publicar
+  const handlePublicar = async () => {
+    setError('')
+    try {
+      // Guardar targeting de estamentos y sede
+      await api.patch(`/cursos/${cursoId}/targeting`, {
+        estamento_objetivo: estamentosObjetivo,
+        sede_objetivo: sedeObjetivo,
+        obligatorio: Array.isArray(estamentosObjetivo) && estamentosObjetivo.length > 0
+      })
       // Publicar
       await api.patch(`/cursos/${cursoId}/publicar`, { publicado: true })
       alert('¡Curso publicado exitosamente!')
@@ -73,6 +102,14 @@ export default function NuevoCurso() {
     } catch (err) {
       setError('Error al publicar el curso')
     }
+  }
+
+  const toggleEstamento = (est) => {
+    setEstamentosObjetivo(prev => {
+      const actual = Array.isArray(prev) ? prev : []
+      const siguiente = actual.includes(est) ? actual.filter(e => e !== est) : [...actual, est]
+      return siguiente.length === 0 ? null : siguiente
+    })
   }
 
   const handleGuardarBorrador = async () => {
@@ -99,7 +136,7 @@ export default function NuevoCurso() {
 
   const areas = ['Cuidado clínico','Alimentación','Seguridad y emergencias','Higiene y cuidado personal','Movilización y posicionamiento','Otro']
 
-  const pasos = ['Información del curso','Subir material','Evaluación']
+  const pasos = ['Información del curso','Subir material','Evaluación','Audiencia']
 
   return (
     <div className="app-shell">
@@ -195,7 +232,7 @@ export default function NuevoCurso() {
                 <label htmlFor="input-archivo">
                   <div className="upload-zone" style={{ cursor:'pointer' }}>
                     {subiendo ? (
-                      <div style={{ fontSize:13, color:'#888' }}>Subiendo archivo...</div>
+                      <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', fontSize:13, color:'#888' }}>Subiendo archivo...</div>
                     ) : (
                       <>
                         <Icon icon="lucide:folder-open" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />
@@ -303,15 +340,105 @@ export default function NuevoCurso() {
                 </button>
               </div>
 
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn-primary" onClick={handleGuardarPreguntas}>
+                  Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} />
+                </button>
+                <button onClick={() => setPaso(2)}
+                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
+                  <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
+                </button>
+                <button onClick={handleGuardarBorrador}
+                  style={{ background:'none', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer' }}>
+                  Guardar borrador
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* PASO 4: Audiencia */}
+          {paso === 4 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <div className="card">
+                <div className="card-title" style={{ marginBottom:4 }}>¿A quién va dirigido este curso?</div>
+                <div style={{ fontSize:12, color:'#888', marginBottom:16 }}>
+                  Selecciona la sede y los estamentos destinatarios. Si no seleccionas estamentos, el curso será visible para todos (opcional).
+                </div>
+
+                {/* Sede */}
+                <div style={{ fontSize:12, fontWeight:600, color:'#333', marginBottom:8 }}>Sede</div>
+                {[
+                  { label: 'Todas las sedes', sub: 'Visible en todas las sedes', value: null },
+                  { label: `Solo ${usuario?.sede_nombre || 'mi sede'}`, sub: 'Visible únicamente en tu sede', value: usuario?.sede_id },
+                ].map(op => {
+                  const sel = sedeObjetivo === op.value
+                  return (
+                    <div key={String(op.value)} onClick={() => setSedeObjetivo(op.value)}
+                      style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:4, cursor:'pointer',
+                        border: sel ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                        background: sel ? '#F0F4FF' : '#FAFAFA' }}>
+                      <div style={{ width:16, height:16, borderRadius:'50%', border: sel ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: sel ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {sel && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight: sel ? 600 : 400, color:'#222' }}>{op.label}</div>
+                        <div style={{ fontSize:11, color:'#888' }}>{op.sub}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <div style={{ height:1, background:'#E8E8E8', margin:'16px 0' }} />
+
+                {/* Estamentos */}
+                <div style={{ fontSize:12, fontWeight:600, color:'#333', marginBottom:8 }}>Estamentos</div>
+                {/* Opción Todos */}
+                <div onClick={() => setEstamentosObjetivo(null)}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:8, cursor:'pointer',
+                    border: estamentosObjetivo === null ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                    background: estamentosObjetivo === null ? '#F0F4FF' : '#FAFAFA' }}>
+                  <div style={{ width:16, height:16, borderRadius:'50%', border: estamentosObjetivo === null ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: estamentosObjetivo === null ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    {estamentosObjetivo === null && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight: estamentosObjetivo === null ? 600 : 400, color:'#222' }}>Todos los colaboradores</div>
+                    <div style={{ fontSize:11, color:'#888' }}>Curso visible para todos los estamentos (opcional)</div>
+                  </div>
+                </div>
+
+                {/* Estamentos específicos */}
+                <div style={{ fontSize:11, fontWeight:500, color:'#888', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
+                  O selecciona estamentos específicos (obligatorio para ellos):
+                </div>
+                {ESTAMENTOS.map(est => {
+                  const sel = Array.isArray(estamentosObjetivo) && estamentosObjetivo.includes(est)
+                  return (
+                    <div key={est} onClick={() => toggleEstamento(est)}
+                      style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:4, cursor:'pointer',
+                        border: sel ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                        background: sel ? '#F0F4FF' : '#FAFAFA' }}>
+                      <div style={{ width:16, height:16, borderRadius:4, border: sel ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: sel ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {sel && <Icon icon="lucide:check" color="white" width={10} />}
+                      </div>
+                      <span style={{ fontSize:13, fontWeight: sel ? 600 : 400, color:'#222' }}>{est}</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Resumen */}
               <div className="notice">
-                El curso será publicado inmediatamente y estará disponible para asignarlo a colaboradores.
+                {sedeObjetivo ? <>Sede: <strong>{usuario?.sede_nombre}</strong>. </> : <>Todas las sedes. </>}
+                {Array.isArray(estamentosObjetivo) && estamentosObjetivo.length > 0
+                  ? <>Obligatorio para: <strong>{estamentosObjetivo.join(', ')}</strong>.</>
+                  : <>Visible para todos los estamentos (opcional).</>}
               </div>
 
               <div style={{ display:'flex', gap:8 }}>
                 <button className="btn-primary" onClick={handlePublicar}>
-                  <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Publicar curso</>
+                  <Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Publicar curso
                 </button>
-                <button onClick={() => setPaso(2)}
+                <button onClick={() => setPaso(3)}
                   style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
                   <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
                 </button>

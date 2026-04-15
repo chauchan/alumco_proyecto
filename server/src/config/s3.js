@@ -1,0 +1,87 @@
+const { S3Client, PutObjectCommand, PutBucketPolicyCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
+const s3 = new S3Client({
+  region: process.env.AWS_DEFAULT_REGION || 'auto',
+  endpoint: process.env.AWS_ENDPOINT_URL,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+  forcePathStyle: true,
+});
+
+const BUCKET = process.env.AWS_S3_BUCKET_NAME;
+// URL pública: endpoint + nombre del bucket
+const PUBLIC_URL = `${process.env.AWS_ENDPOINT_URL}/${process.env.AWS_S3_BUCKET_NAME}`;
+
+/**
+ * Sube un Buffer a S3 y devuelve la URL pública.
+ * @param {Buffer} buffer
+ * @param {string} key  — ruta dentro del bucket, ej: "certs/cert_5.pdf"
+ * @param {string} contentType — MIME type
+ */
+async function uploadBuffer(buffer, key, contentType) {
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    ACL: 'public-read',
+  }));
+  return `${PUBLIC_URL}/${key}`;
+}
+
+/**
+ * Devuelve la URL pública de un archivo subido con multer-s3.
+ * req.file.location puede quedar undefined con endpoints custom (Railway),
+ * en ese caso la construimos desde el key.
+ */
+function fileLocation(file) {
+  return file.location || `${PUBLIC_URL}/${file.key}`;
+}
+
+/**
+ * Configura el bucket como público (lectura) al iniciar el servidor.
+ * Railway Object Storage es privado por defecto.
+ */
+async function makeBucketPublic() {
+  const policy = JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [{
+      Sid: 'PublicRead',
+      Effect: 'Allow',
+      Principal: '*',
+      Action: ['s3:GetObject'],
+      Resource: [`arn:aws:s3:::${BUCKET}/*`]
+    }]
+  });
+  try {
+    await s3.send(new PutBucketPolicyCommand({ Bucket: BUCKET, Policy: policy }));
+    console.log('✓ Bucket S3 configurado como público');
+  } catch (err) {
+    console.warn('⚠ No se pudo configurar bucket público:', err.message);
+  }
+}
+
+/**
+ * Genera una URL firmada temporal para acceder a un objeto privado del bucket.
+ * @param {string} key — ruta del archivo en el bucket, ej: "modulos/modulo_123.mp4"
+ * @param {number} expiresIn — segundos de validez (default: 3600 = 1 hora)
+ */
+async function generateSignedUrl(key, expiresIn = 3600) {
+  const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
+  return getSignedUrl(s3, command, { expiresIn });
+}
+
+/**
+ * Extrae la key S3 desde una archivo_url guardada en la BD.
+ * URL format: https://endpoint/bucket/key
+ */
+function keyFromUrl(url) {
+  if (!url) return null;
+  const prefix = `${PUBLIC_URL}/`;
+  return url.startsWith(prefix) ? url.slice(prefix.length) : null;
+}
+
+module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation, makeBucketPublic, generateSignedUrl, keyFromUrl };

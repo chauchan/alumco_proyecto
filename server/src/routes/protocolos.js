@@ -1,17 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const multerS3 = require('multer-s3');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { s3, BUCKET, fileLocation } = require('../config/s3');
 
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../../uploads/protocolos-lib'),
-  filename: (req, file, cb) => {
+const storage = multerS3({
+  s3,
+  bucket: BUCKET,
+  contentType: multerS3.AUTO_CONTENT_TYPE,
+  key: (req, file, cb) => {
     const ts = Date.now();
     const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${ts}_${safe}`);
+    cb(null, `protocolos-lib/${ts}_${safe}`);
   }
 });
 
@@ -47,12 +51,11 @@ router.post('/', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.
   try {
     const result = await pool.query(
       'INSERT INTO protocolos (nombre, descripcion, archivo_nombre, archivo_path, creado_por) VALUES ($1,$2,$3,$4,$5)',
-      [nombre, descripcion || null, req.file.originalname, req.file.path, req.usuario?.id || null]
+      [nombre, descripcion || null, req.file.originalname, fileLocation(req.file), req.usuario?.id || null]
     );
     const nuevo = await pool.query('SELECT * FROM protocolos WHERE id = $1', [result.lastID]);
     res.status(201).json(nuevo.rows[0]);
   } catch (err) {
-    if (req.file?.path) fs.unlinkSync(req.file.path);
     res.status(500).json({ error: err.message });
   }
 });
