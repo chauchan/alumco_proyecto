@@ -269,7 +269,7 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
   }
 }
 
-async function llamarGemini(prompt, imageBase64 = null, timeoutMs = 120000) {
+async function llamarGemini(prompt, imageBase64 = null, timeoutMs = 120000, _intento = 1) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
@@ -293,6 +293,13 @@ async function llamarGemini(prompt, imageBase64 = null, timeoutMs = 120000) {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
+      // 503 = sobrecarga temporal → reintentar hasta 3 veces con espera
+      if (response.status === 503 && _intento < 3) {
+        const espera = _intento * 8000;
+        console.log(`[IA] Gemini 503, reintento ${_intento}/3 en ${espera/1000}s...`);
+        await new Promise(r => setTimeout(r, espera));
+        return llamarGemini(prompt, imageBase64, timeoutMs, _intento + 1);
+      }
       throw new Error(`Gemini HTTP ${response.status}: ${body}`);
     }
     const data = await response.json();
