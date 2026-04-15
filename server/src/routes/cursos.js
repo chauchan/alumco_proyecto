@@ -119,14 +119,16 @@ router.get('/:id', verificarToken, async (req, res) => {
     if (curso.rows.length === 0) return res.status(404).json({ error: 'Curso no encontrado' });
     const modulos = await pool.query('SELECT * FROM modulos WHERE curso_id = $1 ORDER BY orden', [req.params.id]);
     const preguntas = await pool.query('SELECT * FROM preguntas WHERE curso_id = $1', [req.params.id]);
-    // Imágenes del protocolo asociadas al curso
-    const imagenesDir = path.join(__dirname, '../../uploads/imagenes', String(req.params.id));
+    // Imágenes del protocolo: leer desde S3 (URLs firmadas) o BD
     let imagenes_protocolo = [];
-    if (fs.existsSync(imagenesDir)) {
-      imagenes_protocolo = fs.readdirSync(imagenesDir)
-        .filter(f => f.endsWith('.png') || f.endsWith('.jpg'))
-        .sort()
-        .map(f => `/uploads/imagenes/${req.params.id}/${f}`);
+    const imagenesDB = curso.rows[0].imagenes_protocolo;
+    if (Array.isArray(imagenesDB) && imagenesDB.length > 0) {
+      imagenes_protocolo = await Promise.all(
+        imagenesDB.map(url => {
+          const key = keyFromUrl(url);
+          return key ? generateSignedUrl(key, 3600) : url;
+        })
+      );
     }
     res.json({ ...curso.rows[0], modulos: modulos.rows, preguntas: preguntas.rows, imagenes_protocolo });
   } catch (err) {

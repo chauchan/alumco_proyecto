@@ -102,6 +102,7 @@ async function migrate() {
     `).catch(() => {});
     await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS obligatorio TINYINT(1) DEFAULT 0`).catch(() => {});
     await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS video_intro_url VARCHAR(500) DEFAULT NULL`).catch(() => {});
+    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS imagenes_protocolo JSON DEFAULT NULL`).catch(() => {});
     await conn.query(`
       CREATE TABLE IF NOT EXISTS asignaciones (
         id INT PRIMARY KEY AUTO_INCREMENT,
