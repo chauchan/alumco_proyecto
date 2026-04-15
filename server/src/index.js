@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const pool = require('./config/db');
+const { makeBucketPublic } = require('./config/s3');
 
 const authRoutes          = require('./routes/auth');
 const usuariosRoutes      = require('./routes/usuarios');
@@ -65,6 +66,8 @@ async function addColumnIfMissing(tabla, columna, definicion) {
 }
 
 async function start() {
+  await makeBucketPublic();
+
   await addColumnIfMissing('progreso', 'intentos_fallidos', 'INT DEFAULT 0');
   await addColumnIfMissing('progreso', 'bloqueado_hasta', 'DATETIME DEFAULT NULL');
   console.log('✓ Schema de bloqueo listo');

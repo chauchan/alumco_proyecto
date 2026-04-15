@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, PutBucketPolicyCommand } = require('@aws-sdk/client-s3');
 
 const s3 = new S3Client({
   region: process.env.AWS_DEFAULT_REGION || 'auto',
@@ -39,4 +39,27 @@ function fileLocation(file) {
   return file.location || `${PUBLIC_URL}/${file.key}`;
 }
 
-module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation };
+/**
+ * Configura el bucket como público (lectura) al iniciar el servidor.
+ * Railway Object Storage es privado por defecto.
+ */
+async function makeBucketPublic() {
+  const policy = JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [{
+      Sid: 'PublicRead',
+      Effect: 'Allow',
+      Principal: '*',
+      Action: ['s3:GetObject'],
+      Resource: [`arn:aws:s3:::${BUCKET}/*`]
+    }]
+  });
+  try {
+    await s3.send(new PutBucketPolicyCommand({ Bucket: BUCKET, Policy: policy }));
+    console.log('✓ Bucket S3 configurado como público');
+  } catch (err) {
+    console.warn('⚠ No se pudo configurar bucket público:', err.message);
+  }
+}
+
+module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation, makeBucketPublic };
