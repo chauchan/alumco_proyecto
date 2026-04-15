@@ -160,7 +160,8 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
       } catch {}
     }
 
-    console.log('[IA] Imágenes útiles del PDF subidas al bucket:', utiles.length, utiles[0] || '');
+    console.log('[IA] Imágenes count:', utiles.length);
+    console.log('[IA] Imágenes URL[0]:', utiles[0]);
     return utiles;
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
