@@ -382,7 +382,7 @@ ${textoParaOllama}`;
 
     console.log('[IA] Paso 3: generando módulos...');
     const respModulos = await llamarIA(promptModulos);
-    console.log('[IA] Raw módulos (200 chars):', respModulos?.slice(0, 200));
+    console.log('[IA] Raw módulos (1000 chars):', respModulos?.slice(0, 1000));
     const borradorModulos = parsearJSON(respModulos);
     if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0) {
       throw new Error('La IA no generó módulos válidos');
