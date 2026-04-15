@@ -17,6 +17,8 @@ const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
 const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
 const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
+const GEMINI_KEY       = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL     = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
@@ -35,9 +37,32 @@ function pdfToImages(pdfPath, outDir, maxPages = 4) {
   });
 }
 
-// ── Describe una imagen con OpenRouter (vision) o moondream vía Ollama ───────
+// ── Describe una imagen con Gemini vision, OpenRouter o moondream vía Ollama ──
 async function describirImagen(imagePath) {
   const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+  const promptVision = 'Describe detalladamente el contenido de esta imagen de un protocolo médico o de cuidado. Incluye: texto visible, tablas, posiciones corporales mostradas en fotos, procedimientos, horarios o esquemas. Responde en español.';
+
+  if (GEMINI_KEY) {
+    try {
+      // Gemini vision no usa responseMimeType JSON para descripciones de imagen
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+      const response = await undiciFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: 'image/png', data: imageBase64 } },
+            { text: promptVision }
+          ]}],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+        })
+      });
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (e) {
+      console.warn('[IA] Gemini vision falló:', e.message);
+    }
+  }
 
   if (OPENROUTER_KEY) {
     const response = await undiciFetch(OPENROUTER_URL, {
@@ -54,7 +79,7 @@ async function describirImagen(imagePath) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
-            { type: 'text', text: 'Describe detalladamente el contenido de esta imagen de un protocolo médico o de cuidado. Incluye: texto visible, tablas, posiciones corporales mostradas en fotos, procedimientos, horarios o esquemas. Responde en español.' }
+            { type: 'text', text: promptVision }
           ]
         }],
         max_tokens: 1000
@@ -244,7 +269,46 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
   }
 }
 
+async function llamarGemini(prompt, imageBase64 = null, timeoutMs = 120000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+  try {
+    const parts = [];
+    if (imageBase64) parts.push({ inline_data: { mime_type: 'image/png', data: imageBase64 } });
+    parts.push({ text: prompt });
+    const response = await undiciFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+          responseMimeType: 'application/json'
+        }
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`Gemini HTTP ${response.status}: ${body}`);
+    }
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Gemini no devolvió contenido');
+    console.log(`[IA] Gemini OK tokens=${data.usageMetadata?.totalTokenCount || '?'}`);
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function llamarIA(prompt, timeoutMs = 480000) {
+  if (GEMINI_KEY) {
+    console.log(`[IA] Usando Gemini → ${GEMINI_MODEL}`);
+    return await llamarGemini(prompt, null, timeoutMs);
+  }
   if (OPENROUTER_KEY) {
     console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
     return await llamarOpenRouter(prompt, timeoutMs);
