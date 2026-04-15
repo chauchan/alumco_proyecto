@@ -12,6 +12,7 @@ const { s3, BUCKET, fileLocation } = require('../config/s3');
 const storage = multerS3({
   s3,
   bucket: BUCKET,
+  acl: 'public-read',
   contentType: multerS3.AUTO_CONTENT_TYPE,
   key: (req, file, cb) => {
     const ext = path.extname(file.originalname);

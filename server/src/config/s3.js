@@ -26,6 +26,7 @@ async function uploadBuffer(buffer, key, contentType) {
     Key: key,
     Body: buffer,
     ContentType: contentType,
+    ACL: 'public-read',
   }));
   return `${PUBLIC_URL}/${key}`;
 }
