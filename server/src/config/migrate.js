@@ -74,6 +74,7 @@ async function migrate() {
 
     // Migraciones incrementales: agregar columnas si no existen en BDs previas
     await conn.query(`ALTER TABLE modulos ADD COLUMN IF NOT EXISTS contenido_presentacion JSON AFTER descripcion`).catch(() => {});
+    await conn.query(`ALTER TABLE modulos MODIFY COLUMN titulo VARCHAR(500) NOT NULL`).catch(() => {});
     await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS estamento_objetivo VARCHAR(150) DEFAULT NULL`).catch(() => {});
     await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS obligatorio TINYINT(1) DEFAULT 0`).catch(() => {});
     await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS video_intro_url VARCHAR(500) DEFAULT NULL`).catch(() => {});

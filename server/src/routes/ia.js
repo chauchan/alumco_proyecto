@@ -15,7 +15,7 @@ const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:114
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
 const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
 const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324:free';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
@@ -34,9 +34,36 @@ function pdfToImages(pdfPath, outDir, maxPages = 4) {
   });
 }
 
-// ── Describe una imagen con moondream vía Ollama ──────────────────────────────
+// ── Describe una imagen con OpenRouter (vision) o moondream vía Ollama ───────
 async function describirImagen(imagePath) {
   const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+
+  if (OPENROUTER_KEY) {
+    const response = await undiciFetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://alumco.cl',
+        'X-Title': 'ALUMCO - Generador de Cursos'
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
+            { type: 'text', text: 'Describe detalladamente el contenido de esta imagen de un protocolo médico o de cuidado. Incluye: texto visible, tablas, posiciones corporales mostradas en fotos, procedimientos, horarios o esquemas. Responde en español.' }
+          ]
+        }],
+        max_tokens: 1000
+      })
+    });
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  // Fallback: moondream vía Ollama (local)
   const response = await undiciFetch(`${OLLAMA_URL}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -52,65 +79,67 @@ async function describirImagen(imagePath) {
   return data.response || '';
 }
 
-// ── Extrae imágenes embebidas del PDF filtrando logos repetidos (por MD5) ──────
+// ── Extrae imágenes embebidas del PDF filtrando logos repetidos y sube al bucket ─
 async function extraerImagenesPDF(pdfPath, cursoId) {
   const crypto = require('crypto');
   const sharp = require('sharp');
-  const outDir = path.join(__dirname, '../../uploads/imagenes', String(cursoId));
-  fs.mkdirSync(outDir, { recursive: true });
+  const { uploadBuffer } = require('../config/s3');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `alumco-imgs-${cursoId}-`));
 
-  // Limpiar imágenes anteriores
-  fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
-
-  const outPrefix = path.join(outDir, 'img');
-  await new Promise((resolve) => {
-    execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
-      if (err) console.warn('[IA] pdfimages error:', err.message);
-      resolve();
+  try {
+    const outPrefix = path.join(tmpDir, 'img');
+    await new Promise((resolve) => {
+      execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
+        if (err) console.warn('[IA] pdfimages error:', err.message);
+        resolve();
+      });
     });
-  });
 
-  const archivos = fs.readdirSync(outDir)
-    .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
-    .sort();
+    const archivos = fs.readdirSync(tmpDir)
+      .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
+      .sort();
 
-  // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
-  const hashCount = {};
-  const fileHashes = {};
-  for (const archivo of archivos) {
-    try {
-      const buf = fs.readFileSync(path.join(outDir, archivo));
-      const h = crypto.createHash('md5').update(buf).digest('hex');
-      fileHashes[archivo] = h;
-      hashCount[h] = (hashCount[h] || 0) + 1;
-    } catch {}
+    // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
+    const hashCount = {};
+    const fileHashes = {};
+    for (const archivo of archivos) {
+      try {
+        const buf = fs.readFileSync(path.join(tmpDir, archivo));
+        const h = crypto.createHash('md5').update(buf).digest('hex');
+        fileHashes[archivo] = h;
+        hashCount[h] = (hashCount[h] || 0) + 1;
+      } catch {}
+    }
+
+    const utiles = [];
+    for (const archivo of archivos) {
+      const fullPath = path.join(tmpDir, archivo);
+      try {
+        const stat = fs.statSync(fullPath);
+        // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
+        if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) continue;
+
+        let pngBuffer;
+        if (archivo.endsWith('.ppm')) {
+          pngBuffer = await sharp(fullPath).png().toBuffer();
+        } else {
+          pngBuffer = fs.readFileSync(fullPath);
+        }
+
+        const meta = await sharp(pngBuffer).metadata();
+        if ((meta.width || 0) < 100 || (meta.height || 0) < 100) continue;
+
+        const key = `imagenes/${cursoId}/${archivo.replace('.ppm', '.png')}`;
+        const url = await uploadBuffer(pngBuffer, key, 'image/png');
+        utiles.push(url);
+      } catch {}
+    }
+
+    console.log('[IA] Imágenes útiles del PDF subidas al bucket:', utiles.length);
+    return utiles;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-
-  const utiles = [];
-  for (const archivo of archivos) {
-    const fullPath = path.join(outDir, archivo);
-    try {
-      const stat = fs.statSync(fullPath);
-      // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
-      if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
-        fs.unlinkSync(fullPath); continue;
-      }
-      let finalPath = fullPath;
-      if (archivo.endsWith('.ppm')) {
-        finalPath = fullPath.replace('.ppm', '.png');
-        await sharp(fullPath).png().toFile(finalPath);
-        fs.unlinkSync(fullPath);
-      }
-      const meta = await sharp(finalPath).metadata();
-      if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
-        fs.unlinkSync(finalPath); continue;
-      }
-      utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-    } catch {}
-  }
-
-  console.log('[IA] Imágenes útiles del PDF (sin logos duplicados):', utiles.length);
-  return utiles;
 }
 
 // ── Extrae contenido completo del PDF: descripción visual de páginas ──────────
@@ -163,7 +192,8 @@ async function llamarOpenRouter(prompt, timeoutMs = 90000) {
         ],
         temperature: 0.1,
         max_tokens: 12000,
-        stream: false
+        stream: false,
+        response_format: { type: 'json_object' }
       })
     });
     if (!response.ok) {
@@ -290,6 +320,19 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
   try {
     console.log('[IA] Paso 1: archivo recibido', req.file.originalname);
 
+    // Si el archivo viene del bucket S3 (URL), descargarlo a un temp local
+    if (req.file._fromLib && req.file.path.startsWith('http')) {
+      console.log('[IA] Descargando protocolo desde S3:', req.file.path);
+      const resp = await undiciFetch(req.file.path);
+      if (!resp.ok) throw new Error(`No se pudo descargar el protocolo: HTTP ${resp.status}`);
+      const arrayBuf = await resp.arrayBuffer();
+      const tmpPath = path.join(os.tmpdir(), `protocolo_${Date.now()}.pdf`);
+      fs.writeFileSync(tmpPath, Buffer.from(arrayBuf));
+      req.file.path = tmpPath;
+      req.file._tmpDownload = true;
+      console.log('[IA] Protocolo descargado a:', tmpPath);
+    }
+
     const pdfBuffer = fs.readFileSync(req.file.path);
 
     // ── Paso 2: moondream describe páginas del PDF (texto + imágenes) ──
@@ -412,7 +455,7 @@ Reglas:
       const mod = borrador.modulos[i];
       const insM = await pool.query(
         'INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, orden) VALUES ($1,$2,$3,$4,$5,$6)',
-        [cursoId, mod.titulo, mod.descripcion,
+        [cursoId, (mod.titulo || '').slice(0, 190), mod.descripcion,
          mod.presentacion ? JSON.stringify(mod.presentacion) : null,
          'ppt', i + 1]
       );
@@ -434,8 +477,10 @@ Reglas:
     // Extraer imágenes embebidas del PDF y guardarlas permanentemente
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
 
-    // Solo borrar el PDF si fue un upload temporal (no de la biblioteca)
-    if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
+    // Borrar el PDF si fue upload temporal o descarga temporal desde S3
+    if (!req.file._fromLib || req.file._tmpDownload) {
+      if (fs.existsSync(pdfPathGuardado)) fs.unlinkSync(pdfPathGuardado);
+    }
 
     res.status(201).json({
       curso_id: cursoId,
@@ -453,7 +498,7 @@ Reglas:
 
   } catch (err) {
     console.error('[IA] Error completo:', err);
-    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (req.file?.path && (!req.file._fromLib || req.file._tmpDownload) && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (err.name === 'AbortError') {
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
     }
