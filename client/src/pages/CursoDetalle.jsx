@@ -300,13 +300,23 @@ export default function CursoDetalle() {
     if (mod.archivo_url) {
       const fileSrc = signedUrls[mod.id] || ''
       return (
-        <div style={{ textAlign: 'center', padding: 24 }}>
-          <Icon icon="lucide:presentation" width={36} style={{marginBottom:12,display:'block',color:'#888',margin:'0 auto 12px'}} />
-          <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Descarga la presentación para verla.</div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {fileSrc ? (
+            <iframe
+              key={fileSrc}
+              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileSrc)}`}
+              style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
+              title={mod.titulo}
+            />
+          ) : (
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 13 }}>
+              Cargando presentación...
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <a href={fileSrc} download target="_blank" rel="noreferrer"
-              style={{ background: '#2B4BA0', color: '#fff', borderRadius: 8, padding: '9px 18px', fontSize: 13, textDecoration: 'none' }}>
-              <><Icon icon="lucide:download" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Descargar PPT</>
+              style={{ background: '#F4F5F7', color: '#333', borderRadius: 8, padding: '8px 14px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Icon icon="lucide:download" width={12} /> Descargar PPT
             </a>
             <button onClick={() => marcarCompleto(mod.id)}
               style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
