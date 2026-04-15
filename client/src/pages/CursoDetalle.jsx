@@ -30,7 +30,17 @@ export default function CursoDetalle() {
   const [enviando, setEnviando] = useState(false)
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
+  const [signedUrls, setSignedUrls] = useState({})
   const videoRef = useRef(null)
+
+  // Obtener URL firmada cuando cambia el módulo activo
+  useEffect(() => {
+    if (!moduloActivo || !cursoId) return
+    if (signedUrls[moduloActivo]) return // ya cacheada
+    api.get(`/cursos/${cursoId}/modulos/${moduloActivo}/signed-url`)
+      .then(r => setSignedUrls(prev => ({ ...prev, [moduloActivo]: r.data.url })))
+      .catch(() => {})
+  }, [moduloActivo, cursoId])
 
   useEffect(() => {
     Promise.all([
@@ -245,16 +255,17 @@ export default function CursoDetalle() {
     }
 
     if (esVideo) {
+      const videoSrc = signedUrls[mod.id] || ''
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <video
-            key={mod.archivo_url}
+            key={videoSrc}
             controls
             style={{ width: '100%', borderRadius: 10, background: '#000', maxHeight: 480 }}
             onEnded={() => marcarCompleto(mod.id)}
           >
-            <source src={fileUrl(mod.archivo_url)} type="video/mp4" />
-            <source src={fileUrl(mod.archivo_url)} type="video/webm" />
+            {videoSrc && <source src={videoSrc} type="video/mp4" />}
+            {videoSrc && <source src={videoSrc} type="video/webm" />}
           </video>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#888' }}>El módulo se marcará como completo al terminar el video.</span>
@@ -268,10 +279,11 @@ export default function CursoDetalle() {
     }
 
     if (esPDF) {
+      const pdfSrc = signedUrls[mod.id] || ''
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <iframe
-            src={fileUrl(mod.archivo_url)}
+            src={pdfSrc}
             style={{ width: '100%', height: 500, border: 'none', borderRadius: 10 }}
             title={mod.titulo}
           />
@@ -286,12 +298,13 @@ export default function CursoDetalle() {
     }
 
     if (mod.archivo_url) {
+      const fileSrc = signedUrls[mod.id] || ''
       return (
         <div style={{ textAlign: 'center', padding: 24 }}>
           <Icon icon="lucide:presentation" width={36} style={{marginBottom:12,display:'block',color:'#888',margin:'0 auto 12px'}} />
           <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>Descarga la presentación para verla.</div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <a href={fileUrl(mod.archivo_url)} download target="_blank" rel="noreferrer"
+            <a href={fileSrc} download target="_blank" rel="noreferrer"
               style={{ background: '#2B4BA0', color: '#fff', borderRadius: 8, padding: '9px 18px', fontSize: 13, textDecoration: 'none' }}>
               <><Icon icon="lucide:download" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Descargar PPT</>
             </a>

@@ -1,4 +1,5 @@
-const { S3Client, PutObjectCommand, PutBucketPolicyCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, PutBucketPolicyCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const s3 = new S3Client({
   region: process.env.AWS_DEFAULT_REGION || 'auto',
@@ -63,4 +64,24 @@ async function makeBucketPublic() {
   }
 }
 
-module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation, makeBucketPublic };
+/**
+ * Genera una URL firmada temporal para acceder a un objeto privado del bucket.
+ * @param {string} key — ruta del archivo en el bucket, ej: "modulos/modulo_123.mp4"
+ * @param {number} expiresIn — segundos de validez (default: 3600 = 1 hora)
+ */
+async function generateSignedUrl(key, expiresIn = 3600) {
+  const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
+  return getSignedUrl(s3, command, { expiresIn });
+}
+
+/**
+ * Extrae la key S3 desde una archivo_url guardada en la BD.
+ * URL format: https://endpoint/bucket/key
+ */
+function keyFromUrl(url) {
+  if (!url) return null;
+  const prefix = `${PUBLIC_URL}/`;
+  return url.startsWith(prefix) ? url.slice(prefix.length) : null;
+}
+
+module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation, makeBucketPublic, generateSignedUrl, keyFromUrl };

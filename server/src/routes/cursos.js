@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { s3, BUCKET, fileLocation } = require('../config/s3');
+const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../config/s3');
 
 // Configuración de subida de archivos → Railway Object Storage (S3)
 const storage = multerS3({
@@ -467,6 +467,24 @@ router.delete('/:id/video-intro', verificarToken, verificarRol('profesor', 'admi
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar video' });
+  }
+});
+
+// GET /api/cursos/:id/modulos/:moduloId/signed-url — URL firmada temporal para acceder al archivo
+router.get('/:id/modulos/:moduloId/signed-url', verificarToken, async (req, res) => {
+  try {
+    const mod = await pool.query(
+      'SELECT archivo_url FROM modulos WHERE id = $1 AND curso_id = $2',
+      [req.params.moduloId, req.params.id]
+    );
+    if (!mod.rows[0]?.archivo_url) return res.status(404).json({ error: 'Módulo no encontrado' });
+    const key = keyFromUrl(mod.rows[0].archivo_url);
+    if (!key) return res.status(400).json({ error: 'URL de archivo inválida' });
+    const url = await generateSignedUrl(key, 3600);
+    res.json({ url });
+  } catch (err) {
+    console.error('[signed-url]', err.message);
+    res.status(500).json({ error: 'Error al generar URL' });
   }
 });
 
