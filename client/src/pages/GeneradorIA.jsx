@@ -399,18 +399,24 @@ export default function GeneradorIA() {
   // Persistir resultado en sessionStorage cuando cambia
   useEffect(() => { guardarStorage(resultado) }, [resultado])
 
-  // Si resultado viene de session storage sin IDs de módulos, obtenerlos del servidor
+  // Sincronizar con el servidor: obtener IDs de módulos y URLs firmadas de imágenes
   useEffect(() => {
     if (!resultado?.curso_id) return
-    if (resultado.modulos?.every(m => m.id)) return
     api.get(`/cursos/${resultado.curso_id}`).then(r => {
       const apiModulos = r.data.modulos || []
-      const modulos = resultado.modulos.map(m => {
-        if (m.id) return m
-        const found = apiModulos.find(am => am.titulo === m.titulo)
-        return { ...m, id: found?.id }
-      })
-      setResultado(prev => ({ ...prev, modulos }))
+      const allHaveId = resultado.modulos?.every(m => m.id)
+      const modulos = allHaveId
+        ? resultado.modulos
+        : resultado.modulos.map(m => {
+            if (m.id) return m
+            const found = apiModulos.find(am => am.titulo === m.titulo)
+            return { ...m, id: found?.id }
+          })
+      const updates = { modulos }
+      if (r.data.imagenes_protocolo?.length > 0) {
+        updates.imagenes_protocolo = r.data.imagenes_protocolo
+      }
+      setResultado(prev => ({ ...prev, ...updates }))
     }).catch(() => {})
   }, [resultado?.curso_id])
   // Persistir form cuando cambia
