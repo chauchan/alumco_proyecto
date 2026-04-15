@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "poppler_utils"]
+nixPkgs = ["nodejs_20", "poppler_utils", "poppler"]
 
 [start]
 cmd = "node src/index.js"
