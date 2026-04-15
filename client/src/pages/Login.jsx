@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
 import { useAccesibilidad } from '../hooks/useAccesibilidad'
@@ -12,6 +13,7 @@ export default function Login() {
   const [form, setForm] = useState({ identificador:'', password:'' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
+  const [verPassword, setVerPassword] = useState(false)
   const { acc, toggle } = useAccesibilidad()
 
   const handleSubmit = async (e) => {
@@ -115,11 +117,17 @@ export default function Login() {
             </div>
             <div className="field">
               <label>Contraseña</label>
-              <input type="password" placeholder="••••••••"
-                value={form.password}
-                onChange={e => setForm({...form, password: e.target.value})}
-                style={{ height:42 }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input type={verPassword ? 'text' : 'password'} placeholder="••••••••"
+                  value={form.password}
+                  onChange={e => setForm({...form, password: e.target.value})}
+                  style={{ height:42, width:'100%', paddingRight: 40 }}
+                />
+                <button type="button" onClick={() => setVerPassword(v => !v)}
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  <Icon icon={verPassword ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
+                </button>
+              </div>
             </div>
 
             <div style={{ textAlign:'right', fontSize:12, color:'#2B4BA0', cursor:'pointer', marginBottom:18 }}>

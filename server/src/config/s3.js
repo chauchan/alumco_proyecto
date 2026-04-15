@@ -17,6 +17,9 @@ const PUBLIC_URL = `${process.env.AWS_ENDPOINT_URL}/${process.env.AWS_S3_BUCKET_
 
 /**
  * Sube un Buffer a S3 y devuelve la URL pública.
+ * @param {Buffer} buffer
+ * @param {string} key  — ruta dentro del bucket, ej: "certs/cert_5.pdf"
+ * @param {string} contentType — MIME type
  */
 async function uploadBuffer(buffer, key, contentType) {
   await s3.send(new PutObjectCommand({
@@ -31,6 +34,8 @@ async function uploadBuffer(buffer, key, contentType) {
 
 /**
  * Devuelve la URL pública de un archivo subido con multer-s3.
+ * req.file.location puede quedar undefined con endpoints custom (Railway),
+ * en ese caso la construimos desde el key.
  */
 function fileLocation(file) {
   return file.location || `${PUBLIC_URL}/${file.key}`;
@@ -38,6 +43,7 @@ function fileLocation(file) {
 
 /**
  * Configura el bucket como público (lectura) al iniciar el servidor.
+ * Railway Object Storage es privado por defecto.
  */
 async function makeBucketPublic() {
   const policy = JSON.stringify({
@@ -60,6 +66,8 @@ async function makeBucketPublic() {
 
 /**
  * Genera una URL firmada temporal para acceder a un objeto privado del bucket.
+ * @param {string} key — ruta del archivo en el bucket, ej: "modulos/modulo_123.mp4"
+ * @param {number} expiresIn — segundos de validez (default: 3600 = 1 hora)
  */
 async function generateSignedUrl(key, expiresIn = 3600) {
   const command = new GetObjectCommand({ Bucket: BUCKET, Key: key });
@@ -68,6 +76,7 @@ async function generateSignedUrl(key, expiresIn = 3600) {
 
 /**
  * Extrae la key S3 desde una archivo_url guardada en la BD.
+ * URL format: https://endpoint/bucket/key
  */
 function keyFromUrl(url) {
   if (!url) return null;

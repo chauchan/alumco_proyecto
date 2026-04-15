@@ -12,6 +12,7 @@ import GestionUsuarios      from './pages/GestionUsuarios'
 import NuevoCurso           from './pages/NuevoCurso'
 import CambiarPassword      from './pages/CambiarPassword'
 import Capacitaciones       from './pages/Capacitaciones'
+import CursoDetalle         from './pages/CursoDetalle'
 import AsignarCurso         from './pages/AsignarCurso'
 import Practicos            from './pages/Practicos'
 import MisCertificados      from './pages/MisCertificados'
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/jefatura/protocolos"  element={<ProtectedRoute roles={['jefatura','admin_sede']}><Protocolos /></ProtectedRoute>} />
 
           <Route path="/capacitaciones"        element={<ProtectedRoute roles={TODOS}><Capacitaciones /></ProtectedRoute>} />
+          <Route path="/capacitaciones/:id"   element={<ProtectedRoute roles={TODOS}><CursoDetalle /></ProtectedRoute>} />
           <Route path="/practicos"             element={<ProtectedRoute roles={TODOS}><Practicos /></ProtectedRoute>} />
           <Route path="/mis-certificados"      element={<ProtectedRoute roles={TODOS}><MisCertificados /></ProtectedRoute>} />
           <Route path="/certificados-globales" element={<ProtectedRoute roles={ADMIN}><CertificadosGlobales /></ProtectedRoute>} />

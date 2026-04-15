@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { uploadBuffer } = require('../config/s3');
 
 // GET /api/certificados — listar certificados del usuario o pendientes para profesor
 router.get('/', verificarToken, async (req, res) => {
@@ -123,23 +124,20 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
     if (cert.estado !== 'aprobado' || !cert.archivo_url) {
       return res.status(400).json({ error: 'El certificado aún no está disponible' });
     }
-    const filePath = path.join(__dirname, '../..', cert.archivo_url);
-    res.download(filePath, `certificado_${cert.id}.pdf`);
+    res.redirect(cert.archivo_url);
   } catch (err) {
     res.status(500).json({ error: 'Error al descargar certificado' });
   }
 });
 
-// Función auxiliar: generar PDF del certificado
+// Función auxiliar: generar PDF del certificado y subirlo a S3
 async function generarCertificadoPDF(cert) {
-  return new Promise((resolve, reject) => {
-    const uploadsDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-    const filename = `cert_${cert.id}_${Date.now()}.pdf`;
-    const filepath = path.join(uploadsDir, filename);
+  const buffer = await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
-    const stream = fs.createWriteStream(filepath);
-    doc.pipe(stream);
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
 
     // Fondo y bordes
     doc.rect(0, 0, doc.page.width, doc.page.height).fill('#F4F5F7');
@@ -170,9 +168,10 @@ async function generarCertificadoPDF(cert) {
     doc.fontSize(10).fillColor('#888888').text('Plataforma de Capacitación Interna', 0, 448, { align: 'center' });
 
     doc.end();
-    stream.on('finish', () => resolve(`/uploads/${filename}`));
-    stream.on('error', reject);
   });
+
+  const key = `certificados/cert_${cert.id}_${Date.now()}.pdf`;
+  return uploadBuffer(buffer, key, 'application/pdf');
 }
 
 module.exports = router;
