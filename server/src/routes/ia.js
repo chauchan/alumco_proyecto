@@ -262,9 +262,17 @@ function parsearJSON(texto) {
   // Bloque de código markdown ```json ... ```
   const mdMatch = t.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (mdMatch) { try { return JSON.parse(mdMatch[1].trim()); } catch {} }
-  // Extraer el bloque JSON más grande (puede haber texto antes/después)
-  const candidatos = [...t.matchAll(/\{[\s\S]*?\}/g)].map(m => m[0]).sort((a,b) => b.length - a.length);
-  for (const c of candidatos) { try { return JSON.parse(c); } catch {} }
+  // Buscar desde cada { balanceando llaves (maneja texto de razonamiento previo)
+  let pos = 0;
+  while ((pos = t.indexOf('{', pos)) !== -1) {
+    let depth = 0, end = -1;
+    for (let i = pos; i < t.length; i++) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end !== -1) { try { return JSON.parse(t.slice(pos, end + 1)); } catch {} }
+    pos++;
+  }
   throw new Error('La IA no devolvió un JSON válido');
 }
 
