@@ -473,7 +473,7 @@ Reglas:
         const parsed = parsearJSON(respPreg);
         return { ...mod, preguntas: parsed.preguntas || [] };
       } catch (e) {
-        console.warn(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
+        console.error(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
         return { ...mod, preguntas: [] };
       }
     }));
