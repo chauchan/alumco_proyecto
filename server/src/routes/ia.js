@@ -557,8 +557,12 @@ Reglas:
     // Extraer imágenes embebidas del PDF y guardarlas permanentemente en S3
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
     if (imagenesProtocolo.length > 0) {
-      await pool.query('UPDATE cursos SET imagenes_protocolo = ? WHERE id = ?',
-        [JSON.stringify(imagenesProtocolo), cursoId]);
+      try {
+        await pool.query('UPDATE cursos SET imagenes_protocolo = $1 WHERE id = $2',
+          [JSON.stringify(imagenesProtocolo), cursoId]);
+      } catch (e) {
+        console.warn('[IA] No se pudo guardar imagenes_protocolo en BD:', e.message);
+      }
     }
 
     // Borrar el PDF si fue upload temporal o descarga temporal desde S3

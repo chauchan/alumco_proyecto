@@ -121,7 +121,8 @@ router.get('/:id', verificarToken, async (req, res) => {
     const preguntas = await pool.query('SELECT * FROM preguntas WHERE curso_id = $1', [req.params.id]);
     // Imágenes del protocolo: leer desde S3 (URLs firmadas) o BD
     let imagenes_protocolo = [];
-    const imagenesDB = curso.rows[0].imagenes_protocolo;
+    const _rawImagenes = curso.rows[0].imagenes_protocolo;
+    const imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
     if (Array.isArray(imagenesDB) && imagenesDB.length > 0) {
       imagenes_protocolo = await Promise.all(
         imagenesDB.map(url => {
