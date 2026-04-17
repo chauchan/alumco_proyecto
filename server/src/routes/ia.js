@@ -316,7 +316,15 @@ async function llamarGemini(prompt, imageBase64 = null, timeoutMs = 120000, _int
 async function llamarIA(prompt, timeoutMs = 480000) {
   if (GEMINI_KEY) {
     console.log(`[IA] Usando Gemini → ${GEMINI_MODEL}`);
-    return await llamarGemini(prompt, null, timeoutMs);
+    try {
+      return await llamarGemini(prompt, null, timeoutMs);
+    } catch (err) {
+      if (err.message?.includes('429') || err.message?.includes('503')) {
+        console.warn(`[IA] Gemini no disponible (${err.message.slice(0, 80)}), fallback a OpenRouter...`);
+      } else {
+        throw err;
+      }
+    }
   }
   if (OPENROUTER_KEY) {
     console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
