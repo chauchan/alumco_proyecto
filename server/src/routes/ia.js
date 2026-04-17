@@ -10,6 +10,7 @@ const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
+const { uploadBuffer } = require('../config/s3');
 
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
@@ -34,9 +35,37 @@ function pdfToImages(pdfPath, outDir, maxPages = 4) {
   });
 }
 
-// ── Describe una imagen con moondream vía Ollama ──────────────────────────────
+// ── Describe una imagen con OpenRouter o moondream vía Ollama ────────────────
 async function describirImagen(imagePath) {
   const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+  const promptVision = 'Describe detalladamente el contenido de esta imagen de un protocolo médico o de cuidado. Incluye: texto visible, tablas, posiciones corporales mostradas en fotos, procedimientos, horarios o esquemas. Responde en español.';
+
+  if (OPENROUTER_KEY) {
+    const response = await undiciFetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://alumco.cl',
+        'X-Title': 'ALUMCO - Generador de Cursos'
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
+            { type: 'text', text: promptVision }
+          ]
+        }],
+        max_tokens: 1000
+      })
+    });
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  // Fallback: moondream vía Ollama (local)
   const response = await undiciFetch(`${OLLAMA_URL}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -52,65 +81,67 @@ async function describirImagen(imagePath) {
   return data.response || '';
 }
 
-// ── Extrae imágenes embebidas del PDF filtrando logos repetidos (por MD5) ──────
+// ── Extrae imágenes embebidas del PDF filtrando logos repetidos y sube al bucket ─
 async function extraerImagenesPDF(pdfPath, cursoId) {
   const crypto = require('crypto');
   const sharp = require('sharp');
-  const outDir = path.join(__dirname, '../../uploads/imagenes', String(cursoId));
-  fs.mkdirSync(outDir, { recursive: true });
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `alumco-imgs-${cursoId}-`));
 
-  // Limpiar imágenes anteriores
-  fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
-
-  const outPrefix = path.join(outDir, 'img');
-  await new Promise((resolve) => {
-    execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
-      if (err) console.warn('[IA] pdfimages error:', err.message);
-      resolve();
+  try {
+    const outPrefix = path.join(tmpDir, 'img');
+    await new Promise((resolve) => {
+      execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
+        if (err) console.warn('[IA] pdfimages error:', err.message);
+        resolve();
+      });
     });
-  });
 
-  const archivos = fs.readdirSync(outDir)
-    .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
-    .sort();
+    const archivos = fs.readdirSync(tmpDir)
+      .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
+      .sort();
 
-  // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
-  const hashCount = {};
-  const fileHashes = {};
-  for (const archivo of archivos) {
-    try {
-      const buf = fs.readFileSync(path.join(outDir, archivo));
-      const h = crypto.createHash('md5').update(buf).digest('hex');
-      fileHashes[archivo] = h;
-      hashCount[h] = (hashCount[h] || 0) + 1;
-    } catch {}
+    // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
+    const hashCount = {};
+    const fileHashes = {};
+    for (const archivo of archivos) {
+      try {
+        const buf = fs.readFileSync(path.join(tmpDir, archivo));
+        const h = crypto.createHash('md5').update(buf).digest('hex');
+        fileHashes[archivo] = h;
+        hashCount[h] = (hashCount[h] || 0) + 1;
+      } catch {}
+    }
+
+    const utiles = [];
+    for (const archivo of archivos) {
+      const fullPath = path.join(tmpDir, archivo);
+      try {
+        const stat = fs.statSync(fullPath);
+        // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
+        if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) continue;
+
+        let pngBuffer;
+        if (archivo.endsWith('.ppm')) {
+          pngBuffer = await sharp(fullPath).png().toBuffer();
+        } else {
+          pngBuffer = fs.readFileSync(fullPath);
+        }
+
+        const meta = await sharp(pngBuffer).metadata();
+        if ((meta.width || 0) < 100 || (meta.height || 0) < 100) continue;
+
+        const key = `imagenes/${cursoId}/${archivo.replace('.ppm', '.png')}`;
+        const url = await uploadBuffer(pngBuffer, key, 'image/png');
+        utiles.push(url);
+      } catch {}
+    }
+
+    console.log('[IA] Imágenes count:', utiles.length);
+    console.log('[IA] Imágenes URL[0]:', utiles[0]);
+    return utiles;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-
-  const utiles = [];
-  for (const archivo of archivos) {
-    const fullPath = path.join(outDir, archivo);
-    try {
-      const stat = fs.statSync(fullPath);
-      // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
-      if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
-        fs.unlinkSync(fullPath); continue;
-      }
-      let finalPath = fullPath;
-      if (archivo.endsWith('.ppm')) {
-        finalPath = fullPath.replace('.ppm', '.png');
-        await sharp(fullPath).png().toFile(finalPath);
-        fs.unlinkSync(fullPath);
-      }
-      const meta = await sharp(finalPath).metadata();
-      if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
-        fs.unlinkSync(finalPath); continue;
-      }
-      utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-    } catch {}
-  }
-
-  console.log('[IA] Imágenes útiles del PDF (sin logos duplicados):', utiles.length);
-  return utiles;
 }
 
 // ── Extrae contenido completo del PDF: descripción visual de páginas ──────────
@@ -163,7 +194,8 @@ async function llamarOpenRouter(prompt, timeoutMs = 90000) {
         ],
         temperature: 0.1,
         max_tokens: 12000,
-        stream: false
+        stream: false,
+        response_format: { type: 'json_object' }
       })
     });
     if (!response.ok) {
@@ -214,11 +246,11 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
   }
 }
 
+
 async function llamarIA(prompt, timeoutMs = 480000) {
   if (OPENROUTER_KEY) {
     console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
-    try { return await llamarOpenRouter(prompt, timeoutMs); }
-    catch (err) { console.warn(`[IA] OpenRouter falló (${err.message}), fallback a Ollama...`); }
+    return await llamarOpenRouter(prompt, timeoutMs);
   }
   console.log(`[IA] Usando Ollama local → ${OLLAMA_MODEL}`);
   return await llamarOllama(prompt, timeoutMs);
@@ -233,9 +265,17 @@ function parsearJSON(texto) {
   // Bloque de código markdown ```json ... ```
   const mdMatch = t.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (mdMatch) { try { return JSON.parse(mdMatch[1].trim()); } catch {} }
-  // Extraer el bloque JSON más grande (puede haber texto antes/después)
-  const candidatos = [...t.matchAll(/\{[\s\S]*?\}/g)].map(m => m[0]).sort((a,b) => b.length - a.length);
-  for (const c of candidatos) { try { return JSON.parse(c); } catch {} }
+  // Buscar desde cada { balanceando llaves (maneja texto de razonamiento previo)
+  let pos = 0;
+  while ((pos = t.indexOf('{', pos)) !== -1) {
+    let depth = 0, end = -1;
+    for (let i = pos; i < t.length; i++) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end !== -1) { try { return JSON.parse(t.slice(pos, end + 1)); } catch {} }
+    pos++;
+  }
   throw new Error('La IA no devolvió un JSON válido');
 }
 
@@ -310,12 +350,22 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     console.log('[IA] Paso 2: convirtiendo PDF a imágenes y describiendo con moondream...');
     try {
       textoPdf = await extraerContenidoPDF(pdfBuffer, req.file.path);
-      console.log('[IA] Paso 2 OK: moondream extrajo', textoPdf.length, 'chars');
+      console.log('[IA] Paso 2 OK: visión extrajo', textoPdf.length, 'chars');
     } catch (visionErr) {
-      console.warn('[IA] Visión local falló, usando pdf-parse como fallback:', visionErr.message);
-      const pdfData = await pdfParse(pdfBuffer);
-      textoPdf = pdfData.text.trim();
-      console.log('[IA] Fallback pdf-parse:', textoPdf.length, 'chars');
+      console.warn('[IA] Visión falló, usando pdf-parse:', visionErr.message);
+      textoPdf = '';
+    }
+    // Si la visión extrajo poco texto, completar con pdf-parse
+    if (textoPdf.length < 500) {
+      console.log('[IA] Extracción visual insuficiente, usando pdf-parse...');
+      try {
+        const pdfData = await pdfParse(pdfBuffer);
+        const pdfText = pdfData.text.trim();
+        textoPdf = pdfText.length > textoPdf.length ? pdfText : textoPdf;
+        console.log('[IA] pdf-parse extrajo', pdfText.length, 'chars');
+      } catch (parseErr) {
+        console.warn('[IA] pdf-parse también falló:', parseErr.message);
+      }
     }
 
     const totalChars = textoPdf.length;
@@ -345,7 +395,7 @@ ${textoParaOllama}`;
 
     console.log('[IA] Paso 3: generando módulos...');
     const respModulos = await llamarIA(promptModulos);
-    console.log('[IA] Raw módulos (200 chars):', respModulos?.slice(0, 200));
+    console.log('[IA] Raw módulos (1000 chars):', respModulos?.slice(0, 1000));
     const borradorModulos = parsearJSON(respModulos);
     if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0) {
       throw new Error('La IA no generó módulos válidos');
@@ -371,7 +421,7 @@ Reglas:
         const parsed = parsearJSON(respPreg);
         return { ...mod, preguntas: parsed.preguntas || [] };
       } catch (e) {
-        console.warn(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
+        console.error(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
         return { ...mod, preguntas: [] };
       }
     }));
@@ -425,7 +475,7 @@ Reglas:
       const mod = borrador.modulos[i];
       const insM = await pool.query(
         'INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, orden) VALUES ($1,$2,$3,$4,$5,$6)',
-        [cursoId, mod.titulo, mod.descripcion,
+        [cursoId, (mod.titulo || '').slice(0, 190), mod.descripcion,
          mod.presentacion ? JSON.stringify(mod.presentacion) : null,
          'ppt', i + 1]
       );
@@ -444,8 +494,16 @@ Reglas:
     const nombreArchivo = req.file.originalname;
     const pdfPathGuardado = req.file.path;
 
-    // Extraer imágenes embebidas del PDF y guardarlas permanentemente
+    // Extraer imágenes embebidas del PDF y guardarlas permanentemente en S3
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
+    if (imagenesProtocolo.length > 0) {
+      try {
+        await pool.query('UPDATE cursos SET imagenes_protocolo = $1 WHERE id = $2',
+          [JSON.stringify(imagenesProtocolo), cursoId]);
+      } catch (e) {
+        console.warn('[IA] No se pudo guardar imagenes_protocolo en BD:', e.message);
+      }
+    }
 
     // Borrar el PDF si fue upload temporal o descarga temporal desde S3
     if (!req.file._fromLib || req.file._tmpDownload) {

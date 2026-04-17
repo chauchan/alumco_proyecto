@@ -2,12 +2,13 @@ const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.MAIL_USER || 'omegabarra3236@gmail.com',
     pass: process.env.MAIL_PASS
-  }
+  },
+  tls: { rejectUnauthorized: false }
 });
 
 async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, cursoId, modulosCount, preguntasCount, nombreArchivo, subidoPor }) {
