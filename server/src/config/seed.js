@@ -14,331 +14,289 @@ async function seed() {
   try {
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
-    // ─── SEDES ─────────────────────────────────────────────────────────────────
-
-    const sedesData = [
-      { nombre: 'ELEAM Hualpén',   ciudad: 'Hualpén'   },
-      { nombre: 'ELEAM Coyhaique', ciudad: 'Coyhaique' },
-      { nombre: 'ELEAM Temuco',    ciudad: 'Temuco'    },
-    ];
-
-    let sede1Id, sede2Id, sede3Id;
-    for (const s of sedesData) {
-      const [ex] = await conn.query('SELECT id FROM sedes WHERE nombre = ?', [s.nombre]);
-      if (ex.length === 0) {
-        const [r] = await conn.query('INSERT INTO sedes (nombre, ciudad) VALUES (?, ?)', [s.nombre, s.ciudad]);
-        console.log(`✓ Sede: ${s.nombre}`);
-        if (s.nombre === 'ELEAM Hualpén')   sede1Id = r.insertId;
-        if (s.nombre === 'ELEAM Coyhaique') sede2Id = r.insertId;
-        if (s.nombre === 'ELEAM Temuco')    sede3Id = r.insertId;
-      } else {
-        if (s.nombre === 'ELEAM Hualpén')   sede1Id = ex[0].id;
-        if (s.nombre === 'ELEAM Coyhaique') sede2Id = ex[0].id;
-        if (s.nombre === 'ELEAM Temuco')    sede3Id = ex[0].id;
-      }
+    async function upsert(table, col, valor) {
+      const [ex] = await conn.query(`SELECT id FROM ${table} WHERE ${col} = ?`, [valor]);
+      if (ex.length) return ex[0].id;
+      const [r] = await conn.query(`INSERT INTO ${table} (${col}) VALUES (?)`, [valor]);
+      return r.insertId;
     }
 
-    // ─── USUARIOS ──────────────────────────────────────────────────────────────
+    // ── Catálogos ──────────────────────────────────────────────────────────────
+
+    const eid = {};
+    for (const n of ['Dirección','Salud','Administración','Cuidado directo','Servicios generales','Nutrición'])
+      eid[n] = await upsert('estamentos', 'nombre', n);
+    console.log('✓ Estamentos');
+
+    const aid = {};
+    for (const n of ['Salud','Seguridad','Nutrición','Servicios generales'])
+      aid[n] = await upsert('areas', 'nombre', n);
+    console.log('✓ Áreas');
+
+    // ── Sedes ──────────────────────────────────────────────────────────────────
+
+    const sid = {};
+    for (const [nombre, ciudad] of [['ELEAM Hualpén','Hualpén'],['ELEAM Coyhaique','Coyhaique'],['ELEAM Temuco','Temuco']]) {
+      const [ex] = await conn.query('SELECT id FROM sedes WHERE nombre = ?', [nombre]);
+      if (ex.length) { sid[nombre] = ex[0].id; continue; }
+      const [r] = await conn.query('INSERT INTO sedes (nombre, ciudad) VALUES (?,?)', [nombre, ciudad]);
+      sid[nombre] = r.insertId;
+      console.log(`✓ Sede: ${nombre}`);
+    }
+
+    // ── Usuarios ───────────────────────────────────────────────────────────────
 
     const usuariosData = [
-      { nombre: 'Administrador ALUMCO',   identificador: 'admin',             password: 'admin123',  rol: 'jefatura',    tipo_contrato: 'fijo',      sede_id: sede1Id, rango_etario: '40-49', rut: '12.345.678-9',  email: 'admin@alumco.cl',             telefono: '+56912345678', estamento: 'Dirección'          },
-      { nombre: 'Ana González Rojas',     identificador: 'ana.gonzalez',      password: 'prof123',   rol: 'profesor',    tipo_contrato: 'fijo',      sede_id: sede1Id, rango_etario: '30-39', rut: '15.234.567-8',  email: 'ana.gonzalez@alumco.cl',      telefono: '+56923456789', estamento: 'Salud'              },
-      { nombre: 'Roberto Fuentes Vera',   identificador: 'roberto.fuentes',   password: 'prof123',   rol: 'profesor',    tipo_contrato: 'fijo',      sede_id: sede2Id, rango_etario: '45-54', rut: '11.987.654-3',  email: 'roberto.fuentes@alumco.cl',   telefono: '+56911223344', estamento: 'Salud'              },
-      { nombre: 'María Torres Vidal',     identificador: 'maria.torres',      password: 'sede123',   rol: 'admin_sede',  tipo_contrato: 'fijo',      sede_id: sede2Id, rango_etario: '35-44', rut: '14.876.543-2',  email: 'maria.torres@alumco.cl',      telefono: '+56945678901', estamento: 'Administración'     },
-      { nombre: 'Jorge Rivas Campos',     identificador: 'jorge.rivas',       password: 'sede123',   rol: 'admin_sede',  tipo_contrato: 'fijo',      sede_id: sede3Id, rango_etario: '38-47', rut: '13.654.321-0',  email: 'jorge.rivas@alumco.cl',       telefono: '+56966778899', estamento: 'Administración'     },
-      { nombre: 'Carlos Muñoz Pino',      identificador: 'carlos.munoz',      password: 'colab123',  rol: 'colaborador', tipo_contrato: 'fijo',      sede_id: sede1Id, rango_etario: '20-29', rut: '18.765.432-1',  email: 'carlos.munoz@alumco.cl',      telefono: '+56934567890', estamento: 'Cuidado directo'    },
-      { nombre: 'Pedro Soto Leal',        identificador: 'pedro.soto',        password: 'colab123',  rol: 'colaborador', tipo_contrato: 'reemplazo', sede_id: sede2Id, rango_etario: '25-34', rut: '19.123.456-7',  email: 'pedro.soto@alumco.cl',        telefono: '+56956789012', estamento: 'Servicios generales'},
-      { nombre: 'Valentina Rojas Díaz',   identificador: 'valentina.rojas',   password: 'colab123',  rol: 'colaborador', tipo_contrato: 'fijo',      sede_id: sede1Id, rango_etario: '28-37', rut: '20.345.678-K',  email: 'valentina.rojas@alumco.cl',   telefono: '+56978901234', estamento: 'Cuidado directo'    },
-      { nombre: 'Luis Herrera Castillo',  identificador: 'luis.herrera',      password: 'colab123',  rol: 'colaborador', tipo_contrato: 'reemplazo', sede_id: sede3Id, rango_etario: '22-31', rut: '21.456.789-2',  email: 'luis.herrera@alumco.cl',      telefono: '+56989012345', estamento: 'Nutrición'          },
-      { nombre: 'Carmen Sepúlveda Mora',  identificador: 'carmen.sepulveda',  password: 'colab123',  rol: 'colaborador', tipo_contrato: 'fijo',      sede_id: sede2Id, rango_etario: '50-59', rut: '10.234.567-4',  email: 'carmen.sepulveda@alumco.cl',  telefono: '+56990123456', estamento: 'Servicios generales'},
+      { nombre:'Administrador ALUMCO',  id:'admin',            pw:'admin123', rol:'jefatura',   tc:'fijo',      sede:'ELEAM Hualpén',   re:'40-49', rut:'12.345.678-9', email:'admin@alumco.cl',            tel:'+56912345678', est:'Dirección'          },
+      { nombre:'Ana González Rojas',    id:'ana.gonzalez',     pw:'prof123',  rol:'profesor',   tc:'fijo',      sede:'ELEAM Hualpén',   re:'30-39', rut:'15.234.567-8', email:'ana.gonzalez@alumco.cl',     tel:'+56923456789', est:'Salud'              },
+      { nombre:'Roberto Fuentes Vera',  id:'roberto.fuentes',  pw:'prof123',  rol:'profesor',   tc:'fijo',      sede:'ELEAM Coyhaique', re:'45-54', rut:'11.987.654-3', email:'roberto.fuentes@alumco.cl',  tel:'+56911223344', est:'Salud'              },
+      { nombre:'María Torres Vidal',    id:'maria.torres',     pw:'sede123',  rol:'admin_sede', tc:'fijo',      sede:'ELEAM Coyhaique', re:'35-44', rut:'14.876.543-2', email:'maria.torres@alumco.cl',     tel:'+56945678901', est:'Administración'     },
+      { nombre:'Jorge Rivas Campos',    id:'jorge.rivas',      pw:'sede123',  rol:'admin_sede', tc:'fijo',      sede:'ELEAM Temuco',    re:'38-47', rut:'13.654.321-0', email:'jorge.rivas@alumco.cl',      tel:'+56966778899', est:'Administración'     },
+      { nombre:'Carlos Muñoz Pino',     id:'carlos.munoz',     pw:'colab123', rol:'colaborador',tc:'fijo',      sede:'ELEAM Hualpén',   re:'20-29', rut:'18.765.432-1', email:'carlos.munoz@alumco.cl',     tel:'+56934567890', est:'Cuidado directo'    },
+      { nombre:'Pedro Soto Leal',       id:'pedro.soto',       pw:'colab123', rol:'colaborador',tc:'reemplazo', sede:'ELEAM Coyhaique', re:'25-34', rut:'19.123.456-7', email:'pedro.soto@alumco.cl',       tel:'+56956789012', est:'Servicios generales'},
+      { nombre:'Valentina Rojas Díaz',  id:'valentina.rojas',  pw:'colab123', rol:'colaborador',tc:'fijo',      sede:'ELEAM Hualpén',   re:'28-37', rut:'20.345.678-K', email:'valentina.rojas@alumco.cl',  tel:'+56978901234', est:'Cuidado directo'    },
+      { nombre:'Luis Herrera Castillo', id:'luis.herrera',     pw:'colab123', rol:'colaborador',tc:'reemplazo', sede:'ELEAM Temuco',    re:'22-31', rut:'21.456.789-2', email:'luis.herrera@alumco.cl',     tel:'+56989012345', est:'Nutrición'          },
+      { nombre:'Carmen Sepúlveda Mora', id:'carmen.sepulveda', pw:'colab123', rol:'colaborador',tc:'fijo',      sede:'ELEAM Coyhaique', re:'50-59', rut:'10.234.567-4', email:'carmen.sepulveda@alumco.cl', tel:'+56990123456', est:'Servicios generales'},
     ];
 
     const uid = {};
     for (const u of usuariosData) {
-      const [ex] = await conn.query('SELECT id FROM usuarios WHERE identificador = ?', [u.identificador]);
-      if (ex.length === 0) {
-        const hash = bcrypt.hashSync(u.password, 10);
-        const [r] = await conn.query(
-          `INSERT INTO usuarios (nombre, identificador, password_hash, rol, tipo_contrato, sede_id, rango_etario, rut, email, telefono, estamento)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [u.nombre, u.identificador, hash, u.rol, u.tipo_contrato, u.sede_id, u.rango_etario, u.rut, u.email, u.telefono, u.estamento]
-        );
-        uid[u.identificador] = r.insertId;
-        console.log(`✓ Usuario: ${u.identificador} (${u.rol}) — pass: ${u.password}`);
-      } else {
-        uid[u.identificador] = ex[0].id;
-      }
+      const [ex] = await conn.query('SELECT id FROM usuarios WHERE identificador = ?', [u.id]);
+      if (ex.length) { uid[u.id] = ex[0].id; continue; }
+      const hash = bcrypt.hashSync(u.pw, 10);
+      const [r] = await conn.query(
+        `INSERT INTO usuarios (nombre,identificador,password_hash,rol,tipo_contrato,sede_id,rango_etario,rut,email,telefono,estamento_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [u.nombre,u.id,hash,u.rol,u.tc,sid[u.sede],u.re,u.rut,u.email,u.tel,eid[u.est]]
+      );
+      uid[u.id] = r.insertId;
+      console.log(`✓ Usuario: ${u.id} (${u.rol}) — pass: ${u.pw}`);
     }
 
-    // ─── CURSOS ────────────────────────────────────────────────────────────────
+    // ── Cursos ─────────────────────────────────────────────────────────────────
 
     const cursosData = [
-      {
-        nombre: 'Cuidado del Adulto Mayor con Demencia',
-        descripcion: 'Técnicas de cuidado para personas mayores con distintos grados de demencia.',
-        area: 'Salud', profesor_id: uid['ana.gonzalez'], publicado: 1, generado_por_ia: 0,
-        estamento_objetivo: JSON.stringify(['Cuidado directo', 'Salud']),
-        sede_objetivo: null, obligatorio: 1,
-        video_intro_url: 'https://storage.alumco.cl/videos/intro-demencia.mp4'
-      },
-      {
-        nombre: 'Prevención de Caídas en el ELEAM',
-        descripcion: 'Estrategias y protocolos para reducir el riesgo de caídas en residentes.',
-        area: 'Seguridad', profesor_id: uid['ana.gonzalez'], publicado: 1, generado_por_ia: 0,
-        estamento_objetivo: JSON.stringify(['Cuidado directo', 'Salud', 'Servicios generales']),
-        sede_objetivo: null, obligatorio: 1,
-        video_intro_url: null
-      },
-      {
-        nombre: 'Nutrición y Alimentación en el Adulto Mayor',
-        descripcion: 'Principios de nutrición gerontológica y manejo de dietas especiales.',
-        area: 'Nutrición', profesor_id: uid['roberto.fuentes'], publicado: 1, generado_por_ia: 0,
-        estamento_objetivo: JSON.stringify(['Nutrición', 'Cuidado directo']),
-        sede_objetivo: sede2Id, obligatorio: 0,
-        video_intro_url: 'https://storage.alumco.cl/videos/intro-nutricion.mp4'
-      },
-      {
-        nombre: 'Primeros Auxilios Básicos',
-        descripcion: 'Técnicas esenciales de primeros auxilios aplicadas al contexto del ELEAM.',
-        area: 'Salud', profesor_id: uid['roberto.fuentes'], publicado: 1, generado_por_ia: 1,
-        estamento_objetivo: JSON.stringify(['Cuidado directo', 'Salud', 'Administración', 'Servicios generales']),
-        sede_objetivo: null, obligatorio: 1,
-        video_intro_url: null
-      },
-      {
-        nombre: 'Manejo de Residuos y Limpieza Hospitalaria',
-        descripcion: 'Protocolos de higiene, manejo de residuos y desinfección en establecimientos de larga estadía.',
-        area: 'Servicios generales', profesor_id: uid['ana.gonzalez'], publicado: 0, generado_por_ia: 0,
-        estamento_objetivo: JSON.stringify(['Servicios generales']),
-        sede_objetivo: sede1Id, obligatorio: 0,
-        video_intro_url: null
-      },
+      { key:'c1', nombre:'Cuidado del Adulto Mayor con Demencia',         descripcion:'Técnicas de cuidado para personas mayores con distintos grados de demencia.',                       area:'Salud',             profesor:'ana.gonzalez',    pub:1, ia:0, sede_obj:null,            obl:1, video:'https://storage.alumco.cl/videos/intro-demencia.mp4',  ests:['Cuidado directo','Salud'] },
+      { key:'c2', nombre:'Prevención de Caídas en el ELEAM',              descripcion:'Estrategias y protocolos para reducir el riesgo de caídas en residentes.',                          area:'Seguridad',         profesor:'ana.gonzalez',    pub:1, ia:0, sede_obj:null,            obl:1, video:null,                                                   ests:['Cuidado directo','Salud','Servicios generales'] },
+      { key:'c3', nombre:'Nutrición y Alimentación en el Adulto Mayor',   descripcion:'Principios de nutrición gerontológica y manejo de dietas especiales.',                              area:'Nutrición',         profesor:'roberto.fuentes', pub:1, ia:0, sede_obj:'ELEAM Coyhaique',obl:0, video:'https://storage.alumco.cl/videos/intro-nutricion.mp4', ests:['Nutrición','Cuidado directo'] },
+      { key:'c4', nombre:'Primeros Auxilios Básicos',                     descripcion:'Técnicas esenciales de primeros auxilios aplicadas al contexto del ELEAM.',                         area:'Salud',             profesor:'roberto.fuentes', pub:1, ia:1, sede_obj:null,            obl:1, video:null,                                                   ests:['Cuidado directo','Salud','Administración','Servicios generales'] },
+      { key:'c5', nombre:'Manejo de Residuos y Limpieza Hospitalaria',    descripcion:'Protocolos de higiene, manejo de residuos y desinfección en establecimientos de larga estadía.',    area:'Servicios generales',profesor:'ana.gonzalez',    pub:0, ia:0, sede_obj:'ELEAM Hualpén', obl:0, video:null,                                                   ests:['Servicios generales'] },
     ];
 
-    const cid = [];
+    const cid = {};
     for (const c of cursosData) {
       const [ex] = await conn.query('SELECT id FROM cursos WHERE nombre = ?', [c.nombre]);
-      if (ex.length === 0) {
+      let cursoId;
+      if (ex.length) { cursoId = ex[0].id; }
+      else {
         const [r] = await conn.query(
-          `INSERT INTO cursos (nombre, descripcion, area, profesor_id, publicado, generado_por_ia, estamento_objetivo, sede_objetivo, obligatorio, video_intro_url)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [c.nombre, c.descripcion, c.area, c.profesor_id, c.publicado, c.generado_por_ia, c.estamento_objetivo, c.sede_objetivo, c.obligatorio, c.video_intro_url]
+          `INSERT INTO cursos (nombre,descripcion,area_id,profesor_id,publicado,generado_por_ia,sede_objetivo,obligatorio,video_intro_url)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [c.nombre,c.descripcion,aid[c.area],uid[c.profesor],c.pub,c.ia,c.sede_obj?sid[c.sede_obj]:null,c.obl,c.video]
         );
-        cid.push(r.insertId);
+        cursoId = r.insertId;
         console.log(`✓ Curso: ${c.nombre}`);
-      } else {
-        cid.push(ex[0].id);
       }
+      cid[c.key] = cursoId;
+      for (const e of c.ests)
+        await conn.query('INSERT IGNORE INTO curso_estamentos (curso_id,estamento_id) VALUES (?,?)', [cursoId, eid[e]]);
     }
+    console.log('✓ curso_estamentos');
 
-    const [c1, c2, c3, c4, c5] = cid;
-
-    // ─── MÓDULOS ───────────────────────────────────────────────────────────────
+    // ── Módulos y slides ───────────────────────────────────────────────────────
 
     const modulosData = [
-      { curso_id: c1, orden: 1, tipo: 'pdf',   titulo: 'Introducción a la Demencia',          descripcion: 'Tipos, etapas y síntomas.',                             archivo_url: 'https://storage.alumco.cl/modulos/demencia-intro.pdf',          contenido_presentacion: null },
-      { curso_id: c1, orden: 2, tipo: 'video',  titulo: 'Comunicación con el Paciente',        descripcion: 'Técnicas de comunicación no verbal.',                   archivo_url: 'https://storage.alumco.cl/modulos/demencia-comunicacion.mp4',   contenido_presentacion: null },
-      { curso_id: c1, orden: 3, tipo: 'ppt',    titulo: 'Manejo de Conductas Difíciles',       descripcion: 'Estrategias para situaciones de agitación.',             archivo_url: 'https://storage.alumco.cl/modulos/demencia-conductas.pptx',    contenido_presentacion: JSON.stringify([{ slide: 1, titulo: 'Conductas difíciles', texto: 'Agitación, vagabundeo y agresividad.' }, { slide: 2, titulo: 'Estrategias clave', texto: 'Redirección, ambiente seguro y validación emocional.' }]) },
-      { curso_id: c2, orden: 1, tipo: 'pdf',    titulo: 'Factores de Riesgo de Caídas',        descripcion: 'Identificación de riesgos intrínsecos y extrínsecos.',   archivo_url: 'https://storage.alumco.cl/modulos/caidas-riesgos.pdf',          contenido_presentacion: null },
-      { curso_id: c2, orden: 2, tipo: 'video',  titulo: 'Evaluación del Entorno Físico',       descripcion: 'Inspección de habitaciones, baños y pasillos.',          archivo_url: 'https://storage.alumco.cl/modulos/caidas-entorno.mp4',          contenido_presentacion: null },
-      { curso_id: c3, orden: 1, tipo: 'pdf',    titulo: 'Necesidades Nutricionales del AM',    descripcion: 'Macro y micronutrientes esenciales.',                    archivo_url: 'https://storage.alumco.cl/modulos/nutricion-necesidades.pdf',   contenido_presentacion: null },
-      { curso_id: c3, orden: 2, tipo: 'ppt',    titulo: 'Dietas Especiales y Texturizadas',    descripcion: 'Adaptaciones para disfagia y otras patologías.',         archivo_url: 'https://storage.alumco.cl/modulos/nutricion-dietas.pptx',      contenido_presentacion: JSON.stringify([{ slide: 1, titulo: 'Disfagia', texto: 'Clasificación IDDSI y adaptaciones de textura.' }, { slide: 2, titulo: 'Diabetes en el AM', texto: 'Dieta hipocalórica y control glucémico.' }]) },
-      { curso_id: c4, orden: 1, tipo: 'video',  titulo: 'RCP Básico',                          descripcion: 'Reanimación cardiopulmonar con y sin DEA.',              archivo_url: 'https://storage.alumco.cl/modulos/primeros-aux-rcp.mp4',        contenido_presentacion: null },
-      { curso_id: c4, orden: 2, tipo: 'pdf',    titulo: 'Manejo de Heridas y Hemorragias',     descripcion: 'Protocolos de hemostasia y vendaje.',                    archivo_url: 'https://storage.alumco.cl/modulos/primeros-aux-heridas.pdf',    contenido_presentacion: null },
-      { curso_id: c5, orden: 1, tipo: 'pdf',    titulo: 'Clasificación de Residuos',           descripcion: 'Tipos de residuos en centros de salud.',                 archivo_url: 'https://storage.alumco.cl/modulos/residuos-clasificacion.pdf',  contenido_presentacion: null },
+      { curso:'c1',orden:1,tipo:'pdf',  titulo:'Introducción a la Demencia',       desc:'Tipos, etapas y síntomas.',                           url:'https://storage.alumco.cl/modulos/demencia-intro.pdf',         slides:[] },
+      { curso:'c1',orden:2,tipo:'video',titulo:'Comunicación con el Paciente',     desc:'Técnicas de comunicación no verbal.',                 url:'https://storage.alumco.cl/modulos/demencia-comunicacion.mp4',  slides:[] },
+      { curso:'c1',orden:3,tipo:'ppt',  titulo:'Manejo de Conductas Difíciles',    desc:'Estrategias para situaciones de agitación.',           url:'https://storage.alumco.cl/modulos/demencia-conductas.pptx',   slides:[
+        {numero:1,datos:{tipo:'seccion',titulo:'Conductas difíciles',  texto:'Agitación, vagabundeo y agresividad.'}},
+        {numero:2,datos:{tipo:'seccion',titulo:'Estrategias clave',     texto:'Redirección, ambiente seguro y validación emocional.'}},
+      ]},
+      { curso:'c2',orden:1,tipo:'pdf',  titulo:'Factores de Riesgo de Caídas',     desc:'Identificación de riesgos intrínsecos y extrínsecos.', url:'https://storage.alumco.cl/modulos/caidas-riesgos.pdf',         slides:[] },
+      { curso:'c2',orden:2,tipo:'video',titulo:'Evaluación del Entorno Físico',    desc:'Inspección de habitaciones, baños y pasillos.',       url:'https://storage.alumco.cl/modulos/caidas-entorno.mp4',         slides:[] },
+      { curso:'c3',orden:1,tipo:'pdf',  titulo:'Necesidades Nutricionales del AM', desc:'Macro y micronutrientes esenciales.',                 url:'https://storage.alumco.cl/modulos/nutricion-necesidades.pdf',  slides:[] },
+      { curso:'c3',orden:2,tipo:'ppt',  titulo:'Dietas Especiales y Texturizadas', desc:'Adaptaciones para disfagia y otras patologías.',      url:'https://storage.alumco.cl/modulos/nutricion-dietas.pptx',     slides:[
+        {numero:1,datos:{tipo:'seccion',titulo:'Disfagia',         texto:'Clasificación IDDSI y adaptaciones de textura.'}},
+        {numero:2,datos:{tipo:'seccion',titulo:'Diabetes en el AM', texto:'Dieta hipocalórica y control glucémico.'}},
+      ]},
+      { curso:'c4',orden:1,tipo:'video',titulo:'RCP Básico',                       desc:'Reanimación cardiopulmonar con y sin DEA.',            url:'https://storage.alumco.cl/modulos/primeros-aux-rcp.mp4',      slides:[] },
+      { curso:'c4',orden:2,tipo:'pdf',  titulo:'Manejo de Heridas y Hemorragias',  desc:'Protocolos de hemostasia y vendaje.',                 url:'https://storage.alumco.cl/modulos/primeros-aux-heridas.pdf',   slides:[] },
+      { curso:'c5',orden:1,tipo:'pdf',  titulo:'Clasificación de Residuos',        desc:'Tipos de residuos en centros de salud.',              url:'https://storage.alumco.cl/modulos/residuos-clasificacion.pdf', slides:[] },
     ];
 
     for (const m of modulosData) {
-      const [ex] = await conn.query('SELECT id FROM modulos WHERE curso_id = ? AND titulo = ?', [m.curso_id, m.titulo]);
-      if (ex.length === 0) {
-        await conn.query(
-          `INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, archivo_url, orden)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [m.curso_id, m.titulo, m.descripcion, m.contenido_presentacion, m.tipo, m.archivo_url, m.orden]
+      const [ex] = await conn.query('SELECT id FROM modulos WHERE curso_id=? AND titulo=?', [cid[m.curso], m.titulo]);
+      let modId;
+      if (ex.length) { modId = ex[0].id; }
+      else {
+        const [r] = await conn.query(
+          'INSERT INTO modulos (curso_id,titulo,descripcion,tipo,archivo_url,orden) VALUES (?,?,?,?,?,?)',
+          [cid[m.curso],m.titulo,m.desc,m.tipo,m.url,m.orden]
         );
+        modId = r.insertId;
+      }
+      for (const s of m.slides) {
+        const [exS] = await conn.query('SELECT id FROM modulo_slides WHERE modulo_id=? AND numero=?', [modId, s.numero]);
+        if (!exS.length)
+          await conn.query('INSERT INTO modulo_slides (modulo_id,numero,datos) VALUES (?,?,?)', [modId, s.numero, JSON.stringify(s.datos)]);
       }
     }
-    console.log('✓ Módulos insertados');
+    console.log('✓ Módulos y slides');
 
-    // ─── PREGUNTAS ─────────────────────────────────────────────────────────────
+    // ── Preguntas y alternativas ───────────────────────────────────────────────
 
-    const preguntasData = [
-      { curso_id: c1, texto: '¿Cuál es la etapa más avanzada de la demencia de Alzheimer?',
-        alternativas: JSON.stringify([{ texto: 'Etapa leve', correcta: false }, { texto: 'Etapa moderada', correcta: false }, { texto: 'Etapa grave', correcta: true }, { texto: 'Etapa temprana', correcta: false }]) },
-      { curso_id: c1, texto: '¿Qué técnica es más efectiva para comunicarse con una persona con demencia avanzada?',
-        alternativas: JSON.stringify([{ texto: 'Comunicación verbal extensa', correcta: false }, { texto: 'Comunicación no verbal y contacto visual', correcta: true }, { texto: 'Ignorar las respuestas del paciente', correcta: false }, { texto: 'Hablar en voz alta y rápido', correcta: false }]) },
-      { curso_id: c1, texto: '¿Cuál de las siguientes es una conducta difícil frecuente en la demencia?',
-        alternativas: JSON.stringify([{ texto: 'Hipertensión', correcta: false }, { texto: 'Agitación nocturna', correcta: true }, { texto: 'Aumento del apetito', correcta: false }, { texto: 'Mejora de la memoria', correcta: false }]) },
-      { curso_id: c2, texto: '¿Cuál es el factor de riesgo extrínseco más común de caídas en el ELEAM?',
-        alternativas: JSON.stringify([{ texto: 'Debilidad muscular', correcta: false }, { texto: 'Suelos mojados y sin antideslizantes', correcta: true }, { texto: 'Problemas de visión', correcta: false }, { texto: 'Hipotensión ortostática', correcta: false }]) },
-      { curso_id: c2, texto: '¿Qué elemento reduce significativamente el riesgo de caída en el baño?',
-        alternativas: JSON.stringify([{ texto: 'Espejo grande', correcta: false }, { texto: 'Barras de apoyo', correcta: true }, { texto: 'Alfombra gruesa', correcta: false }, { texto: 'Luz tenue', correcta: false }]) },
-      { curso_id: c3, texto: '¿Qué vitamina es esencial para la absorción del calcio en adultos mayores?',
-        alternativas: JSON.stringify([{ texto: 'Vitamina C', correcta: false }, { texto: 'Vitamina B12', correcta: false }, { texto: 'Vitamina D', correcta: true }, { texto: 'Vitamina K', correcta: false }]) },
-      { curso_id: c3, texto: '¿Cuál es el nivel IDDSI para disfagia severa?',
-        alternativas: JSON.stringify([{ texto: 'Nivel 3 - Líquido espeso', correcta: false }, { texto: 'Nivel 4 - Puré', correcta: false }, { texto: 'Nivel 5 - Picado y húmedo', correcta: false }, { texto: 'Nivel 6 - Blando y que se parte', correcta: true }]) },
-      { curso_id: c4, texto: '¿Cuántas compresiones por minuto se realizan durante la RCP?',
-        alternativas: JSON.stringify([{ texto: '60-80 compresiones/min', correcta: false }, { texto: '100-120 compresiones/min', correcta: true }, { texto: '80-100 compresiones/min', correcta: false }, { texto: '50-70 compresiones/min', correcta: false }]) },
-      { curso_id: c4, texto: '¿Cuál es la relación compresiones-ventilaciones en RCP adultos?',
-        alternativas: JSON.stringify([{ texto: '15:2', correcta: false }, { texto: '20:2', correcta: false }, { texto: '30:2', correcta: true }, { texto: '10:1', correcta: false }]) },
-      { curso_id: c5, texto: '¿En qué contenedor se depositan los residuos cortopunzantes?',
-        alternativas: JSON.stringify([{ texto: 'Bolsa negra', correcta: false }, { texto: 'Bolsa roja', correcta: false }, { texto: 'Guardián rígido amarillo', correcta: true }, { texto: 'Bolsa verde', correcta: false }]) },
+    const preguntasDef = [
+      { key:'c1_p1',curso:'c1',texto:'¿Cuál es la etapa más avanzada de la demencia de Alzheimer?',                         alts:['Etapa leve','Etapa moderada','Etapa grave','Etapa temprana'], correcta:2 },
+      { key:'c1_p2',curso:'c1',texto:'¿Qué técnica es más efectiva para comunicarse con una persona con demencia avanzada?', alts:['Comunicación verbal extensa','Comunicación no verbal y contacto visual','Ignorar las respuestas del paciente','Hablar en voz alta y rápido'], correcta:1 },
+      { key:'c1_p3',curso:'c1',texto:'¿Cuál de las siguientes es una conducta difícil frecuente en la demencia?',           alts:['Hipertensión','Agitación nocturna','Aumento del apetito','Mejora de la memoria'], correcta:1 },
+      { key:'c2_p1',curso:'c2',texto:'¿Cuál es el factor de riesgo extrínseco más común de caídas en el ELEAM?',            alts:['Debilidad muscular','Suelos mojados y sin antideslizantes','Problemas de visión','Hipotensión ortostática'], correcta:1 },
+      { key:'c2_p2',curso:'c2',texto:'¿Qué elemento reduce significativamente el riesgo de caída en el baño?',              alts:['Espejo grande','Barras de apoyo','Alfombra gruesa','Luz tenue'], correcta:1 },
+      { key:'c3_p1',curso:'c3',texto:'¿Qué vitamina es esencial para la absorción del calcio en adultos mayores?',          alts:['Vitamina C','Vitamina B12','Vitamina D','Vitamina K'], correcta:2 },
+      { key:'c3_p2',curso:'c3',texto:'¿Cuál es el nivel IDDSI recomendado para disfagia severa?',                           alts:['Nivel 3 - Líquido espeso','Nivel 4 - Puré','Nivel 5 - Picado y húmedo','Nivel 6 - Blando y que se parte'], correcta:3 },
+      { key:'c4_p1',curso:'c4',texto:'¿Cuántas compresiones por minuto se realizan durante la RCP?',                        alts:['60-80 compresiones/min','100-120 compresiones/min','80-100 compresiones/min','50-70 compresiones/min'], correcta:1 },
+      { key:'c4_p2',curso:'c4',texto:'¿Cuál es la relación compresiones-ventilaciones en RCP adultos?',                    alts:['15:2','20:2','30:2','10:1'], correcta:2 },
+      { key:'c5_p1',curso:'c5',texto:'¿En qué contenedor se depositan los residuos cortopunzantes?',                        alts:['Bolsa negra','Bolsa roja','Guardián rígido amarillo','Bolsa verde'], correcta:2 },
     ];
 
-    for (const p of preguntasData) {
-      const [ex] = await conn.query('SELECT id FROM preguntas WHERE curso_id = ? AND texto = ?', [p.curso_id, p.texto]);
-      if (ex.length === 0) {
-        await conn.query(
-          'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES (?, ?, ?)',
-          [p.curso_id, p.texto, p.alternativas]
-        );
+    const pMap = {};
+    for (const p of preguntasDef) {
+      const [ex] = await conn.query('SELECT id FROM preguntas WHERE curso_id=? AND texto=?', [cid[p.curso], p.texto]);
+      let pregId;
+      if (ex.length) { pregId = ex[0].id; }
+      else {
+        const [r] = await conn.query('INSERT INTO preguntas (curso_id,texto) VALUES (?,?)', [cid[p.curso], p.texto]);
+        pregId = r.insertId;
       }
+      const altIds = [];
+      for (let i = 0; i < p.alts.length; i++) {
+        const [exA] = await conn.query('SELECT id FROM alternativas WHERE pregunta_id=? AND texto=?', [pregId, p.alts[i]]);
+        if (exA.length) { altIds.push(exA[0].id); continue; }
+        const [rA] = await conn.query('INSERT INTO alternativas (pregunta_id,texto,correcta) VALUES (?,?,?)', [pregId, p.alts[i], i===p.correcta?1:0]);
+        altIds.push(rA.insertId);
+      }
+      pMap[p.key] = { id: pregId, altIds };
     }
-    console.log('✓ Preguntas insertadas');
+    console.log('✓ Preguntas y alternativas');
 
-    // ─── ASIGNACIONES ──────────────────────────────────────────────────────────
+    // ── Asignaciones ───────────────────────────────────────────────────────────
 
-    const asignacionesData = [
-      { usuario_id: uid['carlos.munoz'],     curso_id: c1, obligatorio: 1, fecha_limite: '2026-06-30', estamento: 'Cuidado directo'     },
-      { usuario_id: uid['carlos.munoz'],     curso_id: c2, obligatorio: 1, fecha_limite: '2026-06-30', estamento: 'Cuidado directo'     },
-      { usuario_id: uid['carlos.munoz'],     curso_id: c4, obligatorio: 1, fecha_limite: '2026-07-31', estamento: 'Cuidado directo'     },
-      { usuario_id: uid['pedro.soto'],       curso_id: c2, obligatorio: 1, fecha_limite: '2026-06-30', estamento: 'Servicios generales' },
-      { usuario_id: uid['pedro.soto'],       curso_id: c4, obligatorio: 1, fecha_limite: '2026-07-31', estamento: 'Servicios generales' },
-      { usuario_id: uid['pedro.soto'],       curso_id: c5, obligatorio: 0, fecha_limite: null,         estamento: 'Servicios generales' },
-      { usuario_id: uid['valentina.rojas'],  curso_id: c1, obligatorio: 1, fecha_limite: '2026-06-30', estamento: 'Cuidado directo'     },
-      { usuario_id: uid['valentina.rojas'],  curso_id: c2, obligatorio: 1, fecha_limite: '2026-06-30', estamento: 'Cuidado directo'     },
-      { usuario_id: uid['luis.herrera'],     curso_id: c3, obligatorio: 0, fecha_limite: '2026-08-31', estamento: 'Nutrición'           },
-      { usuario_id: uid['luis.herrera'],     curso_id: c4, obligatorio: 1, fecha_limite: '2026-07-31', estamento: 'Nutrición'           },
-      { usuario_id: uid['carmen.sepulveda'], curso_id: c2, obligatorio: 1, fecha_limite: '2026-06-30', estamento: 'Servicios generales' },
-      { usuario_id: uid['carmen.sepulveda'], curso_id: c5, obligatorio: 1, fecha_limite: '2026-05-31', estamento: 'Servicios generales' },
-      { usuario_id: uid['ana.gonzalez'],     curso_id: c1, obligatorio: 0, fecha_limite: null,         estamento: 'Salud'               },
-      { usuario_id: uid['roberto.fuentes'],  curso_id: c4, obligatorio: 0, fecha_limite: null,         estamento: 'Salud'               },
-    ];
+    for (const a of [
+      {u:'carlos.munoz',    c:'c1',obl:1,fl:'2026-06-30'},{u:'carlos.munoz',    c:'c2',obl:1,fl:'2026-06-30'},{u:'carlos.munoz',    c:'c4',obl:1,fl:'2026-07-31'},
+      {u:'pedro.soto',      c:'c2',obl:1,fl:'2026-06-30'},{u:'pedro.soto',      c:'c4',obl:1,fl:'2026-07-31'},{u:'pedro.soto',      c:'c5',obl:0,fl:null},
+      {u:'valentina.rojas', c:'c1',obl:1,fl:'2026-06-30'},{u:'valentina.rojas', c:'c2',obl:1,fl:'2026-06-30'},
+      {u:'luis.herrera',    c:'c3',obl:0,fl:'2026-08-31'},{u:'luis.herrera',    c:'c4',obl:1,fl:'2026-07-31'},
+      {u:'carmen.sepulveda',c:'c2',obl:1,fl:'2026-06-30'},{u:'carmen.sepulveda',c:'c5',obl:1,fl:'2026-05-31'},
+      {u:'ana.gonzalez',    c:'c1',obl:0,fl:null},{u:'roberto.fuentes',c:'c4',obl:0,fl:null},
+    ]) {
+      await conn.query('INSERT IGNORE INTO asignaciones (usuario_id,curso_id,obligatorio,fecha_limite) VALUES (?,?,?,?)',
+        [uid[a.u],cid[a.c],a.obl,a.fl]);
+    }
+    console.log('✓ Asignaciones');
 
-    for (const a of asignacionesData) {
+    // ── Progreso ───────────────────────────────────────────────────────────────
+
+    for (const p of [
+      {u:'carlos.munoz',    c:'c1',comp:1,pct:100,ua:'2026-04-10 14:30:00',if_:0,bh:null},
+      {u:'carlos.munoz',    c:'c2',comp:0,pct:60, ua:'2026-04-18 09:15:00',if_:1,bh:null},
+      {u:'carlos.munoz',    c:'c4',comp:0,pct:30, ua:'2026-04-20 11:00:00',if_:0,bh:null},
+      {u:'pedro.soto',      c:'c2',comp:1,pct:100,ua:'2026-04-05 16:45:00',if_:0,bh:null},
+      {u:'pedro.soto',      c:'c4',comp:0,pct:0,  ua:null,                 if_:0,bh:null},
+      {u:'valentina.rojas', c:'c1',comp:1,pct:100,ua:'2026-04-12 10:00:00',if_:2,bh:null},
+      {u:'valentina.rojas', c:'c2',comp:0,pct:45, ua:'2026-04-19 13:20:00',if_:0,bh:null},
+      {u:'luis.herrera',    c:'c3',comp:0,pct:80, ua:'2026-04-21 08:30:00',if_:0,bh:null},
+      {u:'carmen.sepulveda',c:'c5',comp:0,pct:20, ua:'2026-04-15 17:00:00',if_:3,bh:'2026-04-22 17:00:00'},
+      {u:'ana.gonzalez',    c:'c1',comp:1,pct:100,ua:'2026-03-01 09:00:00',if_:0,bh:null},
+    ]) {
       await conn.query(
-        `INSERT IGNORE INTO asignaciones (usuario_id, curso_id, obligatorio, fecha_limite, estamento)
-         VALUES (?, ?, ?, ?, ?)`,
-        [a.usuario_id, a.curso_id, a.obligatorio, a.fecha_limite, a.estamento]
+        'INSERT IGNORE INTO progreso (usuario_id,curso_id,completado,porcentaje,ultimo_acceso,intentos_fallidos,bloqueado_hasta) VALUES (?,?,?,?,?,?,?)',
+        [uid[p.u],cid[p.c],p.comp,p.pct,p.ua,p.if_,p.bh]
       );
     }
-    console.log('✓ Asignaciones insertadas');
+    console.log('✓ Progreso');
 
-    // ─── PROGRESO ──────────────────────────────────────────────────────────────
-
-    const progresoData = [
-      { usuario_id: uid['carlos.munoz'],     curso_id: c1, completado: 1, porcentaje: 100, ultimo_acceso: '2026-04-10 14:30:00', intentos_fallidos: 0, bloqueado_hasta: null               },
-      { usuario_id: uid['carlos.munoz'],     curso_id: c2, completado: 0, porcentaje: 60,  ultimo_acceso: '2026-04-18 09:15:00', intentos_fallidos: 1, bloqueado_hasta: null               },
-      { usuario_id: uid['carlos.munoz'],     curso_id: c4, completado: 0, porcentaje: 30,  ultimo_acceso: '2026-04-20 11:00:00', intentos_fallidos: 0, bloqueado_hasta: null               },
-      { usuario_id: uid['pedro.soto'],       curso_id: c2, completado: 1, porcentaje: 100, ultimo_acceso: '2026-04-05 16:45:00', intentos_fallidos: 0, bloqueado_hasta: null               },
-      { usuario_id: uid['pedro.soto'],       curso_id: c4, completado: 0, porcentaje: 0,   ultimo_acceso: null,                  intentos_fallidos: 0, bloqueado_hasta: null               },
-      { usuario_id: uid['valentina.rojas'],  curso_id: c1, completado: 1, porcentaje: 100, ultimo_acceso: '2026-04-12 10:00:00', intentos_fallidos: 2, bloqueado_hasta: null               },
-      { usuario_id: uid['valentina.rojas'],  curso_id: c2, completado: 0, porcentaje: 45,  ultimo_acceso: '2026-04-19 13:20:00', intentos_fallidos: 0, bloqueado_hasta: null               },
-      { usuario_id: uid['luis.herrera'],     curso_id: c3, completado: 0, porcentaje: 80,  ultimo_acceso: '2026-04-21 08:30:00', intentos_fallidos: 0, bloqueado_hasta: null               },
-      { usuario_id: uid['carmen.sepulveda'], curso_id: c5, completado: 0, porcentaje: 20,  ultimo_acceso: '2026-04-15 17:00:00', intentos_fallidos: 3, bloqueado_hasta: '2026-04-22 17:00:00' },
-      { usuario_id: uid['ana.gonzalez'],     curso_id: c1, completado: 1, porcentaje: 100, ultimo_acceso: '2026-03-01 09:00:00', intentos_fallidos: 0, bloqueado_hasta: null               },
-    ];
-
-    for (const p of progresoData) {
-      await conn.query(
-        `INSERT IGNORE INTO progreso (usuario_id, curso_id, completado, porcentaje, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [p.usuario_id, p.curso_id, p.completado, p.porcentaje, p.ultimo_acceso, p.intentos_fallidos, p.bloqueado_hasta]
-      );
-    }
-    console.log('✓ Progreso insertado');
-
-    // ─── INTENTOS ──────────────────────────────────────────────────────────────
+    // ── Intentos e intento_respuestas ──────────────────────────────────────────
 
     const intentosData = [
-      { usuario_id: uid['carlos.munoz'],    curso_id: c1, numero_intento: 1, nota: 55,  aprobado: 0, fecha: '2026-04-08 14:00:00', respuestas: JSON.stringify([{ pregunta_id: 1, seleccion: 1 }, { pregunta_id: 2, seleccion: 0 }, { pregunta_id: 3, seleccion: 1 }]) },
-      { usuario_id: uid['carlos.munoz'],    curso_id: c1, numero_intento: 2, nota: 80,  aprobado: 1, fecha: '2026-04-10 14:00:00', respuestas: JSON.stringify([{ pregunta_id: 1, seleccion: 2 }, { pregunta_id: 2, seleccion: 1 }, { pregunta_id: 3, seleccion: 1 }]) },
-      { usuario_id: uid['pedro.soto'],      curso_id: c2, numero_intento: 1, nota: 90,  aprobado: 1, fecha: '2026-04-05 16:00:00', respuestas: JSON.stringify([{ pregunta_id: 4, seleccion: 1 }, { pregunta_id: 5, seleccion: 1 }]) },
-      { usuario_id: uid['valentina.rojas'], curso_id: c1, numero_intento: 1, nota: 40,  aprobado: 0, fecha: '2026-04-09 10:00:00', respuestas: JSON.stringify([{ pregunta_id: 1, seleccion: 0 }, { pregunta_id: 2, seleccion: 0 }, { pregunta_id: 3, seleccion: 0 }]) },
-      { usuario_id: uid['valentina.rojas'], curso_id: c1, numero_intento: 2, nota: 60,  aprobado: 0, fecha: '2026-04-10 11:00:00', respuestas: JSON.stringify([{ pregunta_id: 1, seleccion: 2 }, { pregunta_id: 2, seleccion: 0 }, { pregunta_id: 3, seleccion: 1 }]) },
-      { usuario_id: uid['valentina.rojas'], curso_id: c1, numero_intento: 3, nota: 85,  aprobado: 1, fecha: '2026-04-12 10:00:00', respuestas: JSON.stringify([{ pregunta_id: 1, seleccion: 2 }, { pregunta_id: 2, seleccion: 1 }, { pregunta_id: 3, seleccion: 1 }]) },
-      { usuario_id: uid['ana.gonzalez'],    curso_id: c1, numero_intento: 1, nota: 100, aprobado: 1, fecha: '2026-03-01 09:00:00', respuestas: JSON.stringify([{ pregunta_id: 1, seleccion: 2 }, { pregunta_id: 2, seleccion: 1 }, { pregunta_id: 3, seleccion: 1 }]) },
+      {u:'carlos.munoz',   c:'c1',n:1,nota:55, apr:0,f:'2026-04-08 14:00:00',resp:[['c1_p1',1],['c1_p2',0],['c1_p3',1]]},
+      {u:'carlos.munoz',   c:'c1',n:2,nota:80, apr:1,f:'2026-04-10 14:00:00',resp:[['c1_p1',2],['c1_p2',1],['c1_p3',1]]},
+      {u:'pedro.soto',     c:'c2',n:1,nota:90, apr:1,f:'2026-04-05 16:00:00',resp:[['c2_p1',1],['c2_p2',1]]},
+      {u:'valentina.rojas',c:'c1',n:1,nota:40, apr:0,f:'2026-04-09 10:00:00',resp:[['c1_p1',0],['c1_p2',0],['c1_p3',0]]},
+      {u:'valentina.rojas',c:'c1',n:2,nota:60, apr:0,f:'2026-04-10 11:00:00',resp:[['c1_p1',2],['c1_p2',0],['c1_p3',1]]},
+      {u:'valentina.rojas',c:'c1',n:3,nota:85, apr:1,f:'2026-04-12 10:00:00',resp:[['c1_p1',2],['c1_p2',1],['c1_p3',1]]},
+      {u:'ana.gonzalez',   c:'c1',n:1,nota:100,apr:1,f:'2026-03-01 09:00:00',resp:[['c1_p1',2],['c1_p2',1],['c1_p3',1]]},
     ];
 
     const intentoIds = [];
     for (const i of intentosData) {
       const [r] = await conn.query(
-        `INSERT INTO intentos (usuario_id, curso_id, numero_intento, respuestas, nota, aprobado, fecha)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [i.usuario_id, i.curso_id, i.numero_intento, i.respuestas, i.nota, i.aprobado, i.fecha]
+        'INSERT INTO intentos (usuario_id,curso_id,numero_intento,nota,aprobado,fecha) VALUES (?,?,?,?,?,?)',
+        [uid[i.u],cid[i.c],i.n,i.nota,i.apr,i.f]
       );
-      intentoIds.push({ id: r.insertId, ...i });
+      intentoIds.push({ id: r.insertId, aprobado: i.apr });
+      for (const [pk, altIdx] of i.resp) {
+        await conn.query(
+          'INSERT IGNORE INTO intento_respuestas (intento_id,pregunta_id,alternativa_id) VALUES (?,?,?)',
+          [r.insertId, pMap[pk].id, pMap[pk].altIds[altIdx]]
+        );
+      }
     }
-    console.log('✓ Intentos insertados');
+    console.log('✓ Intentos e intento_respuestas');
 
-    // ─── CERTIFICADOS ──────────────────────────────────────────────────────────
+    // ── Certificados ───────────────────────────────────────────────────────────
 
     const aprobados = intentoIds.filter(i => i.aprobado === 1);
-    const certData = [
-      { i: aprobados[0], estado: 'aprobado',  archivo: 'https://storage.alumco.cl/certs/cert-carlos-c1.pdf',    fecha: '2026-04-11 10:00:00', validado_por: uid['admin'] },
-      { i: aprobados[1], estado: 'aprobado',  archivo: 'https://storage.alumco.cl/certs/cert-pedro-c2.pdf',     fecha: '2026-04-06 09:00:00', validado_por: uid['admin'] },
-      { i: aprobados[2], estado: 'pendiente', archivo: null,                                                     fecha: null,                  validado_por: null         },
-      { i: aprobados[3], estado: 'aprobado',  archivo: 'https://storage.alumco.cl/certs/cert-ana-c1.pdf',       fecha: '2026-03-02 09:00:00', validado_por: uid['admin'] },
-    ];
-
-    for (const c of certData) {
-      if (!c.i) continue;
+    for (const [idx, cert] of [
+      [0,{est:'aprobado', arch:'https://storage.alumco.cl/certs/cert-carlos-c1.pdf',  f:'2026-04-11 10:00:00',vp:'admin'}],
+      [1,{est:'aprobado', arch:'https://storage.alumco.cl/certs/cert-pedro-c2.pdf',   f:'2026-04-06 09:00:00',vp:'admin'}],
+      [2,{est:'pendiente',arch:null,                                                   f:null,                 vp:null}],
+      [3,{est:'aprobado', arch:'https://storage.alumco.cl/certs/cert-ana-c1.pdf',     f:'2026-03-02 09:00:00',vp:'admin'}],
+    ]) {
+      if (!aprobados[idx]) continue;
       await conn.query(
-        `INSERT INTO certificados (usuario_id, curso_id, intento_id, validado_por, estado, archivo_url, fecha_emision)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [c.i.usuario_id, c.i.curso_id, c.i.id, c.validado_por, c.estado, c.archivo, c.fecha]
+        'INSERT INTO certificados (intento_id,validado_por,estado,archivo_url,fecha_emision) VALUES (?,?,?,?,?)',
+        [aprobados[idx].id, cert.vp ? uid[cert.vp] : null, cert.est, cert.arch, cert.f]
       );
     }
-    console.log('✓ Certificados insertados');
+    console.log('✓ Certificados');
 
-    // ─── PRÁCTICOS ─────────────────────────────────────────────────────────────
+    // ── Prácticos ──────────────────────────────────────────────────────────────
 
     const practicosData = [
-      { curso_id: c1, sede_id: sede1Id, titulo: 'Taller: Comunicación con paciente con demencia',  descripcion: 'Simulación de interacciones con residentes en distintas etapas de demencia.',        fecha: '2026-05-15', hora_inicio: '09:00:00', hora_fin: '12:00:00', lugar: 'Sala de capacitación ELEAM Hualpén',  creado_por: uid['ana.gonzalez']    },
-      { curso_id: c2, sede_id: sede2Id, titulo: 'Simulacro de prevención de caídas',               descripcion: 'Recorrido de identificación de riesgos y práctica de protocolo en caída.',          fecha: '2026-05-22', hora_inicio: '10:00:00', hora_fin: '13:00:00', lugar: 'Pasillos y baños ELEAM Coyhaique',    creado_por: uid['roberto.fuentes'] },
-      { curso_id: c4, sede_id: sede1Id, titulo: 'Práctica de RCP con maniquí',                     descripcion: 'Entrenamiento certificado en RCP básico con uso de DEA.',                           fecha: '2026-06-05', hora_inicio: '08:30:00', hora_fin: '11:30:00', lugar: 'Patio cubierto ELEAM Hualpén',        creado_por: uid['ana.gonzalez']    },
+      {c:'c1',s:'ELEAM Hualpén',  titulo:'Taller: Comunicación con paciente con demencia',desc:'Simulación de interacciones con residentes.',             f:'2026-05-15',hi:'09:00:00',hf:'12:00:00',l:'Sala de capacitación ELEAM Hualpén',cp:'ana.gonzalez'},
+      {c:'c2',s:'ELEAM Coyhaique',titulo:'Simulacro de prevención de caídas',             desc:'Recorrido de identificación de riesgos.',                 f:'2026-05-22',hi:'10:00:00',hf:'13:00:00',l:'Pasillos y baños ELEAM Coyhaique',  cp:'roberto.fuentes'},
+      {c:'c4',s:'ELEAM Hualpén',  titulo:'Práctica de RCP con maniquí',                   desc:'Entrenamiento certificado en RCP básico con uso de DEA.', f:'2026-06-05',hi:'08:30:00',hf:'11:30:00',l:'Patio cubierto ELEAM Hualpén',      cp:'ana.gonzalez'},
     ];
 
     const practicoIds = [];
     for (const p of practicosData) {
-      const [ex] = await conn.query('SELECT id FROM practicos WHERE titulo = ? AND fecha = ?', [p.titulo, p.fecha]);
-      if (ex.length === 0) {
-        const [r] = await conn.query(
-          `INSERT INTO practicos (curso_id, sede_id, titulo, descripcion, fecha, hora_inicio, hora_fin, lugar, creado_por)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [p.curso_id, p.sede_id, p.titulo, p.descripcion, p.fecha, p.hora_inicio, p.hora_fin, p.lugar, p.creado_por]
-        );
-        practicoIds.push(r.insertId);
-        console.log(`✓ Práctico: ${p.titulo}`);
-      } else {
-        practicoIds.push(ex[0].id);
-      }
-    }
-
-    // ─── NOTIFICACIONES ────────────────────────────────────────────────────────
-
-    const [prac1, prac2, prac3] = practicoIds;
-    const notificacionesData = [
-      { usuario_id: uid['carlos.munoz'],     practico_id: prac1, titulo: 'Nuevo taller programado',          mensaje: 'Taller "Comunicación con paciente con demencia" agendado para el 15/05/2026 a las 09:00 en ELEAM Hualpén.',    leida: 0 },
-      { usuario_id: uid['valentina.rojas'],  practico_id: prac1, titulo: 'Nuevo taller programado',          mensaje: 'Taller "Comunicación con paciente con demencia" agendado para el 15/05/2026 a las 09:00 en ELEAM Hualpén.',    leida: 1 },
-      { usuario_id: uid['pedro.soto'],       practico_id: prac2, titulo: 'Simulacro de prevención de caídas', mensaje: 'Recuerda asistir al simulacro de caídas el 22/05/2026 en ELEAM Coyhaique.',                                   leida: 0 },
-      { usuario_id: uid['carmen.sepulveda'], practico_id: prac2, titulo: 'Simulacro de prevención de caídas', mensaje: 'Recuerda asistir al simulacro de caídas el 22/05/2026 en ELEAM Coyhaique.',                                   leida: 0 },
-      { usuario_id: uid['carlos.munoz'],     practico_id: prac3, titulo: 'Práctica de RCP agendada',          mensaje: 'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',                      leida: 0 },
-      { usuario_id: uid['valentina.rojas'],  practico_id: prac3, titulo: 'Práctica de RCP agendada',          mensaje: 'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',                      leida: 0 },
-    ];
-
-    for (const n of notificacionesData) {
-      await conn.query(
-        `INSERT INTO notificaciones (usuario_id, practico_id, titulo, mensaje, leida)
-         VALUES (?, ?, ?, ?, ?)`,
-        [n.usuario_id, n.practico_id, n.titulo, n.mensaje, n.leida]
+      const [ex] = await conn.query('SELECT id FROM practicos WHERE titulo=? AND fecha=?', [p.titulo, p.f]);
+      if (ex.length) { practicoIds.push(ex[0].id); continue; }
+      const [r] = await conn.query(
+        'INSERT INTO practicos (curso_id,sede_id,titulo,descripcion,fecha,hora_inicio,hora_fin,lugar,creado_por) VALUES (?,?,?,?,?,?,?,?,?)',
+        [cid[p.c],sid[p.s],p.titulo,p.desc,p.f,p.hi,p.hf,p.l,uid[p.cp]]
       );
+      practicoIds.push(r.insertId);
+      console.log(`✓ Práctico: ${p.titulo}`);
     }
-    console.log('✓ Notificaciones insertadas');
+
+    // ── Notificaciones ─────────────────────────────────────────────────────────
+
+    const [pr1, pr2, pr3] = practicoIds;
+    for (const n of [
+      {u:'carlos.munoz',    pr:pr1,t:'Nuevo taller programado',           m:'Taller "Comunicación con paciente con demencia" agendado para el 15/05/2026 a las 09:00 en ELEAM Hualpén.',l:0},
+      {u:'valentina.rojas', pr:pr1,t:'Nuevo taller programado',           m:'Taller "Comunicación con paciente con demencia" agendado para el 15/05/2026 a las 09:00 en ELEAM Hualpén.',l:1},
+      {u:'pedro.soto',      pr:pr2,t:'Simulacro de prevención de caídas', m:'Recuerda asistir al simulacro de caídas el 22/05/2026 en ELEAM Coyhaique.',l:0},
+      {u:'carmen.sepulveda',pr:pr2,t:'Simulacro de prevención de caídas', m:'Recuerda asistir al simulacro de caídas el 22/05/2026 en ELEAM Coyhaique.',l:0},
+      {u:'carlos.munoz',    pr:pr3,t:'Práctica de RCP agendada',          m:'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',l:0},
+      {u:'valentina.rojas', pr:pr3,t:'Práctica de RCP agendada',          m:'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',l:0},
+    ]) {
+      await conn.query('INSERT INTO notificaciones (usuario_id,practico_id,titulo,mensaje,leida) VALUES (?,?,?,?,?)',
+        [uid[n.u],n.pr,n.t,n.m,n.l]);
+    }
+    console.log('✓ Notificaciones');
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
-
-    console.log('\n✓ Seed completo — todas las tablas pobladas con datos ficticios');
+    console.log('\n✓ Seed completo');
     await conn.end();
     process.exit(0);
   } catch (err) {
