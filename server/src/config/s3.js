@@ -79,12 +79,18 @@ async function generateSignedUrl(key, expiresIn = 3600) {
 
 /**
  * Extrae la key S3 desde una archivo_url guardada en la BD.
- * URL format: https://endpoint/bucket/key
+ * Handles both path-style and virtual-hosted-style URLs from multer-s3.
  */
 function keyFromUrl(url) {
   if (!url) return null;
-  const prefix = `${PUBLIC_URL}/`;
-  return url.startsWith(prefix) ? url.slice(prefix.length) : null;
+  // Path-style: https://endpoint/bucket/key
+  const pathPrefix = `${PUBLIC_URL}/`;
+  if (url.startsWith(pathPrefix)) return url.slice(pathPrefix.length);
+  // Virtual-hosted style: https://bucket.host/key
+  const host = (process.env.AWS_ENDPOINT_URL || '').replace(/^https?:\/\//, '');
+  const virtualPrefix = `https://${BUCKET}.${host}/`;
+  if (url.startsWith(virtualPrefix)) return url.slice(virtualPrefix.length);
+  return null;
 }
 
 module.exports = { s3, BUCKET, PUBLIC_URL, uploadBuffer, fileLocation, makeBucketPublic, generateSignedUrl, keyFromUrl };

@@ -31,6 +31,7 @@ export default function CursoDetalle() {
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
+  const [generandoPPT, setGenerandoPPT] = useState({})
   const videoRef = useRef(null)
 
   // Obtener URL firmada cuando cambia el módulo activo
@@ -39,8 +40,32 @@ export default function CursoDetalle() {
     if (signedUrls[moduloActivo]) return // ya cacheada
     api.get(`/cursos/${cursoId}/modulos/${moduloActivo}/signed-url`)
       .then(r => setSignedUrls(prev => ({ ...prev, [moduloActivo]: r.data.url })))
-      .catch(() => {})
+      .catch(err => console.error('[signed-url] error:', err?.response?.status, err?.response?.data || err?.message))
   }, [moduloActivo, cursoId])
+
+  // Auto-generar PPT si el módulo activo es tipo ppt y no tiene slides guardadas
+  useEffect(() => {
+    if (!moduloActivo || !curso) return
+    const mod = curso.modulos?.find(m => m.id === moduloActivo)
+    if (!mod || mod.tipo !== 'ppt') return
+    const cp = mod.contenido_presentacion
+    const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+    if (slides.length > 0 || generandoPPT[moduloActivo]) return
+
+    setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: true }))
+    api.post(`/ia/modulo/${moduloActivo}/generar-ppt`)
+      .then(r => {
+        const presentacion = r.data.presentacion
+        setCurso(prev => ({
+          ...prev,
+          modulos: prev.modulos.map(m =>
+            m.id === moduloActivo ? { ...m, contenido_presentacion: presentacion } : m
+          )
+        }))
+      })
+      .catch(err => console.error('[generar-ppt]', err?.response?.data || err?.message))
+      .finally(() => setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: false })))
+  }, [moduloActivo, curso])
 
   useEffect(() => {
     Promise.all([
@@ -221,6 +246,17 @@ export default function CursoDetalle() {
       : Array.isArray(cp?.diapositivas) ? cp.diapositivas
       : []
     const esPPT = slides.length > 0
+
+    // PPT sin slides aún: mostrar spinner mientras se genera
+    if (mod.tipo === 'ppt' && !esPPT) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#888' }}>
+          <Icon icon="lucide:loader" width={32} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
+          <div style={{ fontSize: 14, fontWeight: 500 }}>Generando presentación...</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>Esto puede tomar unos segundos</div>
+        </div>
+      )
+    }
     const esVideo = mod.tipo === 'video' && mod.archivo_url
     const esPDF = mod.tipo === 'pdf' && mod.archivo_url
 

@@ -246,3 +246,9 @@ a { color: var(--azul); text-decoration: none; }
   background: rgba(255,255,255,0.15); border-radius: 8px;
   padding: 8px 14px; text-align: center;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
