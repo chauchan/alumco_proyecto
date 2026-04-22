@@ -81,7 +81,7 @@ export default function NuevoCurso() {
       }
       setPaso(4)
     } catch (err) {
-      setError('Error al guardar las preguntas')
+      setError(err.response?.data?.error || err.message || 'Error al guardar las preguntas')
     }
   }
 

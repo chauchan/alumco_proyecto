@@ -38,7 +38,10 @@ async function uploadBuffer(buffer, key, contentType) {
  * en ese caso la construimos desde el key.
  */
 function fileLocation(file) {
-  return file.location || `${PUBLIC_URL}/${file.key}`;
+  // Always build from key to guarantee path-style format matching keyFromUrl.
+  // file.location from multer-s3 may use virtual-hosted style (bucket.endpoint/key)
+  // which would cause keyFromUrl to return null and break signed URL generation.
+  return `${PUBLIC_URL}/${file.key}`;
 }
 
 /**
