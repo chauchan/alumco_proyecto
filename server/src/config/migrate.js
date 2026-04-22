@@ -251,6 +251,71 @@ async function migrate() {
       )
     `);
 
+    // ── Columnas que pueden faltar en tablas ya existentes ────────────────────
+
+    const alteraciones = [
+      // usuarios
+      { tabla: 'usuarios', columna: 'rango_etario',         sql: "ALTER TABLE usuarios ADD COLUMN rango_etario VARCHAR(20)" },
+      { tabla: 'usuarios', columna: 'rut',                  sql: "ALTER TABLE usuarios ADD COLUMN rut VARCHAR(20) DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'email',                sql: "ALTER TABLE usuarios ADD COLUMN email VARCHAR(150) DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'telefono',             sql: "ALTER TABLE usuarios ADD COLUMN telefono VARCHAR(20) DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'estamento_id',         sql: "ALTER TABLE usuarios ADD COLUMN estamento_id INT DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'activo',               sql: "ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) DEFAULT 1" },
+      { tabla: 'usuarios', columna: 'ultimo_acceso',        sql: "ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'google_access_token',  sql: "ALTER TABLE usuarios ADD COLUMN google_access_token TEXT DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'google_refresh_token', sql: "ALTER TABLE usuarios ADD COLUMN google_refresh_token TEXT DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'updated_at',           sql: "ALTER TABLE usuarios ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
+      // sedes
+      { tabla: 'sedes',    columna: 'ciudad',               sql: "ALTER TABLE sedes ADD COLUMN ciudad VARCHAR(100)" },
+      { tabla: 'sedes',    columna: 'activa',               sql: "ALTER TABLE sedes ADD COLUMN activa TINYINT(1) DEFAULT 1" },
+      // cursos
+      { tabla: 'cursos',   columna: 'descripcion',          sql: "ALTER TABLE cursos ADD COLUMN descripcion TEXT" },
+      { tabla: 'cursos',   columna: 'area_id',              sql: "ALTER TABLE cursos ADD COLUMN area_id INT DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'profesor_id',          sql: "ALTER TABLE cursos ADD COLUMN profesor_id INT DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'publicado',            sql: "ALTER TABLE cursos ADD COLUMN publicado TINYINT(1) DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'generado_por_ia',      sql: "ALTER TABLE cursos ADD COLUMN generado_por_ia TINYINT(1) DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'sede_objetivo',        sql: "ALTER TABLE cursos ADD COLUMN sede_objetivo INT DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'obligatorio',          sql: "ALTER TABLE cursos ADD COLUMN obligatorio TINYINT(1) DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'video_intro_url',      sql: "ALTER TABLE cursos ADD COLUMN video_intro_url VARCHAR(500) DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'updated_at',           sql: "ALTER TABLE cursos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
+      // modulos
+      { tabla: 'modulos',  columna: 'descripcion',          sql: "ALTER TABLE modulos ADD COLUMN descripcion TEXT" },
+      { tabla: 'modulos',  columna: 'tipo',                 sql: "ALTER TABLE modulos ADD COLUMN tipo ENUM('pdf','video','ppt')" },
+      { tabla: 'modulos',  columna: 'archivo_url',          sql: "ALTER TABLE modulos ADD COLUMN archivo_url VARCHAR(500)" },
+      { tabla: 'modulos',  columna: 'orden',                sql: "ALTER TABLE modulos ADD COLUMN orden INT DEFAULT 1" },
+      // asignaciones
+      { tabla: 'asignaciones', columna: 'obligatorio',      sql: "ALTER TABLE asignaciones ADD COLUMN obligatorio TINYINT(1) DEFAULT 0" },
+      { tabla: 'asignaciones', columna: 'fecha_limite',     sql: "ALTER TABLE asignaciones ADD COLUMN fecha_limite DATE" },
+      // progreso
+      { tabla: 'progreso', columna: 'porcentaje',           sql: "ALTER TABLE progreso ADD COLUMN porcentaje INT DEFAULT 0" },
+      { tabla: 'progreso', columna: 'ultimo_acceso',        sql: "ALTER TABLE progreso ADD COLUMN ultimo_acceso DATETIME" },
+      { tabla: 'progreso', columna: 'intentos_fallidos',    sql: "ALTER TABLE progreso ADD COLUMN intentos_fallidos INT DEFAULT 0" },
+      { tabla: 'progreso', columna: 'bloqueado_hasta',      sql: "ALTER TABLE progreso ADD COLUMN bloqueado_hasta DATETIME DEFAULT NULL" },
+      // intentos
+      { tabla: 'intentos', columna: 'numero_intento',       sql: "ALTER TABLE intentos ADD COLUMN numero_intento INT DEFAULT 1" },
+      { tabla: 'intentos', columna: 'nota',                 sql: "ALTER TABLE intentos ADD COLUMN nota INT" },
+      { tabla: 'intentos', columna: 'aprobado',             sql: "ALTER TABLE intentos ADD COLUMN aprobado TINYINT(1) DEFAULT 0" },
+      // practicos
+      { tabla: 'practicos', columna: 'descripcion',         sql: "ALTER TABLE practicos ADD COLUMN descripcion TEXT" },
+      { tabla: 'practicos', columna: 'hora_fin',            sql: "ALTER TABLE practicos ADD COLUMN hora_fin TIME" },
+      { tabla: 'practicos', columna: 'lugar',               sql: "ALTER TABLE practicos ADD COLUMN lugar VARCHAR(200)" },
+      // notificaciones
+      { tabla: 'notificaciones', columna: 'practico_id',    sql: "ALTER TABLE notificaciones ADD COLUMN practico_id INT DEFAULT NULL" },
+      { tabla: 'notificaciones', columna: 'leida',          sql: "ALTER TABLE notificaciones ADD COLUMN leida TINYINT(1) DEFAULT 0" },
+    ];
+
+    for (const { tabla, columna, sql } of alteraciones) {
+      const [cols] = await conn.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [tabla, columna]
+      );
+      if (!cols.length) {
+        await conn.query(sql);
+        console.log(`  + Columna agregada: ${tabla}.${columna}`);
+      }
+    }
+
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
     console.log('✓ Migración completada — 17 tablas creadas/verificadas');
