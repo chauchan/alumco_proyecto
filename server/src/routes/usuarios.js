@@ -44,12 +44,24 @@ router.post('/', verificarToken, SOLO_ADMIN, async (req, res) => {
   }
   // Username = RUT sin puntos ni guión
   const identificador = rut.replace(/\./g, '').replace(/-/g, '');
+
+  // Validar formato mínimo del RUT (al menos 7 caracteres numéricos)
+  if (!/^\d{7,8}[\dkK]$/.test(identificador)) {
+    return res.status(400).json({ error: 'Formato de RUT inválido. Ingresa un RUT chileno válido (ej: 12.345.678-9)' });
+  }
+
   const sedeAsignada = req.usuario.rol === 'admin_sede' ? req.usuario.sede_id : (sede_id || null);
   try {
     const { rows: existe } = await pool.query(
-      'SELECT id FROM usuarios WHERE identificador = ?', [identificador]
+      'SELECT id, nombre, sede_id FROM usuarios WHERE identificador = ?', [identificador]
     );
-    if (existe.length > 0) return res.status(409).json({ error: 'El RUT ya está registrado' });
+    if (existe.length > 0) {
+      const u = existe[0];
+      return res.status(409).json({
+        error: `El RUT ${rut} ya está registrado`,
+        detalle: `Existe como usuario ID ${u.id}. Si corresponde a una persona diferente con el mismo RUT, contacta al administrador del sistema.`
+      });
+    }
 
     const hash = await bcrypt.hash(password, 10);
     await pool.query(

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { notificarAdminDobleFallo } = require('../config/mailer');
 
 // GET /api/evaluaciones/:curso_id/estado — estado del usuario en la evaluación
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
@@ -72,7 +73,7 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       );
     }
 
-    // Si doble fallo, notificar al admin_sede
+    // Si doble fallo, notificar al admin_sede (in-app + email)
     if (!cursoAprobado && numero_intento === 2) {
       try {
         const userInfo = await pool.query(
@@ -87,18 +88,29 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
         const nombreCurso = cursoInfo.rows[0]?.nombre || 'Curso';
         if (sede_id) {
           const admins = await pool.query(
-            "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1",
+            "SELECT id, nombre, email FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1",
             [sede_id]
           );
+          const sedeInfo = await pool.query('SELECT nombre FROM sedes WHERE id = $1', [sede_id]);
+          const sedeNombre = sedeInfo.rows[0]?.nombre || '';
           for (const admin of admins.rows) {
             await pool.query(
               'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES ($1,$2,$3)',
               [
                 admin.id,
                 'Colaborador bloqueado en curso',
-                `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`
+                `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por 7 días.`
               ]
             );
+            if (admin.email) {
+              notificarAdminDobleFallo({
+                adminEmail: admin.email,
+                adminNombre: admin.nombre,
+                colaboradorNombre: nombreColab,
+                cursoNombre: nombreCurso,
+                sede: sedeNombre
+              }).catch(e => console.error('[email doble fallo]', e.message));
+            }
           }
         }
       } catch (notifErr) {

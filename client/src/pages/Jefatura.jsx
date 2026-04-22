@@ -137,34 +137,43 @@ export default function Jefatura() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Cobertura por curso</span>
-              <span className="card-link" style={{ color:'#1E3A6E' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span style={{ fontSize:11, color:'#888' }}>{cursos.length} cursos publicados</span>
             </div>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead>
-                <tr>
-                  {['Curso','Inscritos','Completaron','Cobertura'].map(h => (
-                    <th key={h} style={{ fontSize:11, fontWeight:500, color:'#888', textAlign:'left', padding:'6px 8px', borderBottom:'0.5px solid #E8E8E8' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {cursos.slice(0,5).map(c => (
-                  <tr key={c.id} style={{ borderBottom:'0.5px solid #E8E8E8' }}>
-                    <td style={{ padding:'8px 8px' }}>{c.nombre}</td>
-                    <td style={{ padding:'8px 8px' }}>{c.inscritos}</td>
-                    <td style={{ padding:'8px 8px' }}>{c.completaron}</td>
-                    <td style={{ padding:'8px 8px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <div style={{ width:60, height:4, background:'#EEE', borderRadius:2, overflow:'hidden' }}>
-                          <div style={{ height:'100%', width:`${c.pct_completado||0}%`, background:'#2B4BA0', borderRadius:2 }} />
-                        </div>
-                        <span>{c.pct_completado||0}%</span>
-                      </div>
-                    </td>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ background:'#F4F5F7' }}>
+                    {['Curso','Área','Inscritos','Completaron','Cobertura'].map(h => (
+                      <th key={h} style={{ fontSize:11, fontWeight:500, color:'#888', textAlign:'left', padding:'8px 10px', borderBottom:'0.5px solid #E8E8E8' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {cursos.length === 0 ? (
+                    <tr><td colSpan={5} style={{ textAlign:'center', color:'#aaa', padding:24 }}>Sin cursos publicados</td></tr>
+                  ) : cursos.map(c => {
+                    const pct = c.pct_completado || 0
+                    const color = pct >= 80 ? '#22C55E' : pct >= 50 ? '#F5A623' : '#E8505B'
+                    return (
+                      <tr key={c.id} style={{ borderBottom:'0.5px solid #F0F0F0' }}>
+                        <td style={{ padding:'9px 10px', fontWeight:500 }}>{c.nombre}</td>
+                        <td style={{ padding:'9px 10px', color:'#888', fontSize:11 }}>{c.area || '—'}</td>
+                        <td style={{ padding:'9px 10px', textAlign:'center' }}>{c.inscritos}</td>
+                        <td style={{ padding:'9px 10px', textAlign:'center' }}>{c.completaron}</td>
+                        <td style={{ padding:'9px 10px' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <div style={{ width:80, height:5, background:'#EEE', borderRadius:3, overflow:'hidden' }}>
+                              <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:3 }} />
+                            </div>
+                            <span style={{ fontSize:12, fontWeight:500, color }}>{pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </main>
       </div>

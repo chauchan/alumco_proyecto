@@ -17,6 +17,7 @@ const practicosRoutes     = require('./routes/practicos');
 const notificacionesRoutes = require('./routes/notificaciones');
 const googleRoutes         = require('./routes/google');
 const protocolosRoutes     = require('./routes/protocolos');
+const correosRoutes        = require('./routes/correos');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/practicos',      practicosRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/google',        googleRoutes);
 app.use('/api/protocolos',   protocolosRoutes);
+app.use('/api/correos',     correosRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
@@ -120,6 +122,9 @@ async function start() {
     console.warn('⚠ notificaciones table:', err.message);
   }
 
+  // Agregar practico_id a notificaciones si no existe (tablas creadas antes de esta columna)
+  await addColumnIfMissing('notificaciones', 'practico_id', 'INT DEFAULT NULL');
+
   // Agregar columna ultimo_acceso a usuarios si no existe
   try {
     await pool.query(`ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL`);
@@ -138,6 +143,29 @@ async function start() {
       console.warn('⚠ imagenes_protocolo column:', err.message);
     }
   }
+
+  // Tabla de asistencia a prácticos
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS asistencia_practicos (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        practico_id INT NOT NULL,
+        usuario_id INT NOT NULL,
+        registrado_por INT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_practico_usuario (practico_id, usuario_id),
+        FOREIGN KEY (practico_id) REFERENCES practicos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('✓ Tabla asistencia_practicos lista');
+  } catch (err) {
+    console.warn('⚠ asistencia_practicos table:', err.message);
+  }
+
+  // Columna requiere_practico en cursos
+  await addColumnIfMissing('cursos', 'requiere_practico', 'TINYINT(1) DEFAULT 0');
+  console.log('✓ Schema de práctico requerido listo');
 
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
 

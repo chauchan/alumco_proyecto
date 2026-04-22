@@ -2,17 +2,26 @@ const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.MAIL_USER || 'omegabarra3236@gmail.com',
     pass: process.env.MAIL_PASS
-  },
-  tls: { rejectUnauthorized: false }
+  }
+});
+
+// Verificar conexión SMTP al arrancar (solo loggea, no bloquea)
+transporter.verify().then(() => {
+  console.log('[MAIL] Conexión SMTP OK — usuario:', process.env.MAIL_USER || 'omegabarra3236@gmail.com');
+}).catch(err => {
+  console.error('[MAIL] ⚠ Error de conexión SMTP:', err.message);
+  console.error('[MAIL]  MAIL_USER:', process.env.MAIL_USER || '(no definido)');
+  console.error('[MAIL]  MAIL_PASS:', process.env.MAIL_PASS ? '(definido)' : '(NO DEFINIDO)');
 });
 
 async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, cursoId, modulosCount, preguntasCount, nombreArchivo, subidoPor }) {
   const destinatario = profesorEmail || process.env.MAIL_USER || 'omegabarra3236@gmail.com';
+  console.log('[MAIL] notificarProfesor → destinatario:', destinatario, '| curso:', cursoNombre);
 
   await transporter.sendMail({
     from: `"ALUMCO" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
@@ -57,7 +66,82 @@ async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, c
         </div>
       </div>
     `
+  }).then(info => {
+    console.log('[MAIL] Enviado OK. messageId:', info.messageId);
+  }).catch(err => {
+    console.error('[MAIL] Error al enviar notificarProfesor:', err.message);
+    throw err;
   });
 }
 
-module.exports = { notificarProfesor };
+async function notificarAdminDobleFallo({ adminEmail, adminNombre, colaboradorNombre, cursoNombre, sede }) {
+  const destinatario = adminEmail || process.env.MAIL_USER;
+  if (!destinatario) return;
+  await transporter.sendMail({
+    from: `"ALUMCO" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: destinatario,
+    subject: `[ALUMCO] Colaborador bloqueado por doble fallo`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #E8505B; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Alerta de bloqueo</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${adminNombre}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            El colaborador <strong>${colaboradorNombre}</strong> ha fallado 2 veces la evaluación del curso
+            <strong>${cursoNombre}</strong> en la sede <strong>${sede}</strong> y ha quedado bloqueado por 7 días.
+          </p>
+          <p style="color: #E8505B; font-size: 13px; background: #FFF5F5; padding: 10px 14px; border-radius: 6px; border: 1px solid #FECACA;">
+            ⚠ Se recomienda programar un práctico de refuerzo o contactar directamente al colaborador.
+          </p>
+          <p style="color: #555; font-size: 13px; margin-top: 20px;">Ingresa al sistema ALUMCO para ver el detalle.</p>
+        </div>
+      </div>
+    `
+  });
+}
+
+async function enviarRecordatorioCertificados({ destinatarios }) {
+  const resultados = { enviados: 0, errores: 0 };
+  for (const dest of destinatarios) {
+    try {
+      await transporter.sendMail({
+        from: `"ALUMCO" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+        to: dest.email,
+        subject: `[ALUMCO] Recordatorio: tienes cursos pendientes`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+              <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Capacitación pendiente</h1>
+            </div>
+            <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+              <p style="color: #333; font-size: 15px;">Hola <strong>${dest.nombre}</strong>,</p>
+              <p style="color: #555; font-size: 14px; line-height: 1.6;">
+                Te recordamos que tienes <strong>${dest.cursos_pendientes}</strong> curso(s) asignado(s) sin certificado aprobado.
+                Es importante completarlos para mantener tu formación al día.
+              </p>
+              <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+                ${dest.cursos.map(c => `
+                  <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px 12px; font-size: 13px; color: #333;">${c.nombre}</td>
+                    <td style="padding: 8px 12px; font-size: 12px; color: ${c.estado === 'bloqueado' ? '#E8505B' : '#F5A623'}; text-align:right;">
+                      ${c.estado === 'bloqueado' ? '🔒 Bloqueado' : c.estado === 'pendiente' ? '⏳ En curso' : '📋 Sin iniciar'}
+                    </td>
+                  </tr>`).join('')}
+              </table>
+              <p style="color: #555; font-size: 13px;">Ingresa a la plataforma ALUMCO para continuar con tus capacitaciones.</p>
+            </div>
+          </div>
+        `
+      });
+      resultados.enviados++;
+    } catch (e) {
+      console.error(`Error enviando correo a ${dest.email}:`, e.message);
+      resultados.errores++;
+    }
+  }
+  return resultados;
+}
+
+module.exports = { notificarProfesor, notificarAdminDobleFallo, enviarRecordatorioCertificados };

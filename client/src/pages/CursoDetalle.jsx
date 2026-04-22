@@ -364,10 +364,24 @@ export default function CursoDetalle() {
               style={{ background: '#fff', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#555' }}>
               <Icon icon="lucide:arrow-left" width={14} /> Volver
             </button>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{curso?.nombre || '...'}</div>
               {curso?.area && <div style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{curso.area}</div>}
             </div>
+            {curso && !bloqueadoHasta && (
+              <button onClick={async () => {
+                if (!confirm('¿Marcar este curso como completado? (solo para pruebas)')) return
+                try {
+                  await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: 100, es_evaluacion: true })
+                  const total = curso.preguntas?.length || 0
+                  setResultado({ score: 100, correctas: total, total, aprobado: true })
+                  setPaso('evaluacion')
+                  localStorage.setItem(`curso_${userId}_${cursoId}_completados`, JSON.stringify((curso.modulos || []).map(m => m.id)))
+                } catch (e) { alert('Error: ' + (e?.response?.data?.error || e?.message)) }
+              }} style={{ fontSize: 11, padding: '5px 12px', borderRadius: 6, border: '1px dashed #F5A623', background: '#FFF8E8', color: '#B45309', cursor: 'pointer', flexShrink: 0, fontWeight: 500 }}>
+                ⚡ Completar (test)
+              </button>
+            )}
           </div>
 
           {cargando ? (

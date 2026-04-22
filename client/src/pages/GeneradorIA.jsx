@@ -1178,19 +1178,23 @@ export default function GeneradorIA() {
                                 await api.put(`/cursos/${resultado.curso_id}`, { modulos: modulosToSave }).catch(() => {})
                               }
                             }
-                            await api.post('/ia/notificar-profesor', {
-                              curso_id: resultado.curso_id,
-                              curso_nombre: resultado.nombre,
-                              modulos_count: resultado.modulos?.length,
-                              preguntas_count: resultado.preguntas_count,
-                              nombre_archivo: resultado.nombre_archivo
-                            })
+                            try {
+                              await api.post('/ia/notificar-profesor', {
+                                curso_id: resultado.curso_id,
+                                curso_nombre: resultado.nombre,
+                                modulos_count: resultado.modulos?.length,
+                                preguntas_count: resultado.preguntas_count,
+                                nombre_archivo: resultado.nombre_archivo
+                              })
+                            } catch (mailErr) {
+                              console.warn('[mail] no se pudo notificar al profesor:', mailErr?.response?.data?.error || mailErr?.message)
+                            }
                             setEnviado(true)
                             guardarStorage(null)
                             guardarFormStorage(null)
                             setTimeout(() => navigate('/jefatura'), 1500)
-                          } catch {
-                            alert('No se pudo enviar la notificación. Verifica la configuración de email.')
+                          } catch (err) {
+                            alert('Error al procesar el envío: ' + (err?.response?.data?.error || err?.message || 'error desconocido'))
                           } finally { setEnviando(false) }
                         }}>
                         {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}

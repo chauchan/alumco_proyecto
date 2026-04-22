@@ -187,7 +187,7 @@ export default function Profesor() {
     const payload = {
       estamento_objetivo: targeting.estamento_objetivo,
       sede_objetivo: targeting.sede_objetivo,
-      obligatorio: Array.isArray(targeting.estamento_objetivo) && targeting.estamento_objetivo.length > 0
+      obligatorio: targeting.obligatorio
     }
     setGuardandoTargeting(true)
     try {
@@ -679,13 +679,47 @@ export default function Profesor() {
                         })}
                       </div>
 
+                      {/* Obligatorio toggle */}
+                      <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:6 }}>¿Es obligatorio?</div>
+                        <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>
+                          Los cursos obligatorios se marcan con una etiqueta roja y se incluyen en los KPIs de capacitación.
+                        </div>
+                        <div onClick={() => setTargeting(t => ({ ...t, obligatorio: !t.obligatorio }))}
+                          style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', userSelect:'none' }}>
+                          <div style={{
+                            width:40, height:22, borderRadius:11, flexShrink:0, transition:'background 0.2s',
+                            background: targeting.obligatorio ? '#E8505B' : '#CCC',
+                            position:'relative'
+                          }}>
+                            <div style={{
+                              width:16, height:16, borderRadius:'50%', background:'#fff',
+                              position:'absolute', top:3,
+                              left: targeting.obligatorio ? 21 : 3,
+                              transition:'left 0.2s',
+                              boxShadow:'0 1px 3px rgba(0,0,0,0.2)'
+                            }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize:12, fontWeight:500, color:'#222' }}>
+                              {targeting.obligatorio ? 'Obligatorio' : 'Opcional'}
+                            </div>
+                            <div style={{ fontSize:10, color:'#888' }}>
+                              {targeting.obligatorio
+                                ? 'Los colaboradores deben completar este curso para estar "al día"'
+                                : 'El curso aparece en el catálogo pero no afecta al KPI de capacitación'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Resumen + Guardar */}
                       <div style={{ background:'#F4F5F7', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
                         <div style={{ fontSize:12, color:'#555' }}>
                           {targeting.sede_objetivo ? <>Sede: <strong>{usuario?.sede_nombre}</strong> · </> : <>Todas las sedes · </>}
                           {Array.isArray(targeting.estamento_objetivo) && targeting.estamento_objetivo.length > 0
-                            ? <>Obligatorio para: <strong>{targeting.estamento_objetivo.length === 1 ? targeting.estamento_objetivo[0] : `${targeting.estamento_objetivo.length} estamentos`}</strong></>
-                            : <>Todos los estamentos (opcional)</>}
+                            ? <>{targeting.obligatorio ? <>Obligatorio para: </> : <>Dirigido a: </>}<strong>{targeting.estamento_objetivo.length === 1 ? targeting.estamento_objetivo[0] : `${targeting.estamento_objetivo.length} estamentos`}</strong></>
+                            : <>{targeting.obligatorio ? <strong style={{color:'#E8505B'}}>Obligatorio para todos</strong> : <>Todos los estamentos (opcional)</>}</>}
                         </div>
                         <button onClick={guardarTargeting} disabled={guardandoTargeting}
                           style={{ fontSize:12, padding:'6px 16px', borderRadius:7, border:'none', background:'#1E3A6E', color:'#fff', cursor:'pointer', fontWeight:500, flexShrink:0 }}>

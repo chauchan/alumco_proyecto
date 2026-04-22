@@ -10,14 +10,36 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
   const { rol, sede_id } = req.usuario;
   const filtroSede = rol === 'admin_sede' ? `AND u.sede_id = ${sede_id}` : '';
   try {
-    const totalUsuarios = await pool.query(`SELECT COUNT(*) as total FROM usuarios u WHERE u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}`);
-    const capacitados = await pool.query(`SELECT COUNT(DISTINCT p.usuario_id) as total FROM progreso p JOIN usuarios u ON p.usuario_id = u.id WHERE p.completado = 1 AND u.activo = 1 AND u.rol = 'colaborador' ${filtroSede}`);
-    const certificados = await pool.query(`SELECT COUNT(*) as total FROM certificados cert JOIN usuarios u ON cert.usuario_id = u.id WHERE cert.estado = 'aprobado' ${filtroSede}`);
+    const totalUsuarios = await pool.query(
+      `SELECT COUNT(*) as total FROM usuarios u WHERE u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}`
+    );
+
+    // Capacitados al día: colaboradores que tienen certificado aprobado en TODOS sus cursos asignados
+    // (o no tienen cursos asignados se excluyen)
+    const capacitados = await pool.query(`
+      SELECT COUNT(DISTINCT u.id) as total
+      FROM usuarios u
+      WHERE u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
+        AND EXISTS (SELECT 1 FROM asignaciones a WHERE a.usuario_id = u.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM asignaciones a2
+          LEFT JOIN certificados cert ON cert.usuario_id = a2.usuario_id
+            AND cert.curso_id = a2.curso_id AND cert.estado = 'aprobado'
+          WHERE a2.usuario_id = u.id AND cert.id IS NULL
+        )
+    `);
+
+    const certificados = await pool.query(
+      `SELECT COUNT(*) as total FROM certificados cert JOIN usuarios u ON cert.usuario_id = u.id WHERE cert.estado = 'aprobado' ${filtroSede}`
+    );
+
+    // Alertas: doble fallo activo o asignación vencida
     const alertas = await pool.query(`
       SELECT COUNT(DISTINCT usuario_id) as total FROM (
         SELECT p.usuario_id FROM progreso p
         JOIN usuarios u ON p.usuario_id = u.id
-        WHERE p.intentos_fallidos >= 2 AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
+        WHERE p.bloqueado_hasta IS NOT NULL AND p.bloqueado_hasta > NOW()
+          AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
         UNION
         SELECT a.usuario_id FROM asignaciones a
         JOIN usuarios u ON a.usuario_id = u.id
@@ -26,6 +48,7 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
           AND (p.completado IS NULL OR p.completado = 0)
           AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
       ) as alertas`);
+
     res.json({
       total_colaboradores: parseInt(totalUsuarios.rows[0].total),
       capacitados_al_dia: parseInt(capacitados.rows[0].total),

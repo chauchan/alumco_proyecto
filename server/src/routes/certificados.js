@@ -51,7 +51,13 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
   }
   try {
     const certResult = await pool.query(
-      'SELECT cert.*, u.nombre as usuario_nombre, c.nombre as curso_nombre FROM certificados cert JOIN usuarios u ON cert.usuario_id = u.id JOIN cursos c ON cert.curso_id = c.id WHERE cert.id = $1',
+      `SELECT cert.*, u.nombre as usuario_nombre, u.rut as usuario_rut, u.estamento as usuario_estamento,
+              c.nombre as curso_nombre, s.nombre as sede_nombre
+       FROM certificados cert
+       JOIN usuarios u ON cert.usuario_id = u.id
+       JOIN cursos c ON cert.curso_id = c.id
+       LEFT JOIN sedes s ON u.sede_id = s.id
+       WHERE cert.id = $1`,
       [req.params.id]
     );
     if (certResult.rows.length === 0) return res.status(404).json({ error: 'Certificado no encontrado' });
@@ -133,39 +139,129 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
 // Función auxiliar: generar PDF del certificado y subirlo a S3
 async function generarCertificadoPDF(cert) {
   const buffer = await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margins: { top: 0, bottom: 0, left: 0, right: 0 } });
     const chunks = [];
     doc.on('data', chunk => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Fondo y bordes
-    doc.rect(0, 0, doc.page.width, doc.page.height).fill('#F4F5F7');
-    doc.rect(20, 20, doc.page.width - 40, doc.page.height - 40).stroke('#2B4BA0');
+    const W = doc.page.width;
+    const H = doc.page.height;
 
-    // Título
-    doc.fillColor('#1E3A6E').fontSize(32).font('Helvetica-Bold')
-       .text('CERTIFICADO DE CAPACITACIÓN', 0, 80, { align: 'center' });
+    // Fondo azul oscuro lateral izquierdo
+    doc.rect(0, 0, 180, H).fill('#1E3A6E');
 
-    // Texto principal
-    doc.fillColor('#333333').fontSize(16).font('Helvetica')
-       .text('Este certificado acredita que', 0, 160, { align: 'center' });
-    doc.fillColor('#2B4BA0').fontSize(26).font('Helvetica-Bold')
-       .text(cert.usuario_nombre.toUpperCase(), 0, 195, { align: 'center' });
-    doc.fillColor('#333333').fontSize(16).font('Helvetica')
-       .text('ha completado exitosamente el curso', 0, 240, { align: 'center' });
-    doc.fillColor('#2B4BA0').fontSize(22).font('Helvetica-Bold')
-       .text(cert.curso_nombre, 0, 270, { align: 'center' });
+    // Fondo principal blanco hueso
+    doc.rect(180, 0, W - 180, H).fill('#FAFAFA');
 
-    // Fecha y organización
-    const fecha = new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
+    // Borde derecho decorativo
+    doc.rect(W - 8, 0, 8, H).fill('#2B4BA0');
+
+    // Logo ALUMCO (texto como logo)
+    doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold')
+       .text('ALUMCO', 0, 60, { width: 180, align: 'center' });
+    doc.fillColor('#93AEDE').fontSize(9).font('Helvetica')
+       .text('ONG', 0, 86, { width: 180, align: 'center' });
+
+    // Línea divisoria decorativa en el lateral
+    doc.moveTo(40, 115).lineTo(140, 115).lineWidth(0.5).strokeColor('#2B4BA0').stroke();
+
+    // Datos del colaborador en el lateral
+    doc.fillColor('#93AEDE').fontSize(8).font('Helvetica')
+       .text('COLABORADOR', 0, 130, { width: 180, align: 'center' });
+    doc.fillColor('#FFFFFF').fontSize(10).font('Helvetica-Bold')
+       .text(cert.usuario_nombre || '', 10, 148, { width: 160, align: 'center' });
+
+    if (cert.usuario_rut) {
+      doc.fillColor('#93AEDE').fontSize(7).font('Helvetica')
+         .text('RUT', 0, 175, { width: 180, align: 'center' });
+      doc.fillColor('#FFFFFF').fontSize(9)
+         .text(cert.usuario_rut, 0, 187, { width: 180, align: 'center' });
+    }
+
+    if (cert.usuario_estamento) {
+      doc.fillColor('#93AEDE').fontSize(7).font('Helvetica')
+         .text('CARGO', 0, 212, { width: 180, align: 'center' });
+      const estamento = cert.usuario_estamento.length > 22
+        ? cert.usuario_estamento.substring(0, 20) + '...'
+        : cert.usuario_estamento;
+      doc.fillColor('#FFFFFF').fontSize(8)
+         .text(estamento, 10, 224, { width: 160, align: 'center' });
+    }
+
+    if (cert.sede_nombre) {
+      doc.fillColor('#93AEDE').fontSize(7).font('Helvetica')
+         .text('SEDE', 0, 255, { width: 180, align: 'center' });
+      doc.fillColor('#FFFFFF').fontSize(9)
+         .text(cert.sede_nombre, 0, 267, { width: 180, align: 'center' });
+    }
+
+    // Fecha en el lateral inferior
+    const fecha = new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+    doc.moveTo(40, H - 100).lineTo(140, H - 100).lineWidth(0.5).strokeColor('#2B4BA0').stroke();
+    doc.fillColor('#93AEDE').fontSize(7).font('Helvetica')
+       .text('FECHA DE EMISIÓN', 0, H - 90, { width: 180, align: 'center' });
+    doc.fillColor('#FFFFFF').fontSize(8)
+       .text(fecha, 0, H - 78, { width: 180, align: 'center' });
+
+    // ─── Contenido principal ───────────────────────────────────────────────────
+    const contentX = 210;
+    const contentW = W - contentX - 40;
+
+    // Título CERTIFICADO
+    doc.fillColor('#2B4BA0').fontSize(11).font('Helvetica')
+       .text('C E R T I F I C A D O', contentX, 60, { width: contentW, align: 'left', characterSpacing: 4 });
+
+    doc.fillColor('#1E3A6E').fontSize(28).font('Helvetica-Bold')
+       .text('DE CAPACITACIÓN', contentX, 80, { width: contentW, align: 'left' });
+
+    // Línea decorativa bajo el título
+    doc.moveTo(contentX, 125).lineTo(contentX + 80, 125).lineWidth(3).strokeColor('#2B4BA0').stroke();
+    doc.moveTo(contentX + 85, 125).lineTo(contentX + contentW, 125).lineWidth(0.5).strokeColor('#E0E0E0').stroke();
+
+    // Texto "Se otorga a"
+    doc.fillColor('#666666').fontSize(12).font('Helvetica')
+       .text('Se otorga a quien corresponda que:', contentX, 148, { width: contentW });
+
+    // Nombre del colaborador
+    doc.fillColor('#1E3A6E').fontSize(24).font('Helvetica-Bold')
+       .text(cert.usuario_nombre?.toUpperCase() || '', contentX, 172, { width: contentW });
+
+    // Texto "ha completado"
     doc.fillColor('#555555').fontSize(12).font('Helvetica')
-       .text(`Hualpén, ${fecha}`, 0, 350, { align: 'center' });
+       .text('ha completado exitosamente el curso de capacitación:', contentX, 218, { width: contentW });
 
-    // Firma
-    doc.moveTo(250, 420).lineTo(550, 420).stroke('#333333');
-    doc.fillColor('#333333').fontSize(11).text('ONG ALUMCO', 0, 430, { align: 'center' });
-    doc.fontSize(10).fillColor('#888888').text('Plataforma de Capacitación Interna', 0, 448, { align: 'center' });
+    // Nombre del curso — resaltado
+    doc.rect(contentX, 240, contentW, 52).fill('#EEF2FF');
+    doc.fillColor('#1E3A6E').fontSize(16).font('Helvetica-Bold')
+       .text(cert.curso_nombre || '', contentX + 16, 252, { width: contentW - 32, align: 'left' });
+
+    // Texto cumplimiento
+    doc.fillColor('#555555').fontSize(11).font('Helvetica')
+       .text(
+         'Certificamos que el participante ha demostrado los conocimientos y competencias requeridas por el programa de capacitación institucional de ONG ALUMCO.',
+         contentX, 310, { width: contentW, lineGap: 3 }
+       );
+
+    // ─── Sección de firmas ────────────────────────────────────────────────────
+    const firmaY = H - 110;
+    const col1X = contentX;
+    const col2X = contentX + (contentW / 2) + 20;
+    const firmaW = contentW / 2 - 30;
+
+    // Líneas de firma
+    doc.moveTo(col1X, firmaY).lineTo(col1X + firmaW, firmaY).lineWidth(0.8).strokeColor('#333333').stroke();
+    doc.moveTo(col2X, firmaY).lineTo(col2X + firmaW, firmaY).lineWidth(0.8).strokeColor('#333333').stroke();
+
+    doc.fillColor('#333333').fontSize(10).font('Helvetica-Bold')
+       .text('Dirección ONG ALUMCO', col1X, firmaY + 6, { width: firmaW });
+    doc.fillColor('#888888').fontSize(9).font('Helvetica')
+       .text('Firma y timbre', col1X, firmaY + 20, { width: firmaW });
+
+    doc.fillColor('#333333').fontSize(10).font('Helvetica-Bold')
+       .text('Responsable de Capacitación', col2X, firmaY + 6, { width: firmaW });
+    doc.fillColor('#888888').fontSize(9).font('Helvetica')
+       .text('Firma y timbre', col2X, firmaY + 20, { width: firmaW });
 
     doc.end();
   });

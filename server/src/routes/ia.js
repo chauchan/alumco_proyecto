@@ -299,7 +299,7 @@ Descripción: ${descripcion || titulo}
 Responde SOLO el JSON.`;
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 90000 : 300000);
+      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 240000 : 300000);
       const parsed = parsearJSON(resp);
       if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
       return parsed;

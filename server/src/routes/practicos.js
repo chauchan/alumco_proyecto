@@ -173,4 +173,66 @@ router.delete('/:id', verificarToken, PUEDE_CREAR, async (req, res) => {
   }
 });
 
+// GET /api/practicos/:id/asistencia — colaboradores del curso con estado de asistencia
+router.get('/:id/asistencia', verificarToken, PUEDE_CREAR, async (req, res) => {
+  try {
+    const practicoResult = await pool.query('SELECT * FROM practicos WHERE id = ?', [req.params.id]);
+    if (!practicoResult.rows.length) return res.status(404).json({ error: 'Práctico no encontrado' });
+    const practico = practicoResult.rows[0];
+
+    const result = await pool.query(`
+      SELECT u.id, u.nombre, u.estamento, u.identificador,
+             CASE WHEN ap.id IS NOT NULL THEN 1 ELSE 0 END as asistio
+      FROM asignaciones a
+      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN asistencia_practicos ap ON ap.practico_id = ? AND ap.usuario_id = u.id
+      WHERE a.curso_id = ? AND u.sede_id = ? AND u.activo = 1 AND u.rol = 'colaborador'
+      ORDER BY u.nombre
+    `, [req.params.id, practico.curso_id, practico.sede_id]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener asistencia' });
+  }
+});
+
+// POST /api/practicos/:id/asistencia — registrar asistencia (reemplaza registros previos)
+router.post('/:id/asistencia', verificarToken, PUEDE_CREAR, async (req, res) => {
+  const { asistentes } = req.body; // array de user IDs presentes
+  try {
+    await pool.query('DELETE FROM asistencia_practicos WHERE practico_id = ?', [req.params.id]);
+    if (asistentes && asistentes.length > 0) {
+      for (const userId of asistentes) {
+        await pool.query(
+          'INSERT INTO asistencia_practicos (practico_id, usuario_id, registrado_por) VALUES (?, ?, ?)',
+          [req.params.id, userId, req.usuario.id]
+        );
+      }
+    }
+    res.json({ message: `Asistencia registrada: ${asistentes?.length || 0} presentes` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al registrar asistencia' });
+  }
+});
+
+// GET /api/practicos/mi-asistencia?curso_id=X — verifica si el usuario asistió a algún práctico del curso
+router.get('/mi-asistencia', verificarToken, async (req, res) => {
+  const { curso_id } = req.query;
+  const usuario_id = req.usuario.id;
+  try {
+    const result = await pool.query(`
+      SELECT ap.id, p.titulo, p.fecha
+      FROM asistencia_practicos ap
+      JOIN practicos p ON ap.practico_id = p.id
+      WHERE ap.usuario_id = ? AND p.curso_id = ?
+      LIMIT 1
+    `, [usuario_id, curso_id]);
+    res.json({ asistio: result.rows.length > 0, detalle: result.rows[0] || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al verificar asistencia' });
+  }
+});
+
 module.exports = router;

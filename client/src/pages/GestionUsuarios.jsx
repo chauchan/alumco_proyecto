@@ -32,6 +32,11 @@ const FORM_INICIAL = {
 
 const limpiarRut = (rut) => rut.replace(/\./g, '').replace(/-/g, '')
 
+const validarFormatoRut = (rut) => {
+  const limpio = limpiarRut(rut)
+  return /^\d{7,8}[\dkK]$/.test(limpio)
+}
+
 export default function GestionUsuarios() {
   const navigate = useNavigate()
   const [usuarios, setUsuarios] = useState([])
@@ -61,6 +66,9 @@ export default function GestionUsuarios() {
     if (!form.nombre || !form.rut || !form.rol) {
       return setError('Nombre, RUT y rol son obligatorios')
     }
+    if (!validarFormatoRut(form.rut)) {
+      return setError('Formato de RUT inválido. Ingresa el RUT en formato 12.345.678-9')
+    }
     try {
       await api.post('/usuarios', { ...form, password: 'alumco2026' })
       const username = limpiarRut(form.rut)
@@ -69,7 +77,9 @@ export default function GestionUsuarios() {
       setMostrarForm(false)
       cargar()
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al crear usuario')
+      const msg = err.response?.data?.error || 'Error al crear usuario'
+      const detalle = err.response?.data?.detalle
+      setError(detalle ? `${msg} — ${detalle}` : msg)
     }
   }
 
@@ -148,8 +158,14 @@ export default function GestionUsuarios() {
                   <div className="field">
                     <label>RUT *</label>
                     <input type="text" placeholder="Ej: 12.345.678-9"
-                      value={form.rut} onChange={e => setForm({ ...form, rut: e.target.value })} />
-                    {form.rut && (
+                      value={form.rut} onChange={e => setForm({ ...form, rut: e.target.value })}
+                      style={{ borderColor: form.rut && !validarFormatoRut(form.rut) ? '#E8505B' : undefined }} />
+                    {form.rut && !validarFormatoRut(form.rut) && (
+                      <span style={{ fontSize: 11, color: '#E8505B', marginTop: 4, display: 'block' }}>
+                        Formato inválido. Ej: 12.345.678-9
+                      </span>
+                    )}
+                    {form.rut && validarFormatoRut(form.rut) && (
                       <span style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'block' }}>
                         Usuario de ingreso: <strong>{limpiarRut(form.rut)}</strong>
                       </span>

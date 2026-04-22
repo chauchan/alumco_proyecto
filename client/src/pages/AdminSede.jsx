@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
+import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
@@ -7,10 +8,14 @@ import api from '../services/api'
 
 export default function AdminSede() {
   const { usuario } = useAuth()
+  const navigate = useNavigate()
   const [resumen, setResumen] = useState(null)
   const [usuarios, setUsuarios] = useState([])
   const [cursos, setCursos] = useState([])
   const [notificaciones, setNotificaciones] = useState([])
+  const [doblesFallos, setDoblesFallos] = useState([])
+  const [enviandoCorreo, setEnviandoCorreo] = useState(false)
+  const [msgCorreo, setMsgCorreo] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -18,12 +23,14 @@ export default function AdminSede() {
       api.get('/usuarios'),
       api.get('/reportes/cursos'),
       api.get('/notificaciones'),
+      api.get('/evaluaciones/dobles-fallos').catch(() => ({ data: [] })),
     ])
-      .then(([r, u, c, n]) => {
+      .then(([r, u, c, n, df]) => {
         setResumen(r.data)
         setUsuarios(u.data)
         setCursos(c.data)
         setNotificaciones(n.data.notificaciones || [])
+        setDoblesFallos(df.data || [])
       })
       .catch(() => {})
   }, [])
@@ -86,10 +93,32 @@ export default function AdminSede() {
               <div className="page-title">Resumen de sede</div>
               <div className="page-sub">{usuario?.sede_nombre} · {new Date().toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
             </div>
-            <button className="btn-primary">
-              <span>+</span> Agregar colaborador
-            </button>
+            <div style={{ display:'flex', gap:8 }}>
+              <button className="btn-outline-dark"
+                disabled={enviandoCorreo}
+                onClick={async () => {
+                  if (!confirm('¿Enviar correo recordatorio a todos los colaboradores con certificados pendientes?')) return
+                  setEnviandoCorreo(true); setMsgCorreo('')
+                  try {
+                    const r = await api.post('/correos/recordatorio-certificados')
+                    setMsgCorreo(r.data.message)
+                  } catch (err) {
+                    setMsgCorreo(err.response?.data?.error || 'Error al enviar correos')
+                  } finally { setEnviandoCorreo(false) }
+                }}>
+                <Icon icon="lucide:mail" width={13} style={{verticalAlign:'middle',marginRight:4}} />
+                {enviandoCorreo ? 'Enviando...' : 'Correo masivo'}
+              </button>
+              <button className="btn-primary" onClick={() => navigate('/jefatura/usuarios')}>
+                <span>+</span> Agregar colaborador
+              </button>
+            </div>
           </div>
+          {msgCorreo && (
+            <div style={{ background:'#EEF2FF', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1E3A6E' }}>
+              <Icon icon="lucide:mail" width={13} style={{verticalAlign:'middle',marginRight:4}} /> {msgCorreo}
+            </div>
+          )}
 
           {/* Stats */}
           <div className="stats-grid-4">
@@ -149,7 +178,36 @@ export default function AdminSede() {
             </div>
           </div>
 
-          {/* Alertas */}
+          {/* Dobles fallos activos */}
+          {doblesFallos.length > 0 && (
+            <div className="card" style={{ borderLeft:'3px solid #E8505B' }}>
+              <div className="card-header">
+                <span className="card-title" style={{ color:'#E8505B' }}>
+                  <Icon icon="lucide:alert-triangle" width={14} style={{verticalAlign:'middle',marginRight:4}} />
+                  Colaboradores bloqueados por doble fallo
+                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                    {doblesFallos.length}
+                  </span>
+                </span>
+              </div>
+              {doblesFallos.map(df => (
+                <div key={`${df.usuario_id}-${df.curso_id}`} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
+                  <div style={{ width:32, height:32, borderRadius:'50%', background:'#FFF0F0', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <Icon icon="lucide:user-x" width={15} style={{ color:'#E8505B' }} />
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight:500 }}>{df.usuario_nombre}</div>
+                    <div style={{ fontSize:11, color:'#888' }}>Bloqueado en: {df.curso_nombre}</div>
+                  </div>
+                  <span style={{ fontSize:10, color:'#E8505B', background:'#FFF0F0', borderRadius:6, padding:'2px 8px', fontWeight:600 }}>
+                    Doble fallo
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Alertas / Notificaciones */}
           <div className="card">
             <div className="card-header">
               <span className="card-title">

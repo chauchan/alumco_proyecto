@@ -36,6 +36,13 @@ export default function Practicos() {
   const [formEvento, setFormEvento] = useState({ titulo:'', fecha:'', hora_inicio:'', hora_fin:'', descripcion:'', lugar:'' })
   const [guardandoEvento, setGuardandoEvento] = useState(false)
 
+  // Asistencia
+  const [modalAsistencia, setModalAsistencia] = useState(null) // practico object
+  const [listaAsistencia, setListaAsistencia] = useState([])
+  const [asistentesSelec, setAsistentesSelec] = useState(new Set())
+  const [cargandoAsistencia, setCargandoAsistencia] = useState(false)
+  const [guardandoAsistencia, setGuardandoAsistencia] = useState(false)
+
   const cargar = () => {
     setCargando(true)
     const promesas = [api.get('/practicos')]
@@ -157,6 +164,40 @@ export default function Practicos() {
       cargar()
       setDiaSeleccionado(null)
     } catch { setError('Error al eliminar práctico') }
+  }
+
+  const abrirModalAsistencia = async (practico) => {
+    setModalAsistencia(practico)
+    setCargandoAsistencia(true)
+    setListaAsistencia([])
+    setAsistentesSelec(new Set())
+    try {
+      const r = await api.get(`/practicos/${practico.id}/asistencia`)
+      setListaAsistencia(r.data)
+      setAsistentesSelec(new Set(r.data.filter(u => u.asistio).map(u => u.id)))
+    } catch { setError('Error al cargar lista de asistencia') }
+    finally { setCargandoAsistencia(false) }
+  }
+
+  const toggleAsistente = (userId) => {
+    setAsistentesSelec(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
+      return next
+    })
+  }
+
+  const guardarAsistencia = async () => {
+    if (!modalAsistencia) return
+    setGuardandoAsistencia(true)
+    try {
+      const r = await api.post(`/practicos/${modalAsistencia.id}/asistencia`, { asistentes: [...asistentesSelec] })
+      setExito(r.data.message || 'Asistencia guardada')
+      setModalAsistencia(null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar asistencia')
+    } finally { setGuardandoAsistencia(false) }
   }
 
   return (
@@ -355,10 +396,17 @@ export default function Practicos() {
                             </button>
                           )}
                           {puedeCrear && (
-                            <button className="btn-rechazar" style={{ fontSize:11 }}
-                              onClick={() => handleEliminar(p.id)}>
-                              Eliminar
-                            </button>
+                            <>
+                              <button
+                                onClick={() => abrirModalAsistencia(p)}
+                                style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'0.5px solid #2B4BA0', color:'#2B4BA0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                                <Icon icon="lucide:user-check" width={12} /> Registrar asistencia
+                              </button>
+                              <button className="btn-rechazar" style={{ fontSize:11 }}
+                                onClick={() => handleEliminar(p.id)}>
+                                Eliminar
+                              </button>
+                            </>
                           )}
                         </div>
                       )}
@@ -407,6 +455,62 @@ export default function Practicos() {
           </div>
         </main>
       </div>
+
+      {/* Modal de asistencia */}
+      {modalAsistencia && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}
+          onClick={e => { if (e.target === e.currentTarget) setModalAsistencia(null) }}>
+          <div style={{ background:'white', borderRadius:12, padding:28, width:480, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:600 }}>Asistencia</div>
+                <div style={{ fontSize:12, color:'#888', marginTop:2 }}>{modalAsistencia.titulo}</div>
+              </div>
+              <button onClick={() => setModalAsistencia(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#888' }}><Icon icon="lucide:x" width={18} /></button>
+            </div>
+
+            {cargandoAsistencia ? (
+              <div style={{ textAlign:'center', color:'#888', padding:24 }}>Cargando colaboradores...</div>
+            ) : listaAsistencia.length === 0 ? (
+              <div style={{ textAlign:'center', color:'#888', padding:24 }}>No hay colaboradores asignados a este curso en esta sede.</div>
+            ) : (
+              <>
+                <div style={{ fontSize:12, color:'#555', marginBottom:10 }}>
+                  Marca los colaboradores que asistieron · <strong>{asistentesSelec.size}</strong> de {listaAsistencia.length}
+                </div>
+                <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:6, marginBottom:16 }}>
+                  {listaAsistencia.map(u => (
+                    <label key={u.id} style={{
+                      display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, cursor:'pointer',
+                      background: asistentesSelec.has(u.id) ? '#EEF2FF' : '#F9F9F9',
+                      border: `1px solid ${asistentesSelec.has(u.id) ? '#2B4BA0' : '#E8E8E8'}`
+                    }}>
+                      <input type="checkbox" checked={asistentesSelec.has(u.id)} onChange={() => toggleAsistente(u.id)} style={{ accentColor:'#2B4BA0' }} />
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:500 }}>{u.nombre}</div>
+                        {u.estamento && <div style={{ fontSize:11, color:'#888' }}>{u.estamento}</div>}
+                      </div>
+                      {asistentesSelec.has(u.id) && <Icon icon="lucide:check" width={14} style={{ color:'#2B4BA0' }} />}
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
+                  <button onClick={() => setAsistentesSelec(new Set(listaAsistencia.map(u => u.id)))}
+                    style={{ fontSize:12, padding:'6px 12px', borderRadius:6, border:'0.5px solid #E8E8E8', background:'none', cursor:'pointer', color:'#555' }}>
+                    Marcar todos
+                  </button>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => setModalAsistencia(null)} className="btn-outline-dark" style={{ fontSize:13 }}>Cancelar</button>
+                    <button onClick={guardarAsistencia} className="btn-primary" style={{ fontSize:13 }} disabled={guardandoAsistencia}>
+                      {guardandoAsistencia ? 'Guardando...' : 'Guardar asistencia'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal nuevo evento Google Calendar */}
       {mostrarModalEvento && (

@@ -56,7 +56,7 @@ export default function Capacitaciones() {
 
         <Sidebar />
 
-        <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <main className="main-content" role="main" aria-label="Listado de capacitaciones" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -135,13 +135,15 @@ export default function Capacitaciones() {
 
           {/* Filtros */}
           <div className="card" style={{ padding: '12px 16px' }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input type="text" placeholder="Buscar curso..."
+            <div role="search" aria-label="Filtros de búsqueda" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="search" placeholder="Buscar curso..."
+                aria-label="Buscar curso por nombre"
                 value={busqueda} onChange={e => setBusqueda(e.target.value)}
                 style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 13, background: '#F4F5F7' }}
               />
               {areas.length > 0 && (
                 <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)}
+                  aria-label="Filtrar por área"
                   style={{ height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 10px', fontSize: 13, background: '#F4F5F7' }}>
                   <option value="">Todas las áreas</option>
                   {areas.map(a => <option key={a} value={a}>{a}</option>)}
@@ -155,10 +157,10 @@ export default function Capacitaciones() {
 
           {/* Lista cursos */}
           {cargando ? (
-            <div className="card" style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando capacitaciones...</div>
+            <div className="card" role="status" aria-live="polite" style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando capacitaciones...</div>
           ) : cursosFiltrados.length === 0 ? (
-            <div className="card" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
-              <Icon icon="lucide:book-open" width={32} style={{marginBottom:12,display:"block",color:"#CCC"}} />
+            <div className="card" role="status" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
+              <Icon icon="lucide:book-open" width={32} style={{marginBottom:12,display:"block",color:"#CCC"}} aria-hidden="true" />
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
                 {busqueda || filtroArea ? 'No se encontraron cursos con ese criterio' : 'No hay cursos disponibles aún'}
               </div>
@@ -167,9 +169,9 @@ export default function Capacitaciones() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div role="list" aria-label="Lista de cursos" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {cursosFiltrados.map(curso => (
-                <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div key={curso.id} role="listitem" className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
 
                   {/* Ícono área */}
                   <div style={{
@@ -185,6 +187,7 @@ export default function Capacitaciones() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</span>
                       {!curso.publicado && <span className="format-tag tag-borrador">Borrador</span>}
+                      {curso.obligatorio === 1 && <span style={{ fontSize: 10, background: '#FFF0F0', color: '#C0392B', borderRadius: 20, padding: '2px 7px', fontWeight: 600 }}>OBLIGATORIO</span>}
                       {curso.generado_por_ia && <span style={{ fontSize: 10, background: '#F4F0FF', color: '#6B4DC4', borderRadius: 20, padding: '2px 7px', display:'inline-flex', alignItems:'center', gap:3 }}><Icon icon="lucide:sparkles" width={10} /> IA</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#888' }}>
@@ -207,14 +210,15 @@ export default function Capacitaciones() {
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     {usuario?.rol === 'colaborador' && (
                       <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
+                        aria-label={`${curso.progreso > 0 ? 'Continuar' : 'Iniciar'} curso ${curso.nombre}`}
                         onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
                         {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
                       </button>
                     )}
                     {usuario?.rol === 'profesor' && (
                       <>
-                        <button className="btn-sm btn-sm-outline" onClick={() => navigate(`/profesor/nuevo-curso`)}>
-                          Editar
+                        <button className="btn-sm btn-sm-outline" onClick={() => navigate(`/profesor/asignar/${curso.id}`)}>
+                          Gestionar
                         </button>
                         {!curso.publicado ? (
                           <button className="btn-sm btn-sm-primary"
@@ -222,7 +226,10 @@ export default function Capacitaciones() {
                             Publicar
                           </button>
                         ) : (
-                          <span className="format-tag tag-publicado" style={{ padding: '5px 10px' }}>Publicado</span>
+                          <button className="btn-sm btn-sm-outline"
+                            onClick={() => api.patch(`/cursos/${curso.id}/publicar`, { publicado: false }).then(cargarCursos)}>
+                            Despublicar
+                          </button>
                         )}
                       </>
                     )}

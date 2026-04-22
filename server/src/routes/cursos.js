@@ -7,6 +7,7 @@ const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../config/s3');
+const { notificarAdminDobleFallo } = require('../config/mailer');
 
 // Configuración de subida de archivos → Railway Object Storage (S3)
 const storage = multerS3({
@@ -303,8 +304,8 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
     );
   }
 
-  // Notificar admin_sede cuando se activa el bloqueo
-  if (intentos_fallidos >= 2 && !aprobado) {
+  // Notificar admin_sede la primera vez que se activa el bloqueo (exactamente 2 fallos)
+  if (intentos_fallidos === 2 && !aprobado) {
     try {
       const userInfo = await pool.query('SELECT sede_id, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
       const { sede_id, nombre: nombreColab } = userInfo.rows[0] || {};
@@ -312,8 +313,10 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
       const nombreCurso = cursoInfo.rows[0]?.nombre || 'Curso';
       if (sede_id) {
         const admins = await pool.query(
-          "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1", [sede_id]
+          "SELECT id, nombre, email FROM usuarios WHERE rol = 'admin_sede' AND sede_id = $1", [sede_id]
         );
+        const sedeInfo = await pool.query('SELECT nombre FROM sedes WHERE id = $1', [sede_id]);
+        const sedeNombre = sedeInfo.rows[0]?.nombre || 'la sede';
         for (const admin of admins.rows) {
           await pool.query(
             'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES ($1,$2,$3)',
@@ -321,9 +324,19 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
              'Colaborador bloqueado en curso',
              `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`]
           );
+          console.log(`[notif doble fallo] notificación insertada para admin id=${admin.id} (${admin.nombre})`);
+          if (admin.email) {
+            notificarAdminDobleFallo({
+              adminEmail: admin.email,
+              adminNombre: admin.nombre,
+              colaboradorNombre: nombreColab,
+              cursoNombre: nombreCurso,
+              sede: sedeNombre
+            }).catch(e => console.error('[mail doble fallo]', e.message));
+          }
         }
       }
-    } catch { /* notificación opcional */ }
+    } catch (e) { console.error('[notif doble fallo]', e.message); }
   }
 
   res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
