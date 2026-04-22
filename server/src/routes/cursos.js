@@ -374,6 +374,57 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
   res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
 });
 
+// POST /api/cursos/:id/certificado — genera el certificado del usuario si tiene el curso completado
+router.post('/:id/certificado', verificarToken, async (req, res) => {
+  const usuario_id = req.usuario.id;
+  const curso_id = req.params.id;
+  try {
+    const progresoResult = await pool.query(
+      'SELECT completado FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
+      [usuario_id, curso_id]
+    );
+    if (!progresoResult.rows[0]?.completado) {
+      return res.status(403).json({ error: 'El curso no está completado' });
+    }
+
+    const existing = await pool.query(
+      "SELECT * FROM certificados WHERE usuario_id = $1 AND curso_id = $2 AND estado = 'aprobado' AND archivo_url IS NOT NULL",
+      [usuario_id, curso_id]
+    );
+    if (existing.rows.length > 0) {
+      return res.json({ archivo_url: existing.rows[0].archivo_url });
+    }
+
+    await pool.query(
+      'INSERT IGNORE INTO certificados (usuario_id, curso_id) VALUES ($1,$2)',
+      [usuario_id, curso_id]
+    );
+    const certData = await pool.query(
+      `SELECT cert.id, u.nombre as usuario_nombre, u.rut as usuario_rut, u.estamento as usuario_estamento,
+              c.nombre as curso_nombre, s.nombre as sede_nombre
+       FROM certificados cert
+       JOIN usuarios u ON cert.usuario_id = u.id
+       JOIN cursos c ON cert.curso_id = c.id
+       LEFT JOIN sedes s ON u.sede_id = s.id
+       WHERE cert.usuario_id = $1 AND cert.curso_id = $2
+       ORDER BY cert.id DESC LIMIT 1`,
+      [usuario_id, curso_id]
+    );
+    if (certData.rows.length === 0) return res.status(500).json({ error: 'No se pudo crear el certificado' });
+
+    const cert = certData.rows[0];
+    const archivo_url = await generarCertificadoPDF(cert);
+    await pool.query(
+      "UPDATE certificados SET estado = 'aprobado', archivo_url = $1, fecha_emision = NOW() WHERE id = $2",
+      [archivo_url, cert.id]
+    );
+    res.json({ archivo_url });
+  } catch (err) {
+    console.error('[cert POST] ERROR:', err);
+    res.status(500).json({ error: 'Error al generar certificado', detalle: err.message });
+  }
+});
+
 // POST /api/cursos/:id/preguntas — agregar pregunta de evaluación
 router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const { texto, alternativas } = req.body;

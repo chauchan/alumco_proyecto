@@ -45,7 +45,7 @@ export default function CursoDetalle() {
         if (cert) {
           setCertificadoUrl(cert.archivo_url)
         } else {
-          return api.post(`/certificados/generar/${cursoId}`)
+          return api.post(`/cursos/${cursoId}/certificado`)
             .then(res => {
               if (res.data?.archivo_url) setCertificadoUrl(res.data.archivo_url)
               else setCertError('El servidor no devolvió la URL del certificado')
