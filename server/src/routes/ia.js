@@ -96,51 +96,51 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
   const sharp = require('sharp');
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `alumco-imgs-${cursoId}-`));
 
-  fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
-
-  const outPrefix = path.join(outDir, 'img');
-  await new Promise((resolve) => {
-    execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
-      if (err) console.warn('[IA] pdfimages error:', err.message);
-      resolve();
+  try {
+    const outPrefix = path.join(tmpDir, 'img');
+    await new Promise((resolve) => {
+      execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
+        if (err) console.warn('[IA] pdfimages error:', err.message);
+        resolve();
+      });
     });
 
     const archivos = fs.readdirSync(tmpDir)
       .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
       .sort();
 
-  const hashCount = {};
-  const fileHashes = {};
-  for (const archivo of archivos) {
-    try {
-      const buf = fs.readFileSync(path.join(outDir, archivo));
-      const h = crypto.createHash('md5').update(buf).digest('hex');
-      fileHashes[archivo] = h;
-      hashCount[h] = (hashCount[h] || 0) + 1;
-    } catch {}
-  }
+    const hashCount = {};
+    const fileHashes = {};
+    for (const archivo of archivos) {
+      try {
+        const buf = fs.readFileSync(path.join(tmpDir, archivo));
+        const h = crypto.createHash('md5').update(buf).digest('hex');
+        fileHashes[archivo] = h;
+        hashCount[h] = (hashCount[h] || 0) + 1;
+      } catch {}
+    }
 
-  const utiles = [];
-  for (const archivo of archivos) {
-    const fullPath = path.join(outDir, archivo);
-    try {
-      const stat = fs.statSync(fullPath);
-      if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
-        fs.unlinkSync(fullPath); continue;
-      }
-      let finalPath = fullPath;
-      if (archivo.endsWith('.ppm')) {
-        finalPath = fullPath.replace('.ppm', '.png');
-        await sharp(fullPath).png().toFile(finalPath);
-        fs.unlinkSync(fullPath);
-      }
-      const meta = await sharp(finalPath).metadata();
-      if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
-        fs.unlinkSync(finalPath); continue;
-      }
-      utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-    } catch {}
-  }
+    const utiles = [];
+    for (const archivo of archivos) {
+      const fullPath = path.join(tmpDir, archivo);
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
+          fs.unlinkSync(fullPath); continue;
+        }
+        let finalPath = fullPath;
+        if (archivo.endsWith('.ppm')) {
+          finalPath = fullPath.replace('.ppm', '.png');
+          await sharp(fullPath).png().toFile(finalPath);
+          fs.unlinkSync(fullPath);
+        }
+        const meta = await sharp(finalPath).metadata();
+        if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
+          fs.unlinkSync(finalPath); continue;
+        }
+        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
+      } catch {}
+    }
 
     console.log('[IA] Imágenes count:', utiles.length);
     console.log('[IA] Imágenes URL[0]:', utiles[0]);

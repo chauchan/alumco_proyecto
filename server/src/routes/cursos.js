@@ -214,9 +214,8 @@ router.get('/:id', verificarToken, async (req, res) => {
     );
     const estamento_objetivo = ests.map(e => e.nombre);
 
-    const imagenesDir = path.join(__dirname, '../../uploads/imagenes', String(req.params.id));
     let imagenes_protocolo = [];
-    const _rawImagenes = curso.rows[0].imagenes_protocolo;
+    const _rawImagenes = cursoRows[0].imagenes_protocolo;
     const imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
     if (Array.isArray(imagenesDB) && imagenesDB.length > 0) {
       imagenes_protocolo = await Promise.all(
