@@ -31,7 +31,38 @@ export default function CursoDetalle() {
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
+  const [certificadoUrl, setCertificadoUrl] = useState(null)
+  const [certError, setCertError] = useState(null)
   const videoRef = useRef(null)
+
+  // Buscar certificado aprobado; si no existe, generarlo bajo demanda
+  useEffect(() => {
+    if (!resultado?.aprobado || certificadoUrl || certError) return
+    setCertError(null)
+    api.get('/certificados')
+      .then(r => {
+        const cert = r.data.find(c => c.curso_id === parseInt(cursoId) && c.estado === 'aprobado' && c.archivo_url)
+        if (cert) {
+          setCertificadoUrl(cert.archivo_url)
+        } else {
+          return api.post(`/certificados/generar/${cursoId}`)
+            .then(res => {
+              if (res.data?.archivo_url) setCertificadoUrl(res.data.archivo_url)
+              else setCertError('El servidor no devolvió la URL del certificado')
+            })
+            .catch(err => {
+              const msg = err?.response?.data?.detalle || err?.response?.data?.error || err.message
+              console.error('[cert] Error al generar:', msg)
+              setCertError(msg)
+            })
+        }
+      })
+      .catch(err => {
+        const msg = err?.response?.data?.error || err.message
+        console.error('[cert] Error al buscar certificados:', msg)
+        setCertError(msg)
+      })
+  }, [resultado?.aprobado, cursoId, certificadoUrl, certError])
 
   // Obtener URL firmada cuando cambia el módulo activo
   useEffect(() => {
@@ -174,6 +205,7 @@ export default function CursoDetalle() {
       : null
     try {
       const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
+      if (aprobado && r.data?.certificado_url) setCertificadoUrl(r.data.certificado_url)
       const fallidosFinal = aprobado ? 0 : parseInt(r.data?.intentos_fallidos ?? intentosFallidosLocales, 10)
       const bhFinal = r.data?.bloqueado_hasta ?? bloqueadoHastaLocal
       if (bhFinal && new Date(bhFinal) > new Date()) {
@@ -654,6 +686,28 @@ export default function CursoDetalle() {
                               <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
+                              {certificadoUrl ? (
+                                <a href={certificadoUrl} target="_blank" rel="noreferrer"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#15803D', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
+                                  <Icon icon="lucide:download" width={16} />
+                                  Descargar certificado
+                                </a>
+                              ) : certError ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                  <div style={{ fontSize: 12, color: '#E8505B', background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 16px', maxWidth: 340, wordBreak: 'break-word' }}>
+                                    Error: {certError}
+                                  </div>
+                                  <button onClick={() => { setCertError(null); setCertificadoUrl(null) }}
+                                    style={{ fontSize: 12, color: '#2B4BA0', background: 'none', border: '1px solid #2B4BA0', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}>
+                                    Reintentar
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <Icon icon="lucide:loader-2" width={13} style={{ animation: 'spin 1s linear infinite' }} />
+                                  Generando certificado...
+                                </div>
+                              )}
                               <button onClick={() => navigate(-1)}
                                 style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
                                 Volver a capacitaciones

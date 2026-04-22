@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarAdminDobleFallo } = require('../config/mailer');
+const { generarCertificadoPDF } = require('./certificados');
 
 // GET /api/evaluaciones/:curso_id/estado — estado del usuario en la evaluación
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
@@ -65,12 +66,34 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       [usuario_id, curso_id, numero_intento, JSON.stringify(respuestas), nota, cursoAprobado]
     );
 
-    // Si aprobó, crear certificado pendiente de validación
+    // Si aprobó, crear certificado y generar PDF automáticamente
     if (cursoAprobado) {
       await pool.query(
         'INSERT IGNORE INTO certificados (usuario_id, curso_id, intento_id) VALUES ($1,$2,$3)',
         [usuario_id, curso_id, intentoResult.rows[0].id]
       );
+      try {
+        const certData = await pool.query(
+          `SELECT cert.id, u.nombre as usuario_nombre, u.rut as usuario_rut, u.estamento as usuario_estamento,
+                  c.nombre as curso_nombre, s.nombre as sede_nombre
+           FROM certificados cert
+           JOIN usuarios u ON cert.usuario_id = u.id
+           JOIN cursos c ON cert.curso_id = c.id
+           LEFT JOIN sedes s ON u.sede_id = s.id
+           WHERE cert.usuario_id = $1 AND cert.curso_id = $2 AND cert.estado = 'pendiente'`,
+          [usuario_id, curso_id]
+        );
+        if (certData.rows.length > 0) {
+          const cert = certData.rows[0];
+          const archivo_url = await generarCertificadoPDF(cert);
+          await pool.query(
+            "UPDATE certificados SET estado = 'aprobado', archivo_url = $1, fecha_emision = NOW() WHERE id = $2",
+            [archivo_url, cert.id]
+          );
+        }
+      } catch (pdfErr) {
+        console.error('[cert PDF] Error al generar certificado automático:', pdfErr.message);
+      }
     }
 
     // Si doble fallo, notificar al admin_sede (in-app + email)
@@ -124,7 +147,7 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       numero_intento,
       doble_fallo: !cursoAprobado && numero_intento === 2,
       message: cursoAprobado
-        ? 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.'
+        ? 'Felicitaciones, aprobaste el curso. Tu certificado ha sido generado y está disponible para descargar.'
         : numero_intento === 2
           ? 'No aprobaste. Has alcanzado el máximo de intentos. Contacta a tu profesor para un refuerzo.'
           : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`

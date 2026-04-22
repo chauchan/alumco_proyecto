@@ -136,6 +136,61 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
   }
 });
 
+// POST /api/certificados/generar/:curso_id — genera (o regenera) el certificado del usuario autenticado
+router.post('/generar/:curso_id', verificarToken, async (req, res) => {
+  const usuario_id = req.usuario.id;
+  const curso_id = req.params.curso_id;
+  try {
+    // Verificar que el curso está completado
+    const progresoResult = await pool.query(
+      'SELECT completado FROM progreso WHERE usuario_id = $1 AND curso_id = $2',
+      [usuario_id, curso_id]
+    );
+    if (!progresoResult.rows[0]?.completado) {
+      return res.status(403).json({ error: 'El curso no está completado' });
+    }
+
+    // Si ya existe un certificado aprobado con PDF, devolver el existente
+    const existing = await pool.query(
+      'SELECT * FROM certificados WHERE usuario_id = $1 AND curso_id = $2 AND estado = $3 AND archivo_url IS NOT NULL',
+      [usuario_id, curso_id, 'aprobado']
+    );
+    if (existing.rows.length > 0) {
+      return res.json({ archivo_url: existing.rows[0].archivo_url });
+    }
+
+    // Crear o reutilizar registro pendiente
+    await pool.query(
+      'INSERT IGNORE INTO certificados (usuario_id, curso_id) VALUES ($1,$2)',
+      [usuario_id, curso_id]
+    );
+
+    const certData = await pool.query(
+      `SELECT cert.id, u.nombre as usuario_nombre, u.rut as usuario_rut, u.estamento as usuario_estamento,
+              c.nombre as curso_nombre, s.nombre as sede_nombre
+       FROM certificados cert
+       JOIN usuarios u ON cert.usuario_id = u.id
+       JOIN cursos c ON cert.curso_id = c.id
+       LEFT JOIN sedes s ON u.sede_id = s.id
+       WHERE cert.usuario_id = $1 AND cert.curso_id = $2
+       ORDER BY cert.id DESC LIMIT 1`,
+      [usuario_id, curso_id]
+    );
+    if (certData.rows.length === 0) return res.status(500).json({ error: 'No se pudo crear el certificado' });
+
+    const cert = certData.rows[0];
+    const archivo_url = await generarCertificadoPDF(cert);
+    await pool.query(
+      "UPDATE certificados SET estado = 'aprobado', archivo_url = $1, fecha_emision = NOW() WHERE id = $2",
+      [archivo_url, cert.id]
+    );
+    res.json({ archivo_url });
+  } catch (err) {
+    console.error('[cert generar] FULL ERROR:', err);
+    res.status(500).json({ error: 'Error al generar certificado', detalle: err.message });
+  }
+});
+
 // Función auxiliar: generar PDF del certificado y subirlo a S3
 async function generarCertificadoPDF(cert) {
   const buffer = await new Promise((resolve, reject) => {
@@ -270,4 +325,4 @@ async function generarCertificadoPDF(cert) {
   return uploadBuffer(buffer, key, 'application/pdf');
 }
 
-module.exports = router;
+module.exports = { router, generarCertificadoPDF };

@@ -8,6 +8,7 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../config/s3');
 const { notificarAdminDobleFallo } = require('../config/mailer');
+const { generarCertificadoPDF } = require('./certificados');
 
 // Configuración de subida de archivos → Railway Object Storage (S3)
 const storage = multerS3({
@@ -337,6 +338,37 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
         }
       }
     } catch (e) { console.error('[notif doble fallo]', e.message); }
+  }
+
+  // Si aprobó la evaluación, crear certificado y generar PDF automáticamente
+  if (es_evaluacion && aprobado) {
+    try {
+      await pool.query(
+        'INSERT IGNORE INTO certificados (usuario_id, curso_id) VALUES ($1,$2)',
+        [req.usuario.id, req.params.id]
+      );
+      const certData = await pool.query(
+        `SELECT cert.id, u.nombre as usuario_nombre, u.rut as usuario_rut, u.estamento as usuario_estamento,
+                c.nombre as curso_nombre, s.nombre as sede_nombre
+         FROM certificados cert
+         JOIN usuarios u ON cert.usuario_id = u.id
+         JOIN cursos c ON cert.curso_id = c.id
+         LEFT JOIN sedes s ON u.sede_id = s.id
+         WHERE cert.usuario_id = $1 AND cert.curso_id = $2 AND cert.estado = 'pendiente'`,
+        [req.usuario.id, req.params.id]
+      );
+      if (certData.rows.length > 0) {
+        const cert = certData.rows[0];
+        const archivo_url = await generarCertificadoPDF(cert);
+        await pool.query(
+          "UPDATE certificados SET estado = 'aprobado', archivo_url = $1, fecha_emision = NOW() WHERE id = $2",
+          [archivo_url, cert.id]
+        );
+        return res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta, certificado_url: archivo_url });
+      }
+    } catch (pdfErr) {
+      console.error('[cert PDF] Error al generar certificado automático:', pdfErr.message);
+    }
   }
 
   res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
