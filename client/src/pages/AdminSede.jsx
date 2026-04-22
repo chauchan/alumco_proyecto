@@ -169,7 +169,7 @@ export default function AdminSede() {
             </div>
             {notificaciones.length === 0 ? (
               <div style={{ padding:'20px 0', textAlign:'center', color:'#aaa', fontSize:12 }}>
-                <Icon icon="lucide:check-circle" width={20} style={{display:'block',margin:'0 auto 8px',color:'#22C55E'}} />
+                <Icon icon="lucide:check-circle" width={20} style={{display:'block', alignItems:'center',margin:'0 auto 8px',color:'#22C55E'}} />
                 Sin alertas pendientes
               </div>
             ) : notificaciones.map(n => (
