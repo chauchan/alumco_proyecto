@@ -19,6 +19,15 @@ const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
 const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Resuelve el nombre de área a su id (inserta si no existe)
+async function resolveAreaId(nombre) {
+  if (!nombre) return null;
+  const { rows } = await pool.query('SELECT id FROM areas WHERE nombre = ?', [nombre]);
+  if (rows.length) return rows[0].id;
+  const { lastID } = await pool.query('INSERT INTO areas (nombre) VALUES (?)', [nombre]);
+  return lastID;
+}
+
 // ── Convierte PDF a imágenes PNG usando pdftoppm ──────────────────────────────
 function pdfToImages(pdfPath, outDir, maxPages = 4) {
   return new Promise((resolve, reject) => {
@@ -87,54 +96,51 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
   const sharp = require('sharp');
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `alumco-imgs-${cursoId}-`));
 
-  try {
-    const outPrefix = path.join(tmpDir, 'img');
-    await new Promise((resolve) => {
-      execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
-        if (err) console.warn('[IA] pdfimages error:', err.message);
-        resolve();
-      });
+  fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
+
+  const outPrefix = path.join(outDir, 'img');
+  await new Promise((resolve) => {
+    execFile('pdfimages', ['-png', pdfPath, outPrefix], (err) => {
+      if (err) console.warn('[IA] pdfimages error:', err.message);
+      resolve();
     });
 
     const archivos = fs.readdirSync(tmpDir)
       .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
       .sort();
 
-    // Calcular MD5 de cada archivo para detectar imágenes repetidas (logos)
-    const hashCount = {};
-    const fileHashes = {};
-    for (const archivo of archivos) {
-      try {
-        const buf = fs.readFileSync(path.join(tmpDir, archivo));
-        const h = crypto.createHash('md5').update(buf).digest('hex');
-        fileHashes[archivo] = h;
-        hashCount[h] = (hashCount[h] || 0) + 1;
-      } catch {}
-    }
+  const hashCount = {};
+  const fileHashes = {};
+  for (const archivo of archivos) {
+    try {
+      const buf = fs.readFileSync(path.join(outDir, archivo));
+      const h = crypto.createHash('md5').update(buf).digest('hex');
+      fileHashes[archivo] = h;
+      hashCount[h] = (hashCount[h] || 0) + 1;
+    } catch {}
+  }
 
-    const utiles = [];
-    for (const archivo of archivos) {
-      const fullPath = path.join(tmpDir, archivo);
-      try {
-        const stat = fs.statSync(fullPath);
-        // Descartar imágenes pequeñas (< 8 KB) o repetidas más de 2 veces (logo de cada página)
-        if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) continue;
-
-        let pngBuffer;
-        if (archivo.endsWith('.ppm')) {
-          pngBuffer = await sharp(fullPath).png().toBuffer();
-        } else {
-          pngBuffer = fs.readFileSync(fullPath);
-        }
-
-        const meta = await sharp(pngBuffer).metadata();
-        if ((meta.width || 0) < 100 || (meta.height || 0) < 100) continue;
-
-        const key = `imagenes/${cursoId}/${archivo.replace('.ppm', '.png')}`;
-        const url = await uploadBuffer(pngBuffer, key, 'image/png');
-        utiles.push(url);
-      } catch {}
-    }
+  const utiles = [];
+  for (const archivo of archivos) {
+    const fullPath = path.join(outDir, archivo);
+    try {
+      const stat = fs.statSync(fullPath);
+      if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
+        fs.unlinkSync(fullPath); continue;
+      }
+      let finalPath = fullPath;
+      if (archivo.endsWith('.ppm')) {
+        finalPath = fullPath.replace('.ppm', '.png');
+        await sharp(fullPath).png().toFile(finalPath);
+        fs.unlinkSync(fullPath);
+      }
+      const meta = await sharp(finalPath).metadata();
+      if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
+        fs.unlinkSync(finalPath); continue;
+      }
+      utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
+    } catch {}
+  }
 
     console.log('[IA] Imágenes count:', utiles.length);
     console.log('[IA] Imágenes URL[0]:', utiles[0]);
@@ -258,24 +264,12 @@ async function llamarIA(prompt, timeoutMs = 480000) {
 
 function parsearJSON(texto) {
   if (!texto) throw new Error('La IA no devolvió contenido');
-  // Eliminar bloques <think>...</think> de modelos de razonamiento
   let t = texto.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  // Intento directo
   try { return JSON.parse(t); } catch {}
-  // Bloque de código markdown ```json ... ```
   const mdMatch = t.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (mdMatch) { try { return JSON.parse(mdMatch[1].trim()); } catch {} }
-  // Buscar desde cada { balanceando llaves (maneja texto de razonamiento previo)
-  let pos = 0;
-  while ((pos = t.indexOf('{', pos)) !== -1) {
-    let depth = 0, end = -1;
-    for (let i = pos; i < t.length; i++) {
-      if (t[i] === '{') depth++;
-      else if (t[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
-    }
-    if (end !== -1) { try { return JSON.parse(t.slice(pos, end + 1)); } catch {} }
-    pos++;
-  }
+  const candidatos = [...t.matchAll(/\{[\s\S]*?\}/g)].map(m => m[0]).sort((a,b) => b.length - a.length);
+  for (const c of candidatos) { try { return JSON.parse(c); } catch {} }
   throw new Error('La IA no devolvió un JSON válido');
 }
 
@@ -305,26 +299,23 @@ Responde SOLO el JSON.`;
       return parsed;
     } catch (e) {
       console.warn(`[IA] Error generando PPT para "${titulo}" (intento ${intento}/2):`, e.message);
-      if (intento < 2) await new Promise(r => setTimeout(r, 2000)); // 2s antes del reintento
+      if (intento < 2) await new Promise(r => setTimeout(r, 2000));
     }
   }
   return null;
 }
 
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
-// Paso 1: genera SOLO estructura de módulos + preguntas (rápido ~30-60s)
 router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.single('protocolo'), async (req, res) => {
   const { nombre_curso, area, profesor_id, contexto, num_modulos, protocolo_id } = req.body;
 
-  // Permite usar protocolo guardado en lugar de subir un nuevo PDF
   if (!req.file && protocolo_id) {
-    const result = await pool.query('SELECT * FROM protocolos WHERE id = $1', [protocolo_id]);
+    const result = await pool.query('SELECT * FROM protocolos WHERE id = ?', [protocolo_id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Protocolo no encontrado' });
     req.file = { path: result.rows[0].archivo_path, originalname: result.rows[0].archivo_nombre, _fromLib: true };
   }
 
   if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
-
   if (!nombre_curso) return res.status(400).json({ error: 'El nombre del curso es requerido' });
 
   try {
@@ -345,7 +336,6 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
 
     const pdfBuffer = fs.readFileSync(req.file.path);
 
-    // ── Paso 2: moondream describe páginas del PDF (texto + imágenes) ──
     let textoPdf;
     console.log('[IA] Paso 2: convirtiendo PDF a imágenes y describiendo con moondream...');
     try {
@@ -376,8 +366,6 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
     const textoParaOllama = textoPdf.slice(0, limiteChars);
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
 
-    // ── Paso 3a: generar solo los módulos (sin preguntas) ────────────────────
-    // Separado para no exceder el contexto del modelo con protocolo + preguntas juntos
     const promptModulos = `Analiza el siguiente protocolo de cuidado del adulto mayor y genera los módulos de un curso de capacitación.
 
 Responde ÚNICAMENTE con este JSON (sin texto adicional):
@@ -397,11 +385,9 @@ ${textoParaOllama}`;
     const respModulos = await llamarIA(promptModulos);
     console.log('[IA] Raw módulos (1000 chars):', respModulos?.slice(0, 1000));
     const borradorModulos = parsearJSON(respModulos);
-    if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0) {
+    if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0)
       throw new Error('La IA no generó módulos válidos');
-    }
 
-    // ── Paso 3b: generar preguntas para cada módulo ───────────────────────────
     console.log('[IA] Paso 3b: generando preguntas para', borradorModulos.modulos.length, 'módulos...');
     const modulos = await Promise.all(borradorModulos.modulos.map(async (mod) => {
       const promptPreguntas = `Genera 4 preguntas de opción múltiple para el módulo "${mod.titulo}" de un curso sobre: ${mod.descripcion}
@@ -426,7 +412,6 @@ Reglas:
       }
     }));
 
-    // ── Paso 3c: generar PPT para cada módulo (secuencial para evitar rate limit) ─
     console.log('[IA] Paso 3c: generando presentaciones PPT...');
     const modulosConPPT = [];
     for (const mod of modulos) {
@@ -439,54 +424,64 @@ Reglas:
     const modulosGenerados = borrador.modulos.length;
     console.log('[IA] Paso 5: módulos generados:', modulosGenerados);
 
-    // ── Avisos sobre cantidad de módulos ──────────────────────────────────────
-    // Estimación de cuántos módulos "aguanta" el contenido según longitud del texto
     const modulosOptimo = totalChars > 12000 ? 7
       : totalChars > 6000  ? 6
       : totalChars > 3500  ? 5
       : totalChars > 2000  ? 4
-      : totalChars > 1000  ? 3
-      : 2;
+      : totalChars > 1000  ? 3 : 2;
     console.log(`[IA] totalChars=${totalChars}, modulosOptimo=${modulosOptimo}, modulosFijo=${modulosFijo}, modulosGenerados=${modulosGenerados}`);
     let aviso = null;
     if (modulosFijo) {
       if (modulosFijo > modulosOptimo) {
-        aviso = {
-          tipo: 'menos',
-          mensaje: `Pediste ${modulosFijo} módulos pero el protocolo tiene contenido para ${modulosOptimo} como máximo. Algunos módulos pueden quedar con información escasa o repetida. Considera usar un documento más extenso.`
-        };
+        aviso = { tipo: 'menos', mensaje: `Pediste ${modulosFijo} módulos pero el protocolo tiene contenido para ${modulosOptimo} como máximo. Algunos módulos pueden quedar con información escasa o repetida. Considera usar un documento más extenso.` };
       } else if (modulosFijo < modulosOptimo - 1) {
-        aviso = {
-          tipo: 'mas',
-          mensaje: `El protocolo tiene información suficiente para hasta ${modulosOptimo} módulos. Genera nuevamente eligiendo un número mayor para aprovechar mejor el material.`
-        };
+        aviso = { tipo: 'mas', mensaje: `El protocolo tiene información suficiente para hasta ${modulosOptimo} módulos. Genera nuevamente eligiendo un número mayor para aprovechar mejor el material.` };
       }
     }
 
-    const cursoResult = await pool.query(
-      'INSERT INTO cursos (nombre, descripcion, area, profesor_id, publicado, generado_por_ia) VALUES ($1,$2,$3,$4,0,1)',
-      [nombre_curso, `Generado desde: ${req.file.originalname}`, area || null, profesor_id || null]
+    // Resolver area_id antes de insertar el curso
+    const area_id = await resolveAreaId(area);
+
+    const { lastID: cursoId } = await pool.query(
+      'INSERT INTO cursos (nombre, descripcion, area_id, profesor_id, publicado, generado_por_ia) VALUES (?, ?, ?, ?, 0, 1)',
+      [nombre_curso, `Generado desde: ${req.file.originalname}`, area_id, profesor_id || null]
     );
-    const cursoId = cursoResult.lastID;
     console.log('[IA] Paso 6: curso insertado, id:', cursoId);
 
     const modulosConId = [];
     for (let i = 0; i < borrador.modulos.length; i++) {
       const mod = borrador.modulos[i];
-      const insM = await pool.query(
-        'INSERT INTO modulos (curso_id, titulo, descripcion, contenido_presentacion, tipo, orden) VALUES ($1,$2,$3,$4,$5,$6)',
-        [cursoId, (mod.titulo || '').slice(0, 190), mod.descripcion,
-         mod.presentacion ? JSON.stringify(mod.presentacion) : null,
-         'ppt', i + 1]
+
+      const { lastID: moduloId } = await pool.query(
+        'INSERT INTO modulos (curso_id, titulo, descripcion, tipo, orden) VALUES (?, ?, ?, ?, ?)',
+        [cursoId, mod.titulo, mod.descripcion, 'ppt', i + 1]
       );
-      modulosConId.push({ ...mod, id: insM.lastID });
+
+      // Insertar slides en modulo_slides
+      if (mod.presentacion?.diapositivas) {
+        for (let si = 0; si < mod.presentacion.diapositivas.length; si++) {
+          await pool.query(
+            'INSERT INTO modulo_slides (modulo_id, numero, datos) VALUES (?, ?, ?)',
+            [moduloId, si + 1, JSON.stringify(mod.presentacion.diapositivas[si])]
+          );
+        }
+      }
+
+      modulosConId.push({ ...mod, id: moduloId });
+
+      // Insertar preguntas y sus alternativas en tablas separadas
       for (const pregunta of (mod.preguntas || [])) {
-        // Saltar preguntas malformadas que Ollama devuelve sin alternativas
         if (!pregunta.texto || !Array.isArray(pregunta.alternativas) || pregunta.alternativas.length === 0) continue;
-        await pool.query(
-          'INSERT INTO preguntas (curso_id, texto, alternativas) VALUES ($1,$2,$3)',
-          [cursoId, pregunta.texto, JSON.stringify(pregunta.alternativas)]
+        const { lastID: preguntaId } = await pool.query(
+          'INSERT INTO preguntas (curso_id, texto) VALUES (?, ?)',
+          [cursoId, pregunta.texto]
         );
+        for (const alt of pregunta.alternativas) {
+          await pool.query(
+            'INSERT INTO alternativas (pregunta_id, texto, correcta) VALUES (?, ?, ?)',
+            [preguntaId, alt.texto, alt.correcta ? 1 : 0]
+          );
+        }
       }
     }
 
@@ -505,10 +500,7 @@ Reglas:
       }
     }
 
-    // Borrar el PDF si fue upload temporal o descarga temporal desde S3
-    if (!req.file._fromLib || req.file._tmpDownload) {
-      if (fs.existsSync(pdfPathGuardado)) fs.unlinkSync(pdfPathGuardado);
-    }
+    if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 
     res.status(201).json({
       curso_id: cursoId,
@@ -526,16 +518,14 @@ Reglas:
 
   } catch (err) {
     console.error('[IA] Error completo:', err);
-    if (req.file?.path && (!req.file._fromLib || req.file._tmpDownload) && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    if (err.name === 'AbortError') {
+    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (err.name === 'AbortError')
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
-    }
     res.status(500).json({ error: err.message || 'Error al generar el curso con IA.' });
   }
 });
 
 // ─── POST /api/ia/generar-presentacion ────────────────────────────────────────
-// Paso 2 (on-demand): genera la presentación de UN módulo específico
 router.post('/generar-presentacion', verificarToken, verificarRol('jefatura', 'admin_sede', 'profesor'), async (req, res) => {
   const { titulo, descripcion, contexto } = req.body;
   if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
@@ -547,61 +537,16 @@ Responde SOLO con este JSON exacto, sin texto adicional:
 
 {
   "diapositivas": [
-    {
-      "tipo": "objetivos",
-      "titulo": "Objetivos de aprendizaje",
-      "lista": ["Al finalizar podrás... 1", "Al finalizar podrás... 2", "Al finalizar podrás... 3"]
-    },
-    {
-      "tipo": "desempeno",
-      "titulo": "Objetivo de desempeño",
-      "descripcion": "Al finalizar este módulo, el trabajador será capaz de [acción concreta y medible]"
-    },
-    {
-      "tipo": "introduccion",
-      "titulo": "Introducción",
-      "texto": "párrafo de 3-4 oraciones que contextualice el tema y su importancia en el ELEAM"
-    },
-    {
-      "tipo": "seccion",
-      "titulo": "título del primer tema de contenido",
-      "texto": "explicación clara en 3-4 oraciones",
-      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
-    },
-    {
-      "tipo": "seccion",
-      "titulo": "título del segundo tema de contenido",
-      "texto": "explicación clara en 3-4 oraciones",
-      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
-    },
-    {
-      "tipo": "seccion",
-      "titulo": "título del tercer tema de contenido",
-      "texto": "explicación clara en 3-4 oraciones",
-      "puntos": ["punto práctico 1", "punto práctico 2"]
-    },
-    {
-      "tipo": "caso_practico",
-      "titulo": "Caso práctico",
-      "descripcion": "descripción de una situación real que puede ocurrir en el ELEAM",
-      "pasos": ["paso 1 de cómo actuar", "paso 2", "paso 3", "paso 4"]
-    },
-    {
-      "tipo": "puntos_clave",
-      "titulo": "Puntos claves del protocolo",
-      "puntos": ["punto clave 1", "punto clave 2", "punto clave 3", "punto clave 4"]
-    },
-    {
-      "tipo": "importante",
-      "titulo": "Cosas importantes",
-      "puntos": ["cosa importante 1", "cosa importante 2", "cosa importante 3"]
-    },
-    {
-      "tipo": "conclusion",
-      "titulo": "Conclusión",
-      "texto": "párrafo de cierre que refuerce la importancia del tema",
-      "mensaje": "frase motivacional corta para el trabajador"
-    }
+    {"tipo":"objetivos","titulo":"Objetivos de aprendizaje","lista":["Al finalizar podrás... 1","Al finalizar podrás... 2","Al finalizar podrás... 3"]},
+    {"tipo":"desempeno","titulo":"Objetivo de desempeño","descripcion":"Al finalizar este módulo, el trabajador será capaz de [acción concreta y medible]"},
+    {"tipo":"introduccion","titulo":"Introducción","texto":"párrafo de 3-4 oraciones que contextualice el tema y su importancia en el ELEAM"},
+    {"tipo":"seccion","titulo":"título del primer tema de contenido","texto":"explicación clara en 3-4 oraciones","puntos":["punto práctico 1","punto práctico 2","punto práctico 3"]},
+    {"tipo":"seccion","titulo":"título del segundo tema de contenido","texto":"explicación clara en 3-4 oraciones","puntos":["punto práctico 1","punto práctico 2","punto práctico 3"]},
+    {"tipo":"seccion","titulo":"título del tercer tema de contenido","texto":"explicación clara en 3-4 oraciones","puntos":["punto práctico 1","punto práctico 2"]},
+    {"tipo":"caso_practico","titulo":"Caso práctico","descripcion":"descripción de una situación real que puede ocurrir en el ELEAM","pasos":["paso 1 de cómo actuar","paso 2","paso 3","paso 4"]},
+    {"tipo":"puntos_clave","titulo":"Puntos claves del protocolo","puntos":["punto clave 1","punto clave 2","punto clave 3","punto clave 4"]},
+    {"tipo":"importante","titulo":"Cosas importantes","puntos":["cosa importante 1","cosa importante 2","cosa importante 3"]},
+    {"tipo":"conclusion","titulo":"Conclusión","texto":"párrafo de cierre que refuerce la importancia del tema","mensaje":"frase motivacional corta para el trabajador"}
   ]
 }
 
@@ -615,34 +560,45 @@ Responde SOLO el JSON.`;
     console.log('[IA] Generando presentación para:', titulo);
     const textoRespuesta = await llamarIA(prompt);
     const presentacion = parsearJSON(textoRespuesta);
-    // Normalizar: asegurar que diapositivas sea un array válido
-    if (!Array.isArray(presentacion.diapositivas)) presentacion.diapositivas = []
-    if (!presentacion.resumen || typeof presentacion.resumen !== 'object') presentacion.resumen = {}
+    if (!Array.isArray(presentacion.diapositivas)) presentacion.diapositivas = [];
+    if (!presentacion.resumen || typeof presentacion.resumen !== 'object') presentacion.resumen = {};
     res.json({ presentacion });
   } catch (err) {
     console.error('[IA] Error presentación:', err.message);
-    if (err.name === 'AbortError') {
+    if (err.name === 'AbortError')
       return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
-    }
     res.status(500).json({ error: 'Error al generar la presentación.' });
   }
 });
 
 // ─── POST /api/ia/modulo/:id/generar-ppt ──────────────────────────────────────
-// Genera y guarda el PPT de un módulo existente (accesible a todos los roles)
 router.post('/modulo/:id/generar-ppt', verificarToken, async (req, res) => {
   try {
-    const mod = await pool.query('SELECT id, titulo, descripcion, contenido_presentacion FROM modulos WHERE id = $1', [req.params.id]);
-    if (!mod.rows.length) return res.status(404).json({ error: 'Módulo no encontrado' });
-    const m = mod.rows[0];
-    // Si ya tiene contenido, devolverlo sin regenerar
-    if (m.contenido_presentacion) {
-      const cp = typeof m.contenido_presentacion === 'string' ? JSON.parse(m.contenido_presentacion) : m.contenido_presentacion;
-      return res.json({ presentacion: cp });
+    const { rows: modRows } = await pool.query(
+      'SELECT id, titulo, descripcion FROM modulos WHERE id = ?', [req.params.id]
+    );
+    if (!modRows.length) return res.status(404).json({ error: 'Módulo no encontrado' });
+    const m = modRows[0];
+
+    // Si ya tiene slides, devolverlas sin regenerar
+    const { rows: slides } = await pool.query(
+      'SELECT datos FROM modulo_slides WHERE modulo_id = ? ORDER BY numero', [m.id]
+    );
+    if (slides.length > 0) {
+      const diapositivas = slides.map(s => typeof s.datos === 'string' ? JSON.parse(s.datos) : s.datos);
+      return res.json({ presentacion: { diapositivas } });
     }
+
     const presentacion = await generarPPTModulo(m.titulo, m.descripcion);
     if (!presentacion) return res.status(500).json({ error: 'No se pudo generar la presentación' });
-    await pool.query('UPDATE modulos SET contenido_presentacion = $1 WHERE id = $2', [JSON.stringify(presentacion), m.id]);
+
+    await pool.query('DELETE FROM modulo_slides WHERE modulo_id = ?', [m.id]);
+    for (let i = 0; i < presentacion.diapositivas.length; i++) {
+      await pool.query(
+        'INSERT INTO modulo_slides (modulo_id, numero, datos) VALUES (?, ?, ?)',
+        [m.id, i + 1, JSON.stringify(presentacion.diapositivas[i])]
+      );
+    }
     res.json({ presentacion });
   } catch (err) {
     console.error('[IA] Error generar-ppt módulo:', err.message);
@@ -651,7 +607,6 @@ router.post('/modulo/:id/generar-ppt', verificarToken, async (req, res) => {
 });
 
 // ─── POST /api/ia/notificar-profesor ──────────────────────────────────────────
-// Se llama solo cuando el usuario presiona "Enviar al profesor"
 router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'admin_sede'), async (req, res) => {
   const { curso_id, curso_nombre, profesor_id, modulos_count, preguntas_count, nombre_archivo } = req.body;
   if (!curso_nombre) return res.status(400).json({ error: 'Datos del curso incompletos' });
@@ -659,10 +614,9 @@ router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'adm
   let profesorEmail  = null;
   let profesorNombre = 'Profesor';
   if (profesor_id) {
-    const result = await pool.query('SELECT nombre, email FROM usuarios WHERE id = $1', [profesor_id]);
-    const profesor = result.rows[0];
-    profesorEmail  = profesor?.email  || null;
-    profesorNombre = profesor?.nombre || 'Profesor';
+    const { rows } = await pool.query('SELECT nombre, email FROM usuarios WHERE id = ?', [profesor_id]);
+    profesorEmail  = rows[0]?.email  || null;
+    profesorNombre = rows[0]?.nombre || 'Profesor';
   }
 
   try {
@@ -685,9 +639,8 @@ router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'adm
 });
 
 // ─── POST /api/ia/generar-contenido ───────────────────────────────────────────
-// Genera contenido de aprendizaje para un módulo específico
 router.post('/generar-contenido', verificarToken, verificarRol('jefatura', 'admin_sede', 'profesor'), async (req, res) => {
-  const { modulo_id, titulo, descripcion, contexto } = req.body;
+  const { titulo, descripcion, contexto } = req.body;
   if (!titulo) return res.status(400).json({ error: 'El título del módulo es requerido' });
 
   const prompt = `Genera contenido educativo detallado en JSON para trabajadores de un hogar de adultos mayores (ELEAM) en Chile.
@@ -698,17 +651,13 @@ Responde SOLO con este JSON exacto, sin texto adicional:
 {
   "introduccion": "párrafo de 3-4 oraciones que contextualice el tema y su importancia en el trabajo diario",
   "secciones": [
-    {
-      "titulo": "título de la sección",
-      "texto": "explicación clara de 3-5 oraciones",
-      "puntos": ["punto práctico 1", "punto práctico 2", "punto práctico 3"]
-    }
+    {"titulo":"título de la sección","texto":"explicación clara de 3-5 oraciones","puntos":["punto práctico 1","punto práctico 2","punto práctico 3"]}
   ],
   "caso_practico": {
     "descripcion": "descripción de una situación real que puede ocurrir en el ELEAM",
-    "pasos": ["paso 1 de cómo actuar", "paso 2", "paso 3", "paso 4"]
+    "pasos": ["paso 1 de cómo actuar","paso 2","paso 3","paso 4"]
   },
-  "recuerda": ["punto clave 1 para recordar", "punto clave 2", "punto clave 3"]
+  "recuerda": ["punto clave 1 para recordar","punto clave 2","punto clave 3"]
 }
 
 Módulo: ${titulo}
@@ -721,12 +670,6 @@ Usa lenguaje simple, ejemplos concretos del trabajo diario. Responde SOLO el JSO
   try {
     const textoRespuesta = await llamarIA(prompt, 300000);
     const contenido = parsearJSON(textoRespuesta);
-
-    if (modulo_id) {
-      await pool.query('UPDATE modulos SET contenido_aprendizaje = ? WHERE id = ?',
-        [JSON.stringify(contenido), modulo_id]);
-    }
-
     res.json({ contenido });
   } catch (err) {
     if (err.name === 'AbortError') return res.status(504).json({ error: 'La IA tardó demasiado.' });
