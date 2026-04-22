@@ -216,11 +216,15 @@ router.get('/:id', verificarToken, async (req, res) => {
 
     const imagenesDir = path.join(__dirname, '../../uploads/imagenes', String(req.params.id));
     let imagenes_protocolo = [];
-    if (fs.existsSync(imagenesDir)) {
-      imagenes_protocolo = fs.readdirSync(imagenesDir)
-        .filter(f => f.endsWith('.png') || f.endsWith('.jpg'))
-        .sort()
-        .map(f => `/uploads/imagenes/${req.params.id}/${f}`);
+    const _rawImagenes = curso.rows[0].imagenes_protocolo;
+    const imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
+    if (Array.isArray(imagenesDB) && imagenesDB.length > 0) {
+      imagenes_protocolo = await Promise.all(
+        imagenesDB.map(url => {
+          const key = keyFromUrl(url);
+          return key ? generateSignedUrl(key, 3600) : url;
+        })
+      );
     }
 
     res.json({ ...cursoRows[0], estamento_objetivo, modulos, preguntas, imagenes_protocolo });

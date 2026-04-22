@@ -10,11 +10,14 @@ const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
+const { uploadBuffer } = require('../config/s3');
 
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
 const VISION_MODEL      = process.env.OLLAMA_VISION_MODEL || 'moondream';
-const OPENROUTER_KEY = null; // forzar siempre Ollama
+const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free';
+const OPENROUTER_URL   = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Resuelve el nombre de área a su id (inserta si no existe)
 async function resolveAreaId(nombre) {
@@ -41,9 +44,37 @@ function pdfToImages(pdfPath, outDir, maxPages = 4) {
   });
 }
 
-// ── Describe una imagen con moondream vía Ollama ──────────────────────────────
+// ── Describe una imagen con OpenRouter o moondream vía Ollama ────────────────
 async function describirImagen(imagePath) {
   const imageBase64 = fs.readFileSync(imagePath).toString('base64');
+  const promptVision = 'Describe detalladamente el contenido de esta imagen de un protocolo médico o de cuidado. Incluye: texto visible, tablas, posiciones corporales mostradas en fotos, procedimientos, horarios o esquemas. Responde en español.';
+
+  if (OPENROUTER_KEY) {
+    const response = await undiciFetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://alumco.cl',
+        'X-Title': 'ALUMCO - Generador de Cursos'
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
+            { type: 'text', text: promptVision }
+          ]
+        }],
+        max_tokens: 1000
+      })
+    });
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  // Fallback: moondream vía Ollama (local)
   const response = await undiciFetch(`${OLLAMA_URL}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -59,12 +90,11 @@ async function describirImagen(imagePath) {
   return data.response || '';
 }
 
-// ── Extrae imágenes embebidas del PDF filtrando logos repetidos (por MD5) ──────
+// ── Extrae imágenes embebidas del PDF filtrando logos repetidos y sube al bucket ─
 async function extraerImagenesPDF(pdfPath, cursoId) {
   const crypto = require('crypto');
   const sharp = require('sharp');
-  const outDir = path.join(__dirname, '../../uploads/imagenes', String(cursoId));
-  fs.mkdirSync(outDir, { recursive: true });
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `alumco-imgs-${cursoId}-`));
 
   fs.readdirSync(outDir).forEach(f => { try { fs.unlinkSync(path.join(outDir, f)); } catch {} });
 
@@ -74,11 +104,10 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
       if (err) console.warn('[IA] pdfimages error:', err.message);
       resolve();
     });
-  });
 
-  const archivos = fs.readdirSync(outDir)
-    .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
-    .sort();
+    const archivos = fs.readdirSync(tmpDir)
+      .filter(f => f.endsWith('.png') || f.endsWith('.ppm') || f.endsWith('.jpg'))
+      .sort();
 
   const hashCount = {};
   const fileHashes = {};
@@ -113,8 +142,12 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
     } catch {}
   }
 
-  console.log('[IA] Imágenes útiles del PDF (sin logos duplicados):', utiles.length);
-  return utiles;
+    console.log('[IA] Imágenes count:', utiles.length);
+    console.log('[IA] Imágenes URL[0]:', utiles[0]);
+    return utiles;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 // ── Extrae contenido completo del PDF: descripción visual de páginas ──────────
@@ -142,6 +175,54 @@ const upload = multer({
   },
   limits: { fileSize: 20 * 1024 * 1024 }
 });
+
+async function llamarOpenRouter(prompt, timeoutMs = 90000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await undiciFetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_KEY}`,
+        'HTTP-Referer': 'https://alumco.cl',
+        'X-Title': 'ALUMCO - Generador de Cursos'
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'Eres un experto en diseño instruccional. Tu tarea es SOLO generar el JSON solicitado. NO expliques tu razonamiento. NO agregues texto antes o después. Responde ÚNICAMENTE con el objeto JSON.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 12000,
+        stream: false,
+        response_format: { type: 'json_object' }
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`OpenRouter HTTP ${response.status}: ${body}`);
+    }
+    const data = await response.json();
+    const finishReason = data.choices?.[0]?.finish_reason;
+    const content = data.choices?.[0]?.message?.content || '';
+    const reasoning = data.choices?.[0]?.message?.reasoning || '';
+    console.log(`[IA] OpenRouter finish_reason=${finishReason} tokens=${data.usage?.total_tokens || '?'}`);
+    const candidato = content.includes('{') ? content : (reasoning.includes('{') ? reasoning : '');
+    if (!candidato) throw new Error(`OpenRouter no devolvió JSON (finish_reason: ${finishReason})`);
+    if (finishReason === 'length') {
+      console.warn('[IA] OpenRouter cortó la respuesta por longitud — puede estar incompleta');
+    }
+    return candidato;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function llamarOllama(prompt, timeoutMs = 480000) {
   const controller = new AbortController();
@@ -171,7 +252,12 @@ async function llamarOllama(prompt, timeoutMs = 480000) {
   }
 }
 
+
 async function llamarIA(prompt, timeoutMs = 480000) {
+  if (OPENROUTER_KEY) {
+    console.log(`[IA] Usando OpenRouter → ${OPENROUTER_MODEL}`);
+    return await llamarOpenRouter(prompt, timeoutMs);
+  }
   console.log(`[IA] Usando Ollama local → ${OLLAMA_MODEL}`);
   return await llamarOllama(prompt, timeoutMs);
 }
@@ -207,7 +293,7 @@ Descripción: ${descripcion || titulo}
 Responde SOLO el JSON.`;
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      const resp = await llamarIA(prompt, 300000);
+      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 90000 : 300000);
       const parsed = parsearJSON(resp);
       if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
       return parsed;
@@ -235,25 +321,48 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
   try {
     console.log('[IA] Paso 1: archivo recibido', req.file.originalname);
 
+    // Si el archivo viene del bucket S3 (URL), descargarlo a un temp local
+    if (req.file._fromLib && req.file.path.startsWith('http')) {
+      console.log('[IA] Descargando protocolo desde S3:', req.file.path);
+      const resp = await undiciFetch(req.file.path);
+      if (!resp.ok) throw new Error(`No se pudo descargar el protocolo: HTTP ${resp.status}`);
+      const arrayBuf = await resp.arrayBuffer();
+      const tmpPath = path.join(os.tmpdir(), `protocolo_${Date.now()}.pdf`);
+      fs.writeFileSync(tmpPath, Buffer.from(arrayBuf));
+      req.file.path = tmpPath;
+      req.file._tmpDownload = true;
+      console.log('[IA] Protocolo descargado a:', tmpPath);
+    }
+
     const pdfBuffer = fs.readFileSync(req.file.path);
 
     let textoPdf;
     console.log('[IA] Paso 2: convirtiendo PDF a imágenes y describiendo con moondream...');
     try {
       textoPdf = await extraerContenidoPDF(pdfBuffer, req.file.path);
-      console.log('[IA] Paso 2 OK: moondream extrajo', textoPdf.length, 'chars');
+      console.log('[IA] Paso 2 OK: visión extrajo', textoPdf.length, 'chars');
     } catch (visionErr) {
-      console.warn('[IA] Visión local falló, usando pdf-parse como fallback:', visionErr.message);
-      const pdfData = await pdfParse(pdfBuffer);
-      textoPdf = pdfData.text.trim();
-      console.log('[IA] Fallback pdf-parse:', textoPdf.length, 'chars');
+      console.warn('[IA] Visión falló, usando pdf-parse:', visionErr.message);
+      textoPdf = '';
+    }
+    // Si la visión extrajo poco texto, completar con pdf-parse
+    if (textoPdf.length < 500) {
+      console.log('[IA] Extracción visual insuficiente, usando pdf-parse...');
+      try {
+        const pdfData = await pdfParse(pdfBuffer);
+        const pdfText = pdfData.text.trim();
+        textoPdf = pdfText.length > textoPdf.length ? pdfText : textoPdf;
+        console.log('[IA] pdf-parse extrajo', pdfText.length, 'chars');
+      } catch (parseErr) {
+        console.warn('[IA] pdf-parse también falló:', parseErr.message);
+      }
     }
 
     const totalChars = textoPdf.length;
     const modulosFijo = num_modulos ? parseInt(num_modulos) : null;
     const modulosMin = modulosFijo || (totalChars > 15000 ? 5 : totalChars > 8000 ? 4 : 3);
     const modulosMax = modulosFijo || (totalChars > 15000 ? 7 : totalChars > 8000 ? 6 : 4);
-    const limiteChars = 6000;
+    const limiteChars = OPENROUTER_KEY ? 40000 : 6000;
     const textoParaOllama = textoPdf.slice(0, limiteChars);
     console.log('[IA] Paso 2: chars totales:', totalChars, '→ enviando:', textoParaOllama.length, '→ módulos:', modulosFijo ? `fijo: ${modulosFijo}` : `${modulosMin}-${modulosMax}`);
 
@@ -274,7 +383,7 @@ ${textoParaOllama}`;
 
     console.log('[IA] Paso 3: generando módulos...');
     const respModulos = await llamarIA(promptModulos);
-    console.log('[IA] Raw módulos (200 chars):', respModulos?.slice(0, 200));
+    console.log('[IA] Raw módulos (1000 chars):', respModulos?.slice(0, 1000));
     const borradorModulos = parsearJSON(respModulos);
     if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0)
       throw new Error('La IA no generó módulos válidos');
@@ -298,7 +407,7 @@ Reglas:
         const parsed = parsearJSON(respPreg);
         return { ...mod, preguntas: parsed.preguntas || [] };
       } catch (e) {
-        console.warn(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
+        console.error(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
         return { ...mod, preguntas: [] };
       }
     }));
@@ -380,7 +489,16 @@ Reglas:
     const nombreArchivo = req.file.originalname;
     const pdfPathGuardado = req.file.path;
 
+    // Extraer imágenes embebidas del PDF y guardarlas permanentemente en S3
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
+    if (imagenesProtocolo.length > 0) {
+      try {
+        await pool.query('UPDATE cursos SET imagenes_protocolo = $1 WHERE id = $2',
+          [JSON.stringify(imagenesProtocolo), cursoId]);
+      } catch (e) {
+        console.warn('[IA] No se pudo guardar imagenes_protocolo en BD:', e.message);
+      }
+    }
 
     if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 

@@ -130,6 +130,15 @@ async function start() {
     }
   }
 
+  try {
+    await pool.query(`ALTER TABLE cursos ADD COLUMN imagenes_protocolo JSON DEFAULT NULL`);
+    console.log('✓ Columna imagenes_protocolo agregada a cursos');
+  } catch (err) {
+    if (!err.message?.includes('Duplicate column')) {
+      console.warn('⚠ imagenes_protocolo column:', err.message);
+    }
+  }
+
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
 
   // Timeout amplio para peticiones largas (generación IA con múltiples módulos)
