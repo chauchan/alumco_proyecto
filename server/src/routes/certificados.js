@@ -180,4 +180,4 @@ async function generarCertificadoPDF(cert) {
   return uploadBuffer(buffer, key, 'application/pdf');
 }
 
-module.exports = router;
+module.exports = { router, generarCertificadoPDF };

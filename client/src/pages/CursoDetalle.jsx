@@ -32,6 +32,8 @@ export default function CursoDetalle() {
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
   const [generandoPPT, setGenerandoPPT] = useState({})
+  const [certificadoUrl, setCertificadoUrl] = useState(null)
+  const [certError, setCertError] = useState(null)
   const videoRef = useRef(null)
 
   // Obtener URL firmada cuando cambia el módulo activo
@@ -214,6 +216,7 @@ export default function CursoDetalle() {
       if (aprobado) {
         localStorage.removeItem(`curso_${userId}_${cursoId}_completados`)
         localStorage.removeItem(`curso_${userId}_${cursoId}_bloqueo`)
+        if (r.data?.certificado_url) setCertificadoUrl(r.data.certificado_url)
       }
     } catch (err) {
       const bh403 = err?.response?.data?.bloqueado_hasta
@@ -238,6 +241,20 @@ export default function CursoDetalle() {
     if (bloqueado) return
     setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
   }
+
+  // Generación on-demand de certificado cuando el usuario ya aprobó
+  useEffect(() => {
+    if (!resultado?.aprobado || certificadoUrl || certError) return
+    api.post(`/cursos/${cursoId}/certificado`)
+      .then(res => {
+        if (res.data?.archivo_url) setCertificadoUrl(res.data.archivo_url)
+        else setCertError('El servidor no devolvió la URL del certificado')
+      })
+      .catch(err => {
+        const msg = err?.response?.data?.detalle || err?.response?.data?.error || err.message
+        setCertError(msg)
+      })
+  }, [resultado?.aprobado, cursoId, certificadoUrl, certError])
 
   // ─── render módulo expandido ─────────────────────────────────────────────────
   const renderContenidoModulo = (mod) => {
@@ -676,6 +693,24 @@ export default function CursoDetalle() {
                               <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
+                              {certificadoUrl ? (
+                                <a href={certificadoUrl} target="_blank" rel="noopener noreferrer"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#16A34A', color: '#fff', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
+                                  <Icon icon="lucide:download" width={16} /> Descargar Certificado
+                                </a>
+                              ) : certError ? (
+                                <div style={{ fontSize: 12, color: '#E8505B', textAlign: 'center' }}>
+                                  No se pudo generar el certificado
+                                  <button onClick={() => setCertError(null)}
+                                    style={{ display: 'block', margin: '6px auto 0', fontSize: 11, background: 'none', border: '1px solid #E8505B', color: '#E8505B', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>
+                                    Reintentar
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#555' }}>
+                                  <Icon icon="lucide:loader" width={16} style={{ animation: 'spin 1s linear infinite' }} /> Generando certificado...
+                                </div>
+                              )}
                               <button onClick={() => navigate(-1)}
                                 style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
                                 Volver a capacitaciones

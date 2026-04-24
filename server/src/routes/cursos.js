@@ -7,6 +7,7 @@ const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../config/s3');
+const { generarCertificadoPDF } = require('./certificados');
 
 const storage = multerS3({
   s3, bucket: BUCKET, acl: 'public-read', contentType: multerS3.AUTO_CONTENT_TYPE,
@@ -389,7 +390,143 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
     } catch { /* notificación opcional */ }
   }
 
-  res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
+  let certificadoUrl = null;
+  if (aprobado) {
+    try {
+      // Buscar o crear un intento aprobado para este usuario+curso
+      const { rows: intentoRows } = await pool.query(
+        'SELECT id FROM intentos WHERE usuario_id = ? AND curso_id = ? AND aprobado = 1 LIMIT 1',
+        [req.usuario.id, req.params.id]
+      );
+      let intentoId;
+      if (intentoRows.length > 0) {
+        intentoId = intentoRows[0].id;
+      } else {
+        const { lastID } = await pool.query(
+          'INSERT INTO intentos (usuario_id, curso_id, numero_intento, nota, aprobado) VALUES (?, ?, 1, ?, 1)',
+          [req.usuario.id, req.params.id, porcentaje]
+        );
+        intentoId = lastID;
+      }
+      // Buscar o crear certificado
+      const { rows: certRows } = await pool.query(
+        'SELECT id, archivo_url FROM certificados WHERE intento_id = ? LIMIT 1',
+        [intentoId]
+      );
+      let certId, archivoExistente;
+      if (certRows.length > 0) {
+        certId = certRows[0].id;
+        archivoExistente = certRows[0].archivo_url;
+      } else {
+        const { lastID: newCertId } = await pool.query(
+          'INSERT INTO certificados (intento_id) VALUES (?)', [intentoId]
+        );
+        certId = newCertId;
+      }
+      // Generar PDF si aún no tiene
+      if (!archivoExistente) {
+        const { rows: certData } = await pool.query(
+          `SELECT cert.id, u.nombre as usuario_nombre, c.nombre as curso_nombre
+           FROM certificados cert
+           JOIN intentos it ON cert.intento_id = it.id
+           JOIN usuarios u ON it.usuario_id = u.id
+           JOIN cursos c ON it.curso_id = c.id
+           WHERE cert.id = ?`,
+          [certId]
+        );
+        if (certData.length > 0) {
+          archivoExistente = await generarCertificadoPDF(certData[0]);
+          await pool.query(
+            "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
+            [archivoExistente, certId]
+          );
+        }
+      }
+      certificadoUrl = archivoExistente || null;
+    } catch (certErr) {
+      console.error('[cert PDF] Error:', certErr.message);
+    }
+  }
+
+  const respData = { porcentaje, completado, intentos_fallidos, bloqueado_hasta };
+  if (certificadoUrl) respData.certificado_url = certificadoUrl;
+  res.json(respData);
+});
+
+// POST /api/cursos/:id/certificado — generación on-demand para cursos ya completados
+router.post('/:id/certificado', verificarToken, async (req, res) => {
+  const usuario_id = req.usuario.id;
+  const curso_id = req.params.id;
+  try {
+    // Verificar que completó el curso
+    const { rows: progRows } = await pool.query(
+      'SELECT completado FROM progreso WHERE usuario_id = ? AND curso_id = ?',
+      [usuario_id, curso_id]
+    );
+    if (!progRows.length || !progRows[0].completado)
+      return res.status(400).json({ error: 'No has completado este curso' });
+
+    // Buscar cert existente con URL
+    const { rows: existingCert } = await pool.query(
+      `SELECT cert.id, cert.archivo_url
+       FROM certificados cert
+       JOIN intentos it ON cert.intento_id = it.id
+       WHERE it.usuario_id = ? AND it.curso_id = ? AND it.aprobado = 1
+       ORDER BY cert.created_at DESC LIMIT 1`,
+      [usuario_id, curso_id]
+    );
+    if (existingCert.length > 0 && existingCert[0].archivo_url)
+      return res.json({ archivo_url: existingCert[0].archivo_url, id: existingCert[0].id });
+
+    // Buscar o crear intento aprobado
+    const { rows: intentoRows } = await pool.query(
+      'SELECT id FROM intentos WHERE usuario_id = ? AND curso_id = ? AND aprobado = 1 LIMIT 1',
+      [usuario_id, curso_id]
+    );
+    let intentoId;
+    if (intentoRows.length > 0) {
+      intentoId = intentoRows[0].id;
+    } else {
+      const { lastID } = await pool.query(
+        'INSERT INTO intentos (usuario_id, curso_id, numero_intento, nota, aprobado) VALUES (?, ?, 1, 100, 1)',
+        [usuario_id, curso_id]
+      );
+      intentoId = lastID;
+    }
+
+    // Crear cert si no existe
+    let certId;
+    if (existingCert.length > 0) {
+      certId = existingCert[0].id;
+    } else {
+      const { lastID: newCertId } = await pool.query(
+        'INSERT INTO certificados (intento_id) VALUES (?)', [intentoId]
+      );
+      certId = newCertId;
+    }
+
+    // Generar PDF
+    const { rows: certData } = await pool.query(
+      `SELECT cert.id, u.nombre as usuario_nombre, c.nombre as curso_nombre
+       FROM certificados cert
+       JOIN intentos it ON cert.intento_id = it.id
+       JOIN usuarios u ON it.usuario_id = u.id
+       JOIN cursos c ON it.curso_id = c.id
+       WHERE cert.id = ?`,
+      [certId]
+    );
+    if (!certData.length) return res.status(500).json({ error: 'No se pudo obtener datos del certificado' });
+
+    const archivoUrl = await generarCertificadoPDF(certData[0]);
+    await pool.query(
+      "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
+      [archivoUrl, certId]
+    );
+    res.json({ archivo_url: archivoUrl, id: certId });
+  } catch (err) {
+    console.error('[cert on-demand] Error:', err.message);
+    res.status(500).json({ error: 'Error al generar certificado', detalle: err.message });
+  }
 });
 
 // POST /api/cursos/:id/preguntas
