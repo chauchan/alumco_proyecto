@@ -251,6 +251,35 @@ async function migrate() {
       )
     `);
 
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NULL,
+        accion     VARCHAR(64) NOT NULL,
+        entidad    VARCHAR(64) NOT NULL,
+        entidad_id INT NULL,
+        payload    JSON NULL,
+        ip         VARCHAR(45) NULL,
+        creado_en  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_audit_user    (usuario_id),
+        INDEX idx_audit_entidad (entidad, entidad_id),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        token      VARCHAR(128) NOT NULL UNIQUE,
+        expira_en  DATETIME NOT NULL,
+        usado      TINYINT DEFAULT 0,
+        creado_en  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_pwreset_token (token),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+
     // ── Columnas que pueden faltar en tablas ya existentes ────────────────────
 
     const alteraciones = [
@@ -318,7 +347,7 @@ async function migrate() {
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
-    console.log('✓ Migración completada — 17 tablas creadas/verificadas');
+    console.log('✓ Migración completada — 19 tablas creadas/verificadas');
     await conn.end();
     process.exit(0);
   } catch (err) {

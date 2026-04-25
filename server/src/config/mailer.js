@@ -15,7 +15,7 @@ async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, c
   const destinatario = profesorEmail || process.env.MAIL_USER || 'omegabarra3236@gmail.com';
 
   await transporter.sendMail({
-    from: `"ALUMCO" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
     to: destinatario,
     subject: `[ALUMCO] Nuevo borrador de curso: ${cursoNombre}`,
     html: `
@@ -60,4 +60,36 @@ async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, c
   });
 }
 
-module.exports = { notificarProfesor };
+async function enviarResetPassword(email, link, nombre) {
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: email,
+    subject: '[ALUMCO] Recuperación de contraseña',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Recuperación de contraseña</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta ALUMCO.
+            Este enlace expirará en <strong>30 minutos</strong>.
+          </p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${link}"
+               style="background: #2B4BA0; color: #fff; padding: 12px 28px; border-radius: 8px;
+                      text-decoration: none; font-size: 14px; font-weight: 500; display: inline-block;">
+              Restablecer contraseña
+            </a>
+          </div>
+          <p style="color: #aaa; font-size: 12px;">
+            Si no solicitaste restablecer tu contraseña, ignora este correo. Tu contraseña no será cambiada.
+          </p>
+        </div>
+      </div>
+    `
+  });
+}
+
+module.exports = { notificarProfesor, enviarResetPassword };

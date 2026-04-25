@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/db');
 const { verificarToken } = require('../middleware/auth');
+const { enviarResetPassword } = require('../config/mailer');
+const { auditar } = require('../utils/audit');
 
 const SELECT_USUARIO = `
   SELECT u.id, u.nombre, u.identificador, u.rol, u.tipo_contrato,
@@ -123,6 +126,89 @@ router.patch('/mis-datos', verificarToken, async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar datos' });
+  }
+});
+
+// POST /api/auth/forgot-password — siempre 200, nunca revela si el email existe
+router.post('/forgot-password', async (req, res) => {
+  res.json({ message: 'Si el email está registrado, recibirás instrucciones en tu correo.' });
+
+  const { email } = req.body || {};
+  if (!email) return;
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, nombre, email FROM usuarios WHERE email = $1 AND activo = 1',
+      [email.trim()]
+    );
+    if (!rows.length || !rows[0].email) return;
+
+    const usuario = rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiraEn = new Date(Date.now() + 30 * 60 * 1000);
+
+    await pool.query(
+      'INSERT INTO password_resets (usuario_id, token, expira_en) VALUES ($1, $2, $3)',
+      [usuario.id, token, expiraEn]
+    );
+
+    const link = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password/${token}`;
+    await enviarResetPassword(usuario.email, link, usuario.nombre);
+  } catch (err) {
+    console.error('[forgot-password]', err.message);
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  const { token, nueva_password } = req.body || {};
+  if (!token || !nueva_password)
+    return res.status(400).json({ error: 'Token y nueva contraseña son requeridos' });
+  if (nueva_password.length < 6)
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT pr.id, pr.usuario_id
+       FROM password_resets pr
+       WHERE pr.token = $1 AND pr.usado = 0 AND pr.expira_en > NOW()`,
+      [token]
+    );
+    if (!rows.length)
+      return res.status(400).json({ error: 'El enlace es inválido o ha expirado' });
+
+    const { id: resetId, usuario_id } = rows[0];
+    const hash = await bcrypt.hash(nueva_password, 10);
+
+    await pool.query(
+      'UPDATE usuarios SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [hash, usuario_id]
+    );
+    await pool.query(
+      'UPDATE password_resets SET usado = 1 WHERE id = $1',
+      [resetId]
+    );
+    await auditar({ usuario: { id: usuario_id } }, 'auth.reset_password', 'usuario', usuario_id, {});
+
+    res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al restablecer contraseña' });
+  }
+});
+
+// POST /api/auth/renovar — renueva JWT vigente por 7 días más
+router.post('/renovar', verificarToken, async (req, res) => {
+  try {
+    const { id, nombre, rol, sede_id, sede_nombre, identificador, tipo_contrato, estamento, estamento_id } = req.usuario;
+    const token = jwt.sign(
+      { id, nombre, rol, sede_id, sede_nombre, identificador, tipo_contrato, estamento, estamento_id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al renovar sesión' });
   }
 });
 
