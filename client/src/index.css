@@ -252,6 +252,15 @@ a { color: var(--azul); text-decoration: none; }
   to { transform: rotate(360deg); }
 }
 
+/* ── Iconos: centrado vertical por defecto ──────────────────────────────────
+   Los SVG de Iconify (clase .iconify) y SVG inline tienden a alinearse al
+   baseline del texto, lo que los hace verse "más bajos". Esta regla los
+   centra con el texto en cualquier contexto inline (botones, links, items).
+   Para iconos sueltos como bloque, el componente debe usar display:block o
+   estar dentro de un contenedor flex con align-items: center. */
+svg { vertical-align: middle; }
+.iconify, svg.iconify { vertical-align: middle; flex-shrink: 0; }
+
 /* Toast notifications */
 .toast-container {
   position: fixed; top: 1rem; right: 1rem; z-index: 9999;

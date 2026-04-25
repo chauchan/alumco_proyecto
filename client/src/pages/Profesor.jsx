@@ -516,7 +516,7 @@ export default function Profesor() {
                             </button>
                             {ppres === 'cargando' && (
                               <div style={{ textAlign:'center', padding:'2rem 0', color:'#888' }}>
-                                <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />
+                                <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 8px",display:"block",color:"#888"}} />
                                 <div style={{ fontSize:13 }}>Generando presentación...</div>
                               </div>
                             )}

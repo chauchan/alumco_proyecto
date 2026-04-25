@@ -621,7 +621,7 @@ export default function GeneradorIA() {
                   <div className="upload-zone" style={{ marginBottom: 16 }} onClick={() => document.getElementById('input-pdf').click()}>
                     <input id="input-pdf" type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => setArchivo(e.target.files[0])} />
                     {archivo ? (
-                      <><Icon icon="lucide:check" width={20} style={{marginBottom:4,display:"block",color:"#1A7A45"}} />
+                      <><Icon icon="lucide:check" width={20} style={{margin:"0 auto 4px",display:"block",color:"#1A7A45"}} />
                         <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div>
                         <span className="format-tag tag-pdf" style={{ marginTop: 6, display: 'inline-block' }}>PDF</span></>
                     ) : (
@@ -705,7 +705,7 @@ export default function GeneradorIA() {
 
               {cargando && (
                 <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                  <Icon icon="lucide:loader-circle" width={32} style={{marginBottom:12,display:"block",color:"#888"}} />
+                  <Icon icon="lucide:loader-circle" width={32} style={{margin:"0 auto 12px",display:"block",color:"#888"}} />
                   <div style={{ fontSize: 13 }}>Analizando el protocolo...</div>
                   <div style={{ fontSize: 11, marginTop: 6 }}>Esto puede tomar 30–60 segundos</div>
                 </div>
@@ -803,7 +803,7 @@ export default function GeneradorIA() {
                           {/* Estado cargando */}
                           {(!pres || pres === 'cargando') && (
                             <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                              <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:10,display:"block",color:"#888"}} />
+                              <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 10px",display:"block",color:"#888"}} />
                               <div style={{ fontSize: 13 }}>Generando presentación con IA...</div>
                               <div style={{ fontSize: 11, marginTop: 4 }}>Puede tomar unos segundos</div>
                             </div>
