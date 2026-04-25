@@ -28,6 +28,7 @@ const NAV_ITEMS = {
   jefatura: [
     { label: 'Resumen global',    path: '/jefatura' },
     { label: 'Gestión de usuarios', path: '/jefatura/usuarios' },
+    { label: 'Sedes',             path: '/jefatura/sedes' },
     { label: 'Capacitaciones',    path: '/capacitaciones' },
     { label: 'Mis certificados',  path: '/mis-certificados' },
     { label: 'Certificados ONG',  path: '/certificados-globales' },
