@@ -2,8 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cron = require('node-cron');
 const pool = require('./config/db');
 const { makeBucketPublic } = require('./config/s3');
+const { enviarRecordatorios } = require('./jobs/recordatoriosCertificados');
 
 const authRoutes          = require('./routes/auth');
 const usuariosRoutes      = require('./routes/usuarios');
@@ -119,6 +121,13 @@ async function start() {
       console.warn('⚠ imagenes_protocolo column:', err.message);
     }
   }
+
+  // Recordatorios diarios a las 09:00 para todos los colaboradores con cursos pendientes
+  cron.schedule('0 9 * * *', () => {
+    enviarRecordatorios(null, null)
+      .then(r => console.log(`[cron] Recordatorios enviados: ${r.enviados}/${r.total} (${r.errores} errores)`))
+      .catch(e => console.error('[cron] Error recordatorios:', e.message));
+  });
 
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
 

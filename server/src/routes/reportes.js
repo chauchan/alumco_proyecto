@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { enviarRecordatorios } = require('../jobs/recordatoriosCertificados');
 
 const ROLES_REPORTE = verificarRol('admin_sede', 'jefatura');
 
@@ -149,6 +150,19 @@ router.get('/etarios', verificarToken, ROLES_REPORTE, async (req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener distribución etaria' });
+  }
+});
+
+// POST /api/reportes/enviar-recordatorios — envío manual de recordatorios
+router.post('/enviar-recordatorios', verificarToken, ROLES_REPORTE, async (req, res) => {
+  const { rol, sede_id } = req.usuario;
+  const sedeId = rol === 'admin_sede' ? sede_id : (req.body.sede_id ? parseInt(req.body.sede_id) : null);
+  try {
+    const result = await enviarRecordatorios(sedeId, req);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[reportes/enviar-recordatorios]', err.message);
+    res.status(500).json({ error: 'Error al enviar recordatorios' });
   }
 });
 

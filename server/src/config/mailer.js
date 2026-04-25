@@ -92,4 +92,37 @@ async function enviarResetPassword(email, link, nombre) {
   });
 }
 
-module.exports = { notificarProfesor, enviarResetPassword };
+async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
+  const listaCursos = cursosPendientes
+    .map(c => `<li style="padding:4px 0; font-size:13px; color:#333;">${c}</li>`)
+    .join('');
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: email,
+    subject: '[ALUMCO] Recordatorio: tienes capacitaciones pendientes',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Capacitaciones pendientes</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            Te recordamos que tienes los siguientes cursos asignados pendientes de completar:
+          </p>
+          <ul style="margin: 16px 0; padding-left: 20px; border-left: 3px solid #2B4BA0;">
+            ${listaCursos}
+          </ul>
+          <p style="color: #555; font-size: 14px;">
+            Ingresa a la plataforma ALUMCO para completar tus capacitaciones y obtener tus certificados.
+          </p>
+          <p style="color: #aaa; font-size: 12px; margin-top: 24px;">
+            Este es un recordatorio automático. Si ya completaste alguno de estos cursos, ignora este mensaje.
+          </p>
+        </div>
+      </div>
+    `
+  });
+}
+
+module.exports = { notificarProfesor, enviarResetPassword, enviarRecordatorioCertificados };
