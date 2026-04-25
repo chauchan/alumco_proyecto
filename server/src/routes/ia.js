@@ -11,6 +11,7 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
 const { uploadBuffer } = require('../config/s3');
+const { auditar } = require('../utils/audit');
 
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
 const OLLAMA_MODEL      = process.env.OLLAMA_MODEL      || 'gemma3:4b';
@@ -167,6 +168,76 @@ async function extraerContenidoPDF(pdfBuffer, pdfPath) {
 
 const ollamaAgent = new Agent({ headersTimeout: 600000, bodyTimeout: 600000, connectTimeout: 30000 });
 
+// ── Resuelve el profesor asignado automáticamente si no se provee uno ─────────
+async function resolverProfesor(profesorIdOverride, sedeObjetivo, estamentos) {
+  if (profesorIdOverride) {
+    const { rows } = await pool.query(
+      'SELECT id, nombre, email FROM usuarios WHERE id = ? AND activo = 1', [profesorIdOverride]
+    );
+    return rows[0] || null;
+  }
+
+  const sinEstamentos = !Array.isArray(estamentos) || !estamentos.length;
+
+  async function conMenorCarga(candidatos) {
+    if (!candidatos.length) return null;
+    if (candidatos.length === 1) return candidatos[0];
+    const ph = candidatos.map((_, i) => `$${i + 1}`).join(',');
+    const { rows: cnts } = await pool.query(
+      `SELECT profesor_id, COUNT(*) AS n FROM cursos
+       WHERE profesor_id IN (${ph}) AND publicado = 0 AND generado_por_ia = 1
+       GROUP BY profesor_id`,
+      candidatos.map(r => r.id)
+    );
+    const cmap = {};
+    for (const c of cnts) cmap[c.profesor_id] = parseInt(c.n);
+    return [...candidatos].sort((a, b) => (cmap[a.id] || 0) - (cmap[b.id] || 0))[0];
+  }
+
+  // 1. Profesores en la sede con intersección de estamento
+  if (sedeObjetivo && !sinEstamentos) {
+    const ph = estamentos.map(() => '?').join(',');
+    const { rows } = await pool.query(`
+      SELECT DISTINCT u.id, u.nombre, u.email FROM usuarios u
+      JOIN estamentos e ON u.estamento_id = e.id
+      WHERE u.rol = 'profesor' AND u.activo = 1 AND u.sede_id = ?
+        AND e.nombre IN (${ph})
+    `, [sedeObjetivo, ...estamentos]);
+    if (rows.length) return conMenorCarga(rows);
+  }
+
+  // 2. Cualquier profesor con intersección de estamento (cualquier sede)
+  if (!sinEstamentos) {
+    const ph = estamentos.map(() => '?').join(',');
+    const { rows } = await pool.query(`
+      SELECT DISTINCT u.id, u.nombre, u.email FROM usuarios u
+      JOIN estamentos e ON u.estamento_id = e.id
+      WHERE u.rol = 'profesor' AND u.activo = 1 AND e.nombre IN (${ph})
+    `, estamentos);
+    if (rows.length) return conMenorCarga(rows);
+  }
+
+  // 3. Cualquier profesor en la sede (sin filtro de estamento)
+  if (sedeObjetivo) {
+    const { rows } = await pool.query(
+      "SELECT id, nombre, email FROM usuarios WHERE rol = 'profesor' AND activo = 1 AND sede_id = ?",
+      [sedeObjetivo]
+    );
+    if (rows.length) return conMenorCarga(rows);
+  }
+
+  // 4. Fallback: primer usuario con rol jefatura
+  const { rows: jefes } = await pool.query(
+    "SELECT id, nombre, email FROM usuarios WHERE rol = 'jefatura' AND activo = 1 LIMIT 1"
+  );
+  if (jefes.length) {
+    console.warn('[IA] resolverProfesor: sin match de profesor — asignando a jefatura:', jefes[0].nombre);
+    return jefes[0];
+  }
+
+  return null;
+}
+
 const upload = multer({
   dest: path.join(__dirname, '../../uploads/protocolos'),
   fileFilter: (req, file, cb) => {
@@ -307,7 +378,7 @@ Responde SOLO el JSON.`;
 
 // ─── POST /api/ia/generar-curso ────────────────────────────────────────────────
 router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_sede'), upload.single('protocolo'), async (req, res) => {
-  const { nombre_curso, area, profesor_id, contexto, num_modulos, protocolo_id } = req.body;
+  const { nombre_curso, area, profesor_id, contexto, num_modulos, protocolo_id, sede_objetivo, estamentos } = req.body;
 
   if (!req.file && protocolo_id) {
     const result = await pool.query('SELECT * FROM protocolos WHERE id = ?', [protocolo_id]);
@@ -439,12 +510,20 @@ Reglas:
       }
     }
 
-    // Resolver area_id antes de insertar el curso
+    // Resolver area_id y profesor antes de insertar el curso
     const area_id = await resolveAreaId(area);
 
+    const sedeObjetivoNum = parseInt(sede_objetivo) ||
+      (req.usuario.rol === 'admin_sede' ? req.usuario.sede_id : null);
+    let estamentosArr = [];
+    try { estamentosArr = estamentos ? (typeof estamentos === 'string' ? JSON.parse(estamentos) : estamentos) : []; } catch {}
+
+    const profesorResuelto = await resolverProfesor(profesor_id, sedeObjetivoNum, estamentosArr);
+    const profesorIdFinal = profesorResuelto?.id || null;
+
     const { lastID: cursoId } = await pool.query(
-      'INSERT INTO cursos (nombre, descripcion, area_id, profesor_id, publicado, generado_por_ia) VALUES (?, ?, ?, ?, 0, 1)',
-      [nombre_curso, `Generado desde: ${req.file.originalname}`, area_id, profesor_id || null]
+      'INSERT INTO cursos (nombre, descripcion, area_id, profesor_id, sede_objetivo, publicado, generado_por_ia) VALUES (?, ?, ?, ?, ?, 0, 1)',
+      [nombre_curso, `Generado desde: ${req.file.originalname}`, area_id, profesorIdFinal, sedeObjetivoNum || null]
     );
     console.log('[IA] Paso 6: curso insertado, id:', cursoId);
 
@@ -502,9 +581,32 @@ Reglas:
 
     if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 
+    // Notificar al profesor resuelto (fire-and-forget)
+    if (profesorResuelto) {
+      notificarProfesor({
+        profesorEmail:  profesorResuelto.email || null,
+        profesorNombre: profesorResuelto.nombre || 'Profesor',
+        cursoNombre:    nombre_curso,
+        cursoId,
+        modulosCount:   modulosGenerados,
+        preguntasCount: totalPreguntas,
+        nombreArchivo,
+        subidoPor:      req.usuario.nombre || 'Jefatura'
+      }).catch(e => console.error('[IA] Error notificando al profesor resuelto:', e.message));
+    }
+
+    await auditar(req, 'ia.generar_curso', 'cursos', cursoId, {
+      nombre:         nombre_curso,
+      profesor_id:    profesorIdFinal,
+      auto_asignado:  !profesor_id && !!profesorIdFinal ? profesorResuelto?.nombre : null,
+      sede_objetivo:  sedeObjetivoNum
+    });
+
     res.status(201).json({
       curso_id: cursoId,
       nombre: nombre_curso,
+      profesor_id: profesorIdFinal,
+      profesor_nombre: profesorResuelto?.nombre || null,
       generado_por_ia: true,
       modulos: modulosConId,
       preguntas_count: totalPreguntas,
