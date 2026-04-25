@@ -7,6 +7,7 @@ const fs = require('fs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../config/s3');
+const { notificar } = require('../utils/notificar');
 
 const storage = multerS3({
   s3, bucket: BUCKET, acl: 'public-read', contentType: multerS3.AUTO_CONTENT_TYPE,
@@ -80,7 +81,7 @@ router.get('/', verificarToken, async (req, res) => {
         SELECT c.*, a.nombre AS area, u.nombre AS profesor_nombre,
                c.obligatorio, asig.fecha_limite,
                COALESCE(p.porcentaje, 0) AS progreso,
-               COALESCE(p.completado, 0) AS completado
+               (p.porcentaje >= 100) AS completado
         FROM cursos c
         LEFT JOIN areas         a    ON a.id          = c.area_id
         LEFT JOIN asignaciones  asig ON asig.curso_id  = c.id AND asig.usuario_id = ?
@@ -134,7 +135,7 @@ router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT c.*, a.nombre AS area, u.nombre AS profesor_nombre,
               COALESCE(p.porcentaje, 0) AS progreso,
-              COALESCE(p.completado, 0) AS completado,
+              (p.porcentaje >= 100) AS completado,
               COALESCE(p.intentos_fallidos, 0) AS intentos_fallidos,
               p.bloqueado_hasta
        FROM cursos c
@@ -302,10 +303,13 @@ router.post('/:id/asignar', verificarToken, verificarRol('profesor', 'admin_sede
 router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT porcentaje, completado, intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = ? AND curso_id = ?',
+      'SELECT porcentaje, intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = ? AND curso_id = ?',
       [req.usuario.id, req.params.id]
     );
-    res.json(rows[0] || { porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
+    const r = rows[0];
+    res.json(r
+      ? { ...r, completado: r.porcentaje >= 100 }
+      : { porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
   } catch {
     res.json({ porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
   }
@@ -315,18 +319,17 @@ router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
 router.patch('/:id/progreso', verificarToken, async (req, res) => {
   const { porcentaje, es_evaluacion } = req.body;
   const aprobado  = porcentaje >= 60;
-  const completado = porcentaje >= 100 ? 1 : 0;
 
   if (!es_evaluacion) {
     try {
       await pool.query(
-        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
-         VALUES (?, ?, ?, ?, NOW())
-         ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, ?), completado = ?, ultimo_acceso = NOW()`,
-        [req.usuario.id, req.params.id, porcentaje, completado, porcentaje, completado]
+        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, ultimo_acceso)
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, ?), ultimo_acceso = NOW()`,
+        [req.usuario.id, req.params.id, porcentaje, porcentaje]
       );
     } catch (e) { console.error('[progreso] upsert falló:', e.message); }
-    return res.json({ porcentaje, completado });
+    return res.json({ porcentaje, completado: porcentaje >= 100 });
   }
 
   const DIAS_BLOQUEO = 7;
@@ -353,20 +356,20 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
 
   try {
     await pool.query(
-      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
-       VALUES (?, ?, ?, ?, NOW(), ?, ?)
+      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
+       VALUES (?, ?, ?, NOW(), ?, ?)
        ON DUPLICATE KEY UPDATE
-         porcentaje = GREATEST(porcentaje, ?), completado = ?, ultimo_acceso = NOW(),
+         porcentaje = GREATEST(porcentaje, ?), ultimo_acceso = NOW(),
          intentos_fallidos = ?, bloqueado_hasta = ?`,
-      [req.usuario.id, req.params.id, porcentaje, completado, intentos_fallidos, bloqueado_hasta,
-       porcentaje, completado, intentos_fallidos, bloqueado_hasta]
+      [req.usuario.id, req.params.id, porcentaje, intentos_fallidos, bloqueado_hasta,
+       porcentaje, intentos_fallidos, bloqueado_hasta]
     );
   } catch {
     await pool.query(
-      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, completado, ultimo_acceso)
-       VALUES (?, ?, ?, ?, NOW())
-       ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, ?), completado = ?, ultimo_acceso = NOW()`,
-      [req.usuario.id, req.params.id, porcentaje, completado, porcentaje, completado]
+      `INSERT INTO progreso (usuario_id, curso_id, porcentaje, ultimo_acceso)
+       VALUES (?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE porcentaje = GREATEST(porcentaje, ?), ultimo_acceso = NOW()`,
+      [req.usuario.id, req.params.id, porcentaje, porcentaje]
     );
   }
 
@@ -379,17 +382,19 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
       if (sede_id) {
         const { rows: admins } = await pool.query("SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]);
         for (const admin of admins) {
-          await pool.query(
-            'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES (?, ?, ?)',
-            [admin.id, 'Colaborador bloqueado en curso',
-             `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`]
-          );
+          await notificar(admin.id, {
+            tipo: 'evaluacion_bloqueo',
+            entidad: 'curso',
+            entidad_id: parseInt(req.params.id),
+            titulo: 'Colaborador bloqueado en curso',
+            mensaje: `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`
+          });
         }
       }
     } catch { /* notificación opcional */ }
   }
 
-  res.json({ porcentaje, completado, intentos_fallidos, bloqueado_hasta });
+  res.json({ porcentaje, completado: porcentaje >= 100, intentos_fallidos, bloqueado_hasta });
 });
 
 // POST /api/cursos/:id/preguntas

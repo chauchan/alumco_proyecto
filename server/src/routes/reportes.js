@@ -17,7 +17,7 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
     const { rows: [{ total: capacitados }] } = await pool.query(
       `SELECT COUNT(DISTINCT p.usuario_id) as total FROM progreso p
        JOIN usuarios u ON p.usuario_id = u.id
-       WHERE p.completado = 1 AND u.activo = 1 AND u.rol = 'colaborador' ${filtroSede}`, p);
+       WHERE p.porcentaje >= 100 AND u.activo = 1 AND u.rol = 'colaborador' ${filtroSede}`, p);
 
     const { rows: [{ total: certificados }] } = await pool.query(
       `SELECT COUNT(*) as total FROM certificados cert
@@ -36,7 +36,7 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
         JOIN usuarios u ON a.usuario_id = u.id
         LEFT JOIN progreso p2 ON p2.curso_id = a.curso_id AND p2.usuario_id = a.usuario_id
         WHERE a.fecha_limite IS NOT NULL AND a.fecha_limite < NOW()
-          AND (p2.completado IS NULL OR p2.completado = 0)
+          AND (p2.porcentaje IS NULL OR p2.porcentaje < 100)
           AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
       ) as alertas`, [...p, ...p]);
 
@@ -60,7 +60,7 @@ router.get('/sedes', verificarToken, verificarRol('jefatura'), async (req, res) 
         COUNT(DISTINCT CASE WHEN u.rol = 'colaborador' AND u.activo = 1 THEN u.id END) as colaboradores,
         COUNT(DISTINCT CASE WHEN cert.estado = 'aprobado' THEN cert.id END) as certificados,
         ROUND(
-          100.0 * COUNT(DISTINCT CASE WHEN p.completado = 1 THEN p.usuario_id END) /
+          100.0 * COUNT(DISTINCT CASE WHEN p.porcentaje >= 100 THEN p.usuario_id END) /
           NULLIF(COUNT(DISTINCT CASE WHEN u.rol = 'colaborador' AND u.activo = 1 THEN u.id END), 0)
         ) as cobertura_pct
       FROM sedes s
@@ -86,8 +86,8 @@ router.get('/cursos', verificarToken, ROLES_REPORTE, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT c.id, c.nombre, ar.nombre as area,
         COUNT(DISTINCT a.usuario_id) as inscritos,
-        COUNT(DISTINCT CASE WHEN p.completado = 1 THEN p.usuario_id END) as completaron,
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.completado = 1 THEN p.usuario_id END) / NULLIF(COUNT(DISTINCT a.usuario_id), 0)) as pct_completado
+        COUNT(DISTINCT CASE WHEN p.porcentaje >= 100 THEN p.usuario_id END) as completaron,
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.porcentaje >= 100 THEN p.usuario_id END) / NULLIF(COUNT(DISTINCT a.usuario_id), 0)) as pct_completado
       FROM cursos c
       LEFT JOIN areas ar ON c.area_id = ar.id
       LEFT JOIN asignaciones a ON a.curso_id = c.id

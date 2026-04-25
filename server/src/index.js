@@ -101,25 +101,6 @@ async function start() {
     console.warn('⚠ UNIQUE KEY progreso:', err.message);
   }
 
-  // Crear tabla notificaciones si no existe (puede faltar si no se corrió migrate_practicos)
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS notificaciones (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        usuario_id INT NOT NULL,
-        practico_id INT DEFAULT NULL,
-        titulo VARCHAR(200) NOT NULL,
-        mensaje TEXT NOT NULL,
-        leida TINYINT(1) DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-      )
-    `);
-    console.log('✓ Tabla notificaciones lista');
-  } catch (err) {
-    console.warn('⚠ notificaciones table:', err.message);
-  }
-
   // Agregar columna ultimo_acceso a usuarios si no existe
   try {
     await pool.query(`ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL`);

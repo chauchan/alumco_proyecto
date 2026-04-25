@@ -143,7 +143,6 @@ async function migrate() {
         id                INT PRIMARY KEY AUTO_INCREMENT,
         usuario_id        INT,
         curso_id          INT,
-        completado        TINYINT(1) DEFAULT 0,
         porcentaje        INT DEFAULT 0,
         ultimo_acceso     DATETIME,
         intentos_fallidos INT DEFAULT 0,
@@ -241,13 +240,17 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS notificaciones (
         id          INT PRIMARY KEY AUTO_INCREMENT,
         usuario_id  INT NOT NULL,
-        practico_id INT,
+        tipo        VARCHAR(32) NOT NULL DEFAULT 'general',
+        entidad     VARCHAR(32) DEFAULT NULL,
+        entidad_id  INT DEFAULT NULL,
         titulo      VARCHAR(200) NOT NULL,
         mensaje     TEXT NOT NULL,
         leida       TINYINT(1) DEFAULT 0,
+        leida_en    DATETIME DEFAULT NULL,
         created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id)  REFERENCES usuarios(id)  ON DELETE CASCADE,
-        FOREIGN KEY (practico_id) REFERENCES practicos(id) ON DELETE CASCADE
+        INDEX idx_notif_usuario (usuario_id),
+        INDEX idx_notif_tipo    (tipo),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       )
     `);
 
@@ -329,8 +332,11 @@ async function migrate() {
       { tabla: 'practicos', columna: 'hora_fin',            sql: "ALTER TABLE practicos ADD COLUMN hora_fin TIME" },
       { tabla: 'practicos', columna: 'lugar',               sql: "ALTER TABLE practicos ADD COLUMN lugar VARCHAR(200)" },
       // notificaciones
-      { tabla: 'notificaciones', columna: 'practico_id',    sql: "ALTER TABLE notificaciones ADD COLUMN practico_id INT DEFAULT NULL" },
       { tabla: 'notificaciones', columna: 'leida',          sql: "ALTER TABLE notificaciones ADD COLUMN leida TINYINT(1) DEFAULT 0" },
+      { tabla: 'notificaciones', columna: 'leida_en',       sql: "ALTER TABLE notificaciones ADD COLUMN leida_en DATETIME DEFAULT NULL" },
+      { tabla: 'notificaciones', columna: 'tipo',           sql: "ALTER TABLE notificaciones ADD COLUMN tipo VARCHAR(32) NOT NULL DEFAULT 'general'" },
+      { tabla: 'notificaciones', columna: 'entidad',        sql: "ALTER TABLE notificaciones ADD COLUMN entidad VARCHAR(32) DEFAULT NULL" },
+      { tabla: 'notificaciones', columna: 'entidad_id',     sql: "ALTER TABLE notificaciones ADD COLUMN entidad_id INT DEFAULT NULL" },
     ];
 
     for (const { tabla, columna, sql } of alteraciones) {
@@ -345,9 +351,45 @@ async function migrate() {
       }
     }
 
+    // ── T0.4: Normalizar notificaciones — backfill + drop practico_id ────────────
+
+    const [practicoIdColCheck] = await conn.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones' AND COLUMN_NAME = 'practico_id'`
+    );
+    if (practicoIdColCheck.length) {
+      await conn.query(`
+        UPDATE notificaciones
+        SET tipo = 'practico_asignado', entidad = 'practico', entidad_id = practico_id
+        WHERE practico_id IS NOT NULL AND tipo = 'general'
+      `);
+      const [practicoFks] = await conn.query(`
+        SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones'
+          AND COLUMN_NAME = 'practico_id' AND REFERENCED_TABLE_NAME IS NOT NULL
+      `);
+      for (const fk of practicoFks) {
+        await conn.query(`ALTER TABLE notificaciones DROP FOREIGN KEY \`${fk.CONSTRAINT_NAME}\``);
+        console.log(`  - FK dropped: notificaciones.${fk.CONSTRAINT_NAME}`);
+      }
+      await conn.query(`ALTER TABLE notificaciones DROP COLUMN practico_id`);
+      console.log('  - Column dropped: notificaciones.practico_id');
+    }
+
+    // ── T0.5: Drop progreso.completado (derivable: porcentaje >= 100) ─────────
+
+    const [completadoColCheck] = await conn.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'progreso' AND COLUMN_NAME = 'completado'`
+    );
+    if (completadoColCheck.length) {
+      await conn.query(`ALTER TABLE progreso DROP COLUMN completado`);
+      console.log('  - Column dropped: progreso.completado');
+    }
+
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
-    console.log('✓ Migración completada — 19 tablas creadas/verificadas');
+    console.log('✓ Migración completada — 19 tablas, esquema normalizado a 3FN');
     await conn.end();
     process.exit(0);
   } catch (err) {

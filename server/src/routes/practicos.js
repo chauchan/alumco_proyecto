@@ -3,6 +3,7 @@ const router = express.Router();
 const { google } = require('googleapis');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { notificar } = require('../utils/notificar');
 
 async function sincronizarConGoogle(usuarioId, practico) {
   try {
@@ -139,11 +140,13 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
     const mensaje = `Se ha programado un práctico para el curso. Fecha: ${fechaFormateada} a las ${hora_inicio}. Lugar: ${lugar || 'ELEAM sede'}`;
 
     for (const u of asignados.rows) {
-      await pool.query(
-        `INSERT INTO notificaciones (usuario_id, practico_id, titulo, mensaje)
-         VALUES (?, ?, ?, ?)`,
-        [u.id, practicoId, `Práctico programado: ${titulo}`, mensaje]
-      );
+      await notificar(u.id, {
+        tipo: 'practico_asignado',
+        entidad: 'practico',
+        entidad_id: practicoId,
+        titulo: `Práctico programado: ${titulo}`,
+        mensaje
+      });
     }
 
     // Sincronizar con Google Calendar del creador si está conectado

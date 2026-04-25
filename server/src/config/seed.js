@@ -208,8 +208,8 @@ async function seed() {
       {u:'ana.gonzalez',    c:'c1',comp:1,pct:100,ua:'2026-03-01 09:00:00',if_:0,bh:null},
     ]) {
       await conn.query(
-        'INSERT IGNORE INTO progreso (usuario_id,curso_id,completado,porcentaje,ultimo_acceso,intentos_fallidos,bloqueado_hasta) VALUES (?,?,?,?,?,?,?)',
-        [uid[p.u],cid[p.c],p.comp,p.pct,p.ua,p.if_,p.bh]
+        'INSERT IGNORE INTO progreso (usuario_id,curso_id,porcentaje,ultimo_acceso,intentos_fallidos,bloqueado_hasta) VALUES (?,?,?,?,?,?)',
+        [uid[p.u],cid[p.c],p.pct,p.ua,p.if_,p.bh]
       );
     }
     console.log('✓ Progreso');
@@ -290,8 +290,10 @@ async function seed() {
       {u:'carlos.munoz',    pr:pr3,t:'Práctica de RCP agendada',          m:'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',l:0},
       {u:'valentina.rojas', pr:pr3,t:'Práctica de RCP agendada',          m:'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',l:0},
     ]) {
-      await conn.query('INSERT INTO notificaciones (usuario_id,practico_id,titulo,mensaje,leida) VALUES (?,?,?,?,?)',
-        [uid[n.u],n.pr,n.t,n.m,n.l]);
+      await conn.query(
+        'INSERT INTO notificaciones (usuario_id,tipo,entidad,entidad_id,titulo,mensaje,leida) VALUES (?,?,?,?,?,?,?)',
+        [uid[n.u],'practico_asignado','practico',n.pr,n.t,n.m,n.l]
+      );
     }
     console.log('✓ Notificaciones');
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { notificar } = require('../utils/notificar');
 
 // GET /api/evaluaciones/:curso_id/estado
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
@@ -115,11 +116,13 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
             "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]
           );
           for (const admin of admins) {
-            await pool.query(
-              'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES (?, ?, ?)',
-              [admin.id, 'Colaborador bloqueado en curso',
-               `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`]
-            );
+            await notificar(admin.id, {
+              tipo: 'evaluacion_bloqueo',
+              entidad: 'curso',
+              entidad_id: parseInt(curso_id),
+              titulo: 'Colaborador bloqueado en curso',
+              mensaje: `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`
+            });
           }
         }
       } catch (notifErr) {
