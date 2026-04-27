@@ -24,7 +24,7 @@ async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, c
   console.log('[MAIL] notificarProfesor → destinatario:', destinatario, '| curso:', cursoNombre);
 
   await transporter.sendMail({
-    from: `"ALUMCO" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
     to: destinatario,
     subject: `[ALUMCO] Nuevo borrador de curso: ${cursoNombre}`,
     html: `
@@ -102,46 +102,69 @@ async function notificarAdminDobleFallo({ adminEmail, adminNombre, colaboradorNo
   });
 }
 
-async function enviarRecordatorioCertificados({ destinatarios }) {
-  const resultados = { enviados: 0, errores: 0 };
-  for (const dest of destinatarios) {
-    try {
-      await transporter.sendMail({
-        from: `"ALUMCO" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
-        to: dest.email,
-        subject: `[ALUMCO] Recordatorio: tienes cursos pendientes`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
-              <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Capacitación pendiente</h1>
-            </div>
-            <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
-              <p style="color: #333; font-size: 15px;">Hola <strong>${dest.nombre}</strong>,</p>
-              <p style="color: #555; font-size: 14px; line-height: 1.6;">
-                Te recordamos que tienes <strong>${dest.cursos_pendientes}</strong> curso(s) asignado(s) sin certificado aprobado.
-                Es importante completarlos para mantener tu formación al día.
-              </p>
-              <table style="width:100%; border-collapse:collapse; margin:16px 0;">
-                ${dest.cursos.map(c => `
-                  <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px 12px; font-size: 13px; color: #333;">${c.nombre}</td>
-                    <td style="padding: 8px 12px; font-size: 12px; color: ${c.estado === 'bloqueado' ? '#E8505B' : '#F5A623'}; text-align:right;">
-                      ${c.estado === 'bloqueado' ? '🔒 Bloqueado' : c.estado === 'pendiente' ? '⏳ En curso' : '📋 Sin iniciar'}
-                    </td>
-                  </tr>`).join('')}
-              </table>
-              <p style="color: #555; font-size: 13px;">Ingresa a la plataforma ALUMCO para continuar con tus capacitaciones.</p>
-            </div>
+async function enviarResetPassword(email, link, nombre) {
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: email,
+    subject: '[ALUMCO] Recuperación de contraseña',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Recuperación de contraseña</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta ALUMCO.
+            Este enlace expirará en <strong>30 minutos</strong>.
+          </p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${link}"
+               style="background: #2B4BA0; color: #fff; padding: 12px 28px; border-radius: 8px;
+                      text-decoration: none; font-size: 14px; font-weight: 500; display: inline-block;">
+              Restablecer contraseña
+            </a>
           </div>
-        `
-      });
-      resultados.enviados++;
-    } catch (e) {
-      console.error(`Error enviando correo a ${dest.email}:`, e.message);
-      resultados.errores++;
-    }
-  }
-  return resultados;
+          <p style="color: #aaa; font-size: 12px;">
+            Si no solicitaste restablecer tu contraseña, ignora este correo. Tu contraseña no será cambiada.
+          </p>
+        </div>
+      </div>
+    `
+  });
 }
 
-module.exports = { notificarProfesor, notificarAdminDobleFallo, enviarRecordatorioCertificados };
+async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
+  const listaCursos = cursosPendientes
+    .map(c => `<li style="padding:4px 0; font-size:13px; color:#333;">${c}</li>`)
+    .join('');
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: email,
+    subject: '[ALUMCO] Recordatorio: tienes capacitaciones pendientes',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Capacitaciones pendientes</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            Te recordamos que tienes los siguientes cursos asignados pendientes de completar:
+          </p>
+          <ul style="margin: 16px 0; padding-left: 20px; border-left: 3px solid #2B4BA0;">
+            ${listaCursos}
+          </ul>
+          <p style="color: #555; font-size: 14px;">
+            Ingresa a la plataforma ALUMCO para completar tus capacitaciones y obtener tus certificados.
+          </p>
+          <p style="color: #aaa; font-size: 12px; margin-top: 24px;">
+            Este es un recordatorio automático. Si ya completaste alguno de estos cursos, ignora este mensaje.
+          </p>
+        </div>
+      </div>
+    `
+  });
+}
+
+module.exports = { notificarProfesor, notificarAdminDobleFallo, enviarResetPassword, enviarRecordatorioCertificados };

@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import api from '../services/api'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -11,12 +12,13 @@ const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 
 const FORM_INICIAL = { curso_id:'', titulo:'', descripcion:'', fecha:'', hora_inicio:'', hora_fin:'' }
 
-
 export default function Practicos() {
   const { usuario } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const puedeCrear = ['profesor','admin_sede'].includes(usuario?.rol)
+  const puedeAsistencia = puedeCrear
 
   const hoy = new Date()
   const [mes, setMes] = useState(hoy.getMonth())
@@ -27,8 +29,6 @@ export default function Practicos() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState(FORM_INICIAL)
   const [diaSeleccionado, setDiaSeleccionado] = useState(null)
-  const [error, setError] = useState('')
-  const [exito, setExito] = useState('')
   const [googleConectado, setGoogleConectado] = useState(false)
   const [sincronizando, setSincronizando] = useState(null)
   const [eventosGoogle, setEventosGoogle] = useState([])
@@ -36,12 +36,11 @@ export default function Practicos() {
   const [formEvento, setFormEvento] = useState({ titulo:'', fecha:'', hora_inicio:'', hora_fin:'', descripcion:'', lugar:'' })
   const [guardandoEvento, setGuardandoEvento] = useState(false)
 
-  // Asistencia
-  const [modalAsistencia, setModalAsistencia] = useState(null) // practico object
-  const [listaAsistencia, setListaAsistencia] = useState([])
-  const [asistentesSelec, setAsistentesSelec] = useState(new Set())
-  const [cargandoAsistencia, setCargandoAsistencia] = useState(false)
-  const [guardandoAsistencia, setGuardandoAsistencia] = useState(false)
+  // Asistencia modal
+  const [modalAsistId, setModalAsistId] = useState(null)
+  const [asistencias, setAsistencias] = useState([]) // [{ id, nombre, asistio }]
+  const [cargandoAsist, setCargandoAsist] = useState(false)
+  const [guardandoAsist, setGuardandoAsist] = useState(false)
 
   const cargar = () => {
     setCargando(true)
@@ -70,20 +69,18 @@ export default function Practicos() {
     }).catch(() => {})
   }, [])
 
-  // Recargar eventos Google al cambiar de mes
   useEffect(() => {
     if (googleConectado) cargarEventosGoogle(anio, mes)
   }, [mes, anio, googleConectado])
 
-  // Detectar retorno desde OAuth de Google
   useEffect(() => {
     const estado = searchParams.get('google')
     if (estado === 'connected') {
       setGoogleConectado(true)
-      setExito('Google Calendar conectado correctamente')
+      toast.success('Google Calendar conectado correctamente')
       setSearchParams({})
     } else if (estado === 'error') {
-      setError('No se pudo conectar con Google Calendar')
+      toast.error('No se pudo conectar con Google Calendar')
       setSearchParams({})
     }
   }, [searchParams])
@@ -96,7 +93,7 @@ export default function Practicos() {
   const desconectarGoogle = async () => {
     await api.delete('/google/disconnect')
     setGoogleConectado(false)
-    setExito('Google Calendar desconectado')
+    toast.success('Google Calendar desconectado')
   }
 
   const handleCrearEvento = async (e) => {
@@ -104,12 +101,12 @@ export default function Practicos() {
     setGuardandoEvento(true)
     try {
       await api.post('/google/calendar/custom-event', formEvento)
-      setExito('Evento creado en Google Calendar')
+      toast.success('Evento creado en Google Calendar')
       setFormEvento({ titulo:'', fecha:'', hora_inicio:'', hora_fin:'', descripcion:'', lugar:'' })
       setMostrarModalEvento(false)
       cargarEventosGoogle(anio, mes)
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al crear el evento')
+      toast.error(err.response?.data?.error || 'Error al crear el evento')
     } finally {
       setGuardandoEvento(false)
     }
@@ -119,15 +116,52 @@ export default function Practicos() {
     setSincronizando(practicoId)
     try {
       await api.post('/google/calendar/events', { practico_id: practicoId })
-      setExito('Evento agregado a tu Google Calendar')
+      toast.success('Evento agregado a tu Google Calendar')
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al agregar el evento')
+      toast.error(err.response?.data?.error || 'Error al agregar el evento')
     } finally {
       setSincronizando(null)
     }
   }
 
-  // Calcular días del mes
+  // ── Asistencia ────────────────────────────────────────────────────────────────
+  const abrirAsistencia = async (practicoId) => {
+    setModalAsistId(practicoId)
+    setCargandoAsist(true)
+    try {
+      const { data } = await api.get(`/practicos/${practicoId}/asistencia`)
+      setAsistencias(data.map(u => ({ ...u, asistio: !!u.asistio })))
+    } catch {
+      toast.error('Error al cargar la lista de asistencia')
+      setModalAsistId(null)
+    } finally {
+      setCargandoAsist(false)
+    }
+  }
+
+  const toggleAsistencia = (id) => {
+    setAsistencias(prev => prev.map(u => u.id === id ? { ...u, asistio: !u.asistio } : u))
+  }
+
+  const guardarAsistencia = async () => {
+    setGuardandoAsist(true)
+    try {
+      const { data } = await api.post(`/practicos/${modalAsistId}/asistencia`, {
+        asistencias: asistencias.map(u => ({ usuario_id: u.id, asistio: u.asistio }))
+      })
+      const msg = data.certs_creados > 0
+        ? `Asistencia guardada. ${data.certs_creados} certificado${data.certs_creados !== 1 ? 's' : ''} generado${data.certs_creados !== 1 ? 's' : ''}.`
+        : 'Asistencia guardada correctamente.'
+      toast.success(msg)
+      setModalAsistId(null)
+    } catch {
+      toast.error('Error al guardar asistencia')
+    } finally {
+      setGuardandoAsist(false)
+    }
+  }
+
+  // ── Calendario ────────────────────────────────────────────────────────────────
   const primerDia = new Date(anio, mes, 1).getDay()
   const diasEnMes = new Date(anio, mes + 1, 0).getDate()
 
@@ -142,18 +176,17 @@ export default function Practicos() {
 
   const handleCrear = async (e) => {
     e.preventDefault()
-    setError(''); setExito('')
     if (!form.curso_id || !form.titulo || !form.fecha || !form.hora_inicio) {
-      return setError('Curso, título, fecha y hora de inicio son obligatorios')
+      return toast.error('Curso, título, fecha y hora de inicio son obligatorios')
     }
     try {
       const res = await api.post('/practicos', form)
-      setExito(res.data.message || 'Práctico creado y notificaciones enviadas')
+      toast.success(res.data.message || 'Práctico creado y notificaciones enviadas')
       setForm(FORM_INICIAL)
       setMostrarForm(false)
       cargar()
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al crear el práctico')
+      toast.error(err.response?.data?.error || 'Error al crear el práctico')
     }
   }
 
@@ -163,7 +196,9 @@ export default function Practicos() {
       await api.delete(`/practicos/${id}`)
       cargar()
       setDiaSeleccionado(null)
-    } catch { setError('Error al eliminar práctico') }
+    } catch {
+      toast.error('Error al eliminar práctico')
+    }
   }
 
   const abrirModalAsistencia = async (practico) => {
@@ -221,7 +256,7 @@ export default function Practicos() {
                     <Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Google Calendar conectado
                   </span>
                   <button className="btn-outline-dark" style={{ fontSize:12 }}
-                    onClick={() => { setMostrarModalEvento(true); setError(''); setExito('') }}>
+                    onClick={() => setMostrarModalEvento(true)}>
                     + Nuevo evento
                   </button>
                   <button className="btn-outline-dark" style={{ fontSize:12 }} onClick={desconectarGoogle}>
@@ -234,15 +269,12 @@ export default function Practicos() {
                 </button>
               )}
               {puedeCrear && (
-                <button className="btn-primary" onClick={() => { setMostrarForm(!mostrarForm); setError(''); setExito('') }}>
+                <button className="btn-primary" onClick={() => setMostrarForm(!mostrarForm)}>
                   {mostrarForm ? <><Icon icon="lucide:x" width={13} /> Cancelar</> : '+ Nuevo práctico'}
                 </button>
               )}
             </div>
           </div>
-
-          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}><Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}</div>}
-          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}><Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}</div>}
 
           {/* Formulario crear práctico */}
           {mostrarForm && puedeCrear && (
@@ -292,7 +324,6 @@ export default function Practicos() {
 
             {/* Calendario */}
             <div className="card">
-              {/* Navegación mes */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                 <button onClick={() => { if (mes === 0) { setMes(11); setAnio(anio-1) } else setMes(mes-1) }}
                   style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-left" width={16} /></button>
@@ -301,19 +332,14 @@ export default function Practicos() {
                   style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-right" width={16} /></button>
               </div>
 
-              {/* Días de la semana */}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2, marginBottom:4 }}>
                 {DIAS.map(d => (
                   <div key={d} style={{ textAlign:'center', fontSize:10, fontWeight:500, color:'#888', padding:'4px 0' }}>{d}</div>
                 ))}
               </div>
 
-              {/* Grid días */}
               <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2 }}>
-                {/* Celdas vacías al inicio */}
                 {Array.from({ length: primerDia }).map((_, i) => <div key={`empty-${i}`} />)}
-
-                {/* Días del mes */}
                 {Array.from({ length: diasEnMes }, (_, i) => i + 1).map(dia => {
                   const eventos = practicosPorDia(dia)
                   const esHoy = dia === hoy.getDate() && mes === hoy.getMonth() && anio === hoy.getFullYear()
@@ -322,29 +348,23 @@ export default function Practicos() {
                     <div key={dia}
                       onClick={() => setDiaSeleccionado(dia === diaSeleccionado ? null : dia)}
                       style={{
-                        height: 72, padding: '4px 6px', borderRadius: 8, cursor: 'pointer',
-                        border: `0.5px solid ${seleccionado ? '#2B4BA0' : esHoy ? '#2B4BA0' : '#E8E8E8'}`,
+                        height:72, padding:'4px 6px', borderRadius:8, cursor:'pointer',
+                        border:`0.5px solid ${seleccionado ? '#2B4BA0' : esHoy ? '#2B4BA0' : '#E8E8E8'}`,
                         background: seleccionado ? '#EEF2FF' : esHoy ? '#F4F8FF' : 'white',
-                        overflow: 'hidden', boxSizing: 'border-box'
+                        overflow:'hidden', boxSizing:'border-box'
                       }}
                     >
-                      <div style={{
-                        fontSize: 12, fontWeight: esHoy ? 600 : 400,
-                        color: esHoy ? '#2B4BA0' : '#1a1a1a',
-                        marginBottom: 2
-                      }}>{dia}</div>
-                      {eventos.slice(0, 2).map((e, i) => (
+                      <div style={{ fontSize:12, fontWeight:esHoy ? 600 : 400, color:esHoy ? '#2B4BA0' : '#1a1a1a', marginBottom:2 }}>{dia}</div>
+                      {eventos.slice(0,2).map((e, i) => (
                         <div key={i} style={{
-                          fontSize: 9, background: e.origen === 'google' ? '#4285F4' : '#2B4BA0', color: 'white',
-                          borderRadius: 3, padding: '1px 4px', marginBottom: 1,
-                          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+                          fontSize:9, background:e.origen === 'google' ? '#4285F4' : '#2B4BA0', color:'white',
+                          borderRadius:3, padding:'1px 4px', marginBottom:1,
+                          overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'
                         }}>
                           {e.hora_inicio?.slice(0,5)} {e.titulo}
                         </div>
                       ))}
-                      {eventos.length > 2 && (
-                        <div style={{ fontSize: 9, color: '#888' }}>+{eventos.length - 2} más</div>
-                      )}
+                      {eventos.length > 2 && <div style={{ fontSize:9, color:'#888' }}>+{eventos.length - 2} más</div>}
                     </div>
                   )
                 })}
@@ -359,9 +379,7 @@ export default function Practicos() {
                     {diaSeleccionado} de {MESES[mes]}
                   </div>
                   {practicosDelDia.length === 0 ? (
-                    <div style={{ color:'#888', fontSize:13, textAlign:'center', padding:16 }}>
-                      Sin eventos este día
-                    </div>
+                    <div style={{ color:'#888', fontSize:13, textAlign:'center', padding:16 }}>Sin eventos este día</div>
                   ) : practicosDelDia.map(p => (
                     <div key={p.id} style={{ border:`0.5px solid ${p.origen === 'google' ? '#4285F4' : '#E8E8E8'}`, borderRadius:8, padding:12, marginBottom:8 }}>
                       {p.origen === 'google' && (
@@ -373,11 +391,11 @@ export default function Practicos() {
                       )}
                       {p.hora_inicio && (
                         <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>
-                          <><Icon icon="lucide:clock" width={11} style={{marginRight:3}} /> {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}</>
+                          <Icon icon="lucide:clock" width={11} style={{marginRight:3}} /> {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}
                         </div>
                       )}
                       {p.sede_nombre && (
-                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}><><Icon icon="lucide:map-pin" width={11} style={{marginRight:3}} /> {p.sede_nombre}</></div>
+                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}><Icon icon="lucide:map-pin" width={11} style={{marginRight:3}} /> {p.sede_nombre}</div>
                       )}
                       {p.descripcion && (
                         <div style={{ fontSize:11, color:'#888', marginTop:6, lineHeight:1.5 }}>{p.descripcion}</div>
@@ -393,6 +411,13 @@ export default function Practicos() {
                               disabled={sincronizando === p.id}
                               style={{ fontSize:11, padding:'4px 8px', borderRadius:6, border:'0.5px solid #4285F4', color:'#4285F4', background:'white', cursor:'pointer' }}>
                               {sincronizando === p.id ? 'Agregando...' : '+ Agregar a mi calendario'}
+                            </button>
+                          )}
+                          {puedeAsistencia && (
+                            <button
+                              onClick={() => abrirAsistencia(p.id)}
+                              style={{ fontSize:11, padding:'4px 8px', borderRadius:6, border:'0.5px solid #2B4BA0', color:'#2B4BA0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                              <Icon icon="lucide:clipboard-check" width={12} /> Tomar asistencia
                             </button>
                           )}
                           {puedeCrear && (
@@ -414,7 +439,7 @@ export default function Practicos() {
                   ))}
                 </div>
               ) : (
-                <div className="card" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center',textAlign:'center', padding:24 }}>
+                <div className="card" style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', padding:24 }}>
                   <Icon icon="lucide:calendar" width={28} style={{marginBottom:8,display:"block",color:"#CCC"}} />
                   <div style={{ fontSize:13, color:'#888' }}>Selecciona un día para ver los prácticos programados</div>
                 </div>
@@ -436,12 +461,8 @@ export default function Practicos() {
                         width:36, height:36, borderRadius:8, background:'#EEF2FF',
                         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0
                       }}>
-                        <div style={{ fontSize:11, fontWeight:600, color:'#2B4BA0' }}>
-                          {new Date(p.fecha).getUTCDate()}
-                        </div>
-                        <div style={{ fontSize:9, color:'#888' }}>
-                          {MESES[new Date(p.fecha).getUTCMonth()]?.slice(0,3)}
-                        </div>
+                        <div style={{ fontSize:11, fontWeight:600, color:'#2B4BA0' }}>{new Date(p.fecha).getUTCDate()}</div>
+                        <div style={{ fontSize:9, color:'#888' }}>{MESES[new Date(p.fecha).getUTCMonth()]?.slice(0,3)}</div>
                       </div>
                       <div>
                         <div style={{ fontSize:12, fontWeight:500 }}>{p.titulo}</div>
@@ -456,55 +477,75 @@ export default function Practicos() {
         </main>
       </div>
 
-      {/* Modal de asistencia */}
-      {modalAsistencia && (
+      {/* Modal asistencia */}
+      {modalAsistId && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}
-          onClick={e => { if (e.target === e.currentTarget) setModalAsistencia(null) }}>
-          <div style={{ background:'white', borderRadius:12, padding:28, width:480, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+          onClick={e => { if (e.target === e.currentTarget) setModalAsistId(null) }}>
+          <div style={{ background:'white', borderRadius:12, padding:28, width:500, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
-                <div style={{ fontSize:15, fontWeight:600 }}>Asistencia</div>
-                <div style={{ fontSize:12, color:'#888', marginTop:2 }}>{modalAsistencia.titulo}</div>
+                <div style={{ fontSize:16, fontWeight:600 }}>Tomar asistencia</div>
+                <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Marca los colaboradores que asistieron</div>
               </div>
-              <button onClick={() => setModalAsistencia(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#888' }}><Icon icon="lucide:x" width={18} /></button>
+              <button onClick={() => setModalAsistId(null)}
+                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888' }}>
+                <Icon icon="lucide:x" width={18} />
+              </button>
             </div>
 
-            {cargandoAsistencia ? (
-              <div style={{ textAlign:'center', color:'#888', padding:24 }}>Cargando colaboradores...</div>
-            ) : listaAsistencia.length === 0 ? (
-              <div style={{ textAlign:'center', color:'#888', padding:24 }}>No hay colaboradores asignados a este curso en esta sede.</div>
+            {cargandoAsist ? (
+              <div style={{ textAlign:'center', padding:32, color:'#888', fontSize:13 }}>Cargando colaboradores...</div>
+            ) : asistencias.length === 0 ? (
+              <div style={{ textAlign:'center', padding:32, color:'#888', fontSize:13 }}>
+                No hay colaboradores asignados a este curso en esta sede.
+              </div>
             ) : (
               <>
-                <div style={{ fontSize:12, color:'#555', marginBottom:10 }}>
-                  Marca los colaboradores que asistieron · <strong>{asistentesSelec.size}</strong> de {listaAsistencia.length}
-                </div>
-                <div style={{ overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:6, marginBottom:16 }}>
-                  {listaAsistencia.map(u => (
-                    <label key={u.id} style={{
-                      display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, cursor:'pointer',
-                      background: asistentesSelec.has(u.id) ? '#EEF2FF' : '#F9F9F9',
-                      border: `1px solid ${asistentesSelec.has(u.id) ? '#2B4BA0' : '#E8E8E8'}`
-                    }}>
-                      <input type="checkbox" checked={asistentesSelec.has(u.id)} onChange={() => toggleAsistente(u.id)} style={{ accentColor:'#2B4BA0' }} />
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:500 }}>{u.nombre}</div>
-                        {u.estamento && <div style={{ fontSize:11, color:'#888' }}>{u.estamento}</div>}
-                      </div>
-                      {asistentesSelec.has(u.id) && <Icon icon="lucide:check" width={14} style={{ color:'#2B4BA0' }} />}
-                    </label>
-                  ))}
-                </div>
-                <div style={{ display:'flex', justifyContent:'space-between', gap:8 }}>
-                  <button onClick={() => setAsistentesSelec(new Set(listaAsistencia.map(u => u.id)))}
-                    style={{ fontSize:12, padding:'6px 12px', borderRadius:6, border:'0.5px solid #E8E8E8', background:'none', cursor:'pointer', color:'#555' }}>
-                    Marcar todos
-                  </button>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, paddingBottom:10, borderBottom:'0.5px solid #E8E8E8' }}>
+                  <span style={{ fontSize:12, color:'#555' }}>{asistencias.filter(u => u.asistio).length} de {asistencias.length} presentes</span>
                   <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => setModalAsistencia(null)} className="btn-outline-dark" style={{ fontSize:13 }}>Cancelar</button>
-                    <button onClick={guardarAsistencia} className="btn-primary" style={{ fontSize:13 }} disabled={guardandoAsistencia}>
-                      {guardandoAsistencia ? 'Guardando...' : 'Guardar asistencia'}
+                    <button onClick={() => setAsistencias(prev => prev.map(u => ({ ...u, asistio: true })))}
+                      style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'0.5px solid #7BC67A', color:'#1A7A45', background:'#EDFAF3', cursor:'pointer' }}>
+                      Todos presentes
+                    </button>
+                    <button onClick={() => setAsistencias(prev => prev.map(u => ({ ...u, asistio: false })))}
+                      style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'0.5px solid #E8E8E8', color:'#888', background:'#F9F9F9', cursor:'pointer' }}>
+                      Limpiar
                     </button>
                   </div>
+                </div>
+
+                <div style={{ overflowY:'auto', flex:1, marginBottom:16 }}>
+                  {asistencias.map(u => (
+                    <div key={u.id}
+                      onClick={() => toggleAsistencia(u.id)}
+                      style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 8px', borderRadius:8, cursor:'pointer', marginBottom:2,
+                        background: u.asistio ? '#EDFAF3' : '#FAFAFA',
+                        border: `0.5px solid ${u.asistio ? '#7BC67A' : '#E8E8E8'}`
+                      }}>
+                      <div style={{
+                        width:18, height:18, borderRadius:4, border:`2px solid ${u.asistio ? '#1A7A45' : '#CCC'}`,
+                        background: u.asistio ? '#1A7A45' : '#fff',
+                        display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0
+                      }}>
+                        {u.asistio && <Icon icon="lucide:check" color="white" width={11} />}
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:500, color: u.asistio ? '#1A7A45' : '#333' }}>{u.nombre}</div>
+                        {u.tipo_contrato && <div style={{ fontSize:11, color:'#888' }}>{u.tipo_contrato}</div>}
+                      </div>
+                      {u.asistio && (
+                        <span style={{ fontSize:11, color:'#1A7A45', fontWeight:600 }}>Presente</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display:'flex', gap:8, justifyContent:'flex-end', borderTop:'0.5px solid #E8E8E8', paddingTop:16 }}>
+                  <button onClick={() => setModalAsistId(null)} className="btn-outline-dark">Cancelar</button>
+                  <button onClick={guardarAsistencia} className="btn-primary" disabled={guardandoAsist}>
+                    {guardandoAsist ? 'Guardando...' : 'Guardar asistencia'}
+                  </button>
                 </div>
               </>
             )}
@@ -514,15 +555,9 @@ export default function Practicos() {
 
       {/* Modal nuevo evento Google Calendar */}
       {mostrarModalEvento && (
-        <div style={{
-          position:'fixed', inset:0, background:'rgba(0,0,0,0.4)',
-          display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000
-        }} onClick={e => { if (e.target === e.currentTarget) setMostrarModalEvento(false) }}>
-          <div style={{
-            background:'white', borderRadius:12, padding:28, width:440,
-            boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:0
-          }}>
-            {/* Cabecera */}
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}
+          onClick={e => { if (e.target === e.currentTarget) setMostrarModalEvento(false) }}>
+          <div style={{ background:'white', borderRadius:12, padding:28, width:440, boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:0 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
                 <div style={{ fontSize:16, fontWeight:600, color:'#1a1a1a' }}>Nuevo evento</div>
@@ -533,23 +568,18 @@ export default function Practicos() {
             </div>
 
             <form onSubmit={handleCrearEvento} style={{ display:'flex', flexDirection:'column', gap:14 }}>
-              {/* Título */}
               <div className="field">
                 <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>Título *</label>
                 <input type="text" placeholder="Añadir título"
                   style={{ fontSize:15, padding:'8px 12px', border:'none', borderBottom:'2px solid #4285F4', borderRadius:0, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.titulo} onChange={e => setFormEvento({...formEvento, titulo:e.target.value})} autoFocus />
               </div>
-
-              {/* Fecha */}
               <div className="field">
                 <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:calendar" width={13} style={{marginRight:4}} /> Fecha *</label>
                 <input type="date"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.fecha} onChange={e => setFormEvento({...formEvento, fecha:e.target.value})} />
               </div>
-
-              {/* Horas */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div className="field">
                   <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora inicio *</label>
@@ -564,29 +594,20 @@ export default function Practicos() {
                     value={formEvento.hora_fin} onChange={e => setFormEvento({...formEvento, hora_fin:e.target.value})} />
                 </div>
               </div>
-
-              {/* Ubicación */}
               <div className="field">
                 <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:map-pin" width={13} style={{marginRight:4}} /> Ubicación</label>
                 <input type="text" placeholder="Añadir ubicación"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.lugar} onChange={e => setFormEvento({...formEvento, lugar:e.target.value})} />
               </div>
-
-              {/* Descripción */}
               <div className="field">
                 <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:align-left" width={13} style={{marginRight:4}} /> Descripción</label>
                 <textarea rows={3} placeholder="Añadir descripción"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box', resize:'none' }}
                   value={formEvento.descripcion} onChange={e => setFormEvento({...formEvento, descripcion:e.target.value})} />
               </div>
-
-              {/* Acciones */}
               <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:4 }}>
-                <button type="button" className="btn-outline-dark"
-                  onClick={() => setMostrarModalEvento(false)}>
-                  Cancelar
-                </button>
+                <button type="button" className="btn-outline-dark" onClick={() => setMostrarModalEvento(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={guardandoEvento}
                   style={{ background:'#4285F4', borderColor:'#4285F4' }}>
                   {guardandoEvento ? 'Guardando...' : 'Guardar evento'}

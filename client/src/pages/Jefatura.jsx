@@ -5,12 +5,15 @@ import * as XLSX from 'xlsx'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
+import { useToast } from '../context/ToastContext'
 
 export default function Jefatura() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [resumen, setResumen] = useState(null)
   const [sedes, setSedes] = useState([])
   const [cursos, setCursos] = useState([])
+  const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false)
 
   useEffect(() => {
     Promise.all([api.get('/reportes/resumen'), api.get('/reportes/sedes'), api.get('/reportes/cursos')])
@@ -28,6 +31,18 @@ export default function Jefatura() {
   ]
 
   const sedeColors = ['#2B4BA0','#7BC67A','#F5A623']
+
+  const enviarRecordatoriosAhora = async () => {
+    setEnviandoRecordatorios(true)
+    try {
+      const { data } = await api.post('/reportes/enviar-recordatorios')
+      toast.success(`Recordatorios enviados: ${data.enviados} de ${data.total}${data.errores > 0 ? ` (${data.errores} errores)` : ''}`)
+    } catch {
+      toast.error('Error al enviar recordatorios')
+    } finally {
+      setEnviandoRecordatorios(false)
+    }
+  }
 
   const exportarExcel = () => {
     const wb = XLSX.utils.book_new()
@@ -79,6 +94,9 @@ export default function Jefatura() {
             </div>
             <div style={{ display:'flex', gap:8 }}>
               <button className="btn-outline-dark" onClick={exportarExcel}><><Icon icon="lucide:download" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Exportar a Excel</></button>
+              <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
+                <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>
+              </button>
               <button className="btn-primary" onClick={() => navigate('/jefatura/ia')}><><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Generador IA</></button>
             </div>
           </div>

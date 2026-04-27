@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
@@ -130,8 +130,10 @@ export default function Login() {
               </div>
             </div>
 
-            <div style={{ textAlign:'right', fontSize:12, color:'#2B4BA0', cursor:'pointer', marginBottom:18 }}>
-              ¿Olvidaste tu contraseña?
+            <div style={{ textAlign:'right', marginBottom:18 }}>
+              <Link to="/forgot-password" style={{ fontSize:12, color:'#2B4BA0' }}>
+                ¿Olvidaste tu contraseña?
+              </Link>
             </div>
 
             {error && <p style={{ color:'#E8505B', fontSize:13, marginBottom:12 }}>{error}</p>}

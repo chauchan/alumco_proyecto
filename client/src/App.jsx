@@ -1,7 +1,11 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import SessionModal         from './components/SessionModal'
 
 import Login                from './pages/Login'
+import ForgotPassword       from './pages/ForgotPassword'
+import ResetPassword        from './pages/ResetPassword'
 import Colaborador          from './pages/Colaborador'
 import Profesor             from './pages/Profesor'
 import AdminSede            from './pages/AdminSede'
@@ -9,6 +13,7 @@ import Jefatura             from './pages/Jefatura'
 import GeneradorIA          from './pages/GeneradorIA'
 import Protocolos           from './pages/Protocolos'
 import GestionUsuarios      from './pages/GestionUsuarios'
+import GestionSedes         from './pages/GestionSedes'
 import NuevoCurso           from './pages/NuevoCurso'
 import CambiarPassword      from './pages/CambiarPassword'
 import Capacitaciones       from './pages/Capacitaciones'
@@ -38,11 +43,21 @@ const TODOS  = ['colaborador','profesor','admin_sede','jefatura']
 const ADMIN  = ['admin_sede','jefatura','profesor']
 
 export default function App() {
+  // Aplica clases de accesibilidad guardadas antes de que monte cualquier child
+  useEffect(() => {
+    const html = document.documentElement
+    html.classList.toggle('texto-grande',   localStorage.getItem('acc-texto-grande')   === '1')
+    html.classList.toggle('alto-contraste', localStorage.getItem('acc-alto-contraste') === '1')
+  }, [])
+
   return (
     <AuthProvider>
       <BrowserRouter>
+        <SessionModal />
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login"                  element={<Login />} />
+          <Route path="/forgot-password"        element={<ForgotPassword />} />
+          <Route path="/reset-password/:token"  element={<ResetPassword />} />
           <Route path="/" element={<RolRedirect />} />
 
           <Route path="/colaborador"   element={<ProtectedRoute roles={['colaborador']}><Colaborador /></ProtectedRoute>} />
@@ -52,6 +67,7 @@ export default function App() {
           <Route path="/admin"         element={<ProtectedRoute roles={['admin_sede']}><AdminSede /></ProtectedRoute>} />
           <Route path="/jefatura"      element={<ProtectedRoute roles={['jefatura']}><Jefatura /></ProtectedRoute>} />
           <Route path="/jefatura/usuarios" element={<ProtectedRoute roles={['jefatura']}><GestionUsuarios /></ProtectedRoute>} />
+          <Route path="/jefatura/sedes"   element={<ProtectedRoute roles={['jefatura']}><GestionSedes /></ProtectedRoute>} />
           <Route path="/jefatura/ia"          element={<ProtectedRoute roles={['jefatura','admin_sede']}><GeneradorIA /></ProtectedRoute>} />
           <Route path="/jefatura/protocolos"  element={<ProtectedRoute roles={['jefatura','admin_sede']}><Protocolos /></ProtectedRoute>} />
 

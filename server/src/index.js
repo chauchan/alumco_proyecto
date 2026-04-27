@@ -2,8 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cron = require('node-cron');
 const pool = require('./config/db');
 const { makeBucketPublic } = require('./config/s3');
+const { enviarRecordatorios } = require('./jobs/recordatoriosCertificados');
 
 const authRoutes          = require('./routes/auth');
 const usuariosRoutes      = require('./routes/usuarios');
@@ -125,6 +127,7 @@ async function start() {
   // Agregar practico_id a notificaciones si no existe (tablas creadas antes de esta columna)
   await addColumnIfMissing('notificaciones', 'practico_id', 'INT DEFAULT NULL');
 
+
   // Agregar columna ultimo_acceso a usuarios si no existe
   try {
     await pool.query(`ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL`);
@@ -166,6 +169,13 @@ async function start() {
   // Columna requiere_practico en cursos
   await addColumnIfMissing('cursos', 'requiere_practico', 'TINYINT(1) DEFAULT 0');
   console.log('✓ Schema de práctico requerido listo');
+
+  // Recordatorios diarios a las 09:00 para todos los colaboradores con cursos pendientes
+  cron.schedule('0 9 * * *', () => {
+    enviarRecordatorios(null, null)
+      .then(r => console.log(`[cron] Recordatorios enviados: ${r.enviados}/${r.total} (${r.errores} errores)`))
+      .catch(e => console.error('[cron] Error recordatorios:', e.message));
+  });
 
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
 

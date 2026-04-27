@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
+import { useAuth } from '../context/AuthContext'
 
 // ── buildSlides: usa diapositivas IA si existen ──────────────────────────────
 function buildSlides(mod, pres) {
@@ -312,8 +313,13 @@ function guardarFormStorage(data) {
 // ── Componente principal ───────────────────────────────────────────────────────
 export default function GeneradorIA() {
   const navigate = useNavigate()
+  const { usuario } = useAuth()
   const [archivo, setArchivo] = useState(null)
-  const [form, setForm] = useState(() => leerFormStorage() || { nombre_curso: '', area: '', contexto: '', num_modulos: '' })
+  const [form, setForm] = useState(() => {
+    const s = leerFormStorage()
+    return s ? { ...s, profesor_id: s.profesor_id || '' } : { nombre_curso: '', area: '', contexto: '', num_modulos: '', profesor_id: '' }
+  })
+  const [profesores, setProfesores] = useState([])
   const [fuentePDF, setFuentePDF] = useState('subir')   // 'subir' | 'biblioteca'
   const [protocolos, setProtocolos] = useState([])
   const [protocoloSeleccionado, setProtocoloSeleccionado] = useState(null)
@@ -422,9 +428,12 @@ export default function GeneradorIA() {
   // Persistir form cuando cambia
   useEffect(() => { guardarFormStorage(form) }, [form])
 
-  // Cargar biblioteca de protocolos al montar
+  // Cargar biblioteca de protocolos y lista de profesores al montar
   useEffect(() => {
     api.get('/protocolos').then(r => setProtocolos(r.data)).catch(() => {})
+    api.get('/usuarios')
+      .then(r => setProfesores(r.data.filter(u => u.rol === 'profesor' && u.activo)))
+      .catch(() => {})
   }, [])
 
   const handleSubmit = async (e) => {
@@ -457,6 +466,8 @@ export default function GeneradorIA() {
       } else {
         data.append('protocolo_id', protocoloSeleccionado.id)
       }
+      if (form.profesor_id) data.append('profesor_id', form.profesor_id)
+      if (usuario?.sede_id) data.append('sede_objetivo', usuario.sede_id)
       const res = await api.post('/ia/generar-curso', data, {
         headers: { 'Content-Type': 'multipart/form-data' },
         signal: abortRef.current.signal
@@ -621,7 +632,7 @@ export default function GeneradorIA() {
                   <div className="upload-zone" style={{ marginBottom: 16 }} onClick={() => document.getElementById('input-pdf').click()}>
                     <input id="input-pdf" type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => setArchivo(e.target.files[0])} />
                     {archivo ? (
-                      <><Icon icon="lucide:check" width={20} style={{marginBottom:4,display:"block",color:"#1A7A45"}} />
+                      <><Icon icon="lucide:check" width={20} style={{margin:"0 auto 4px",display:"block",color:"#1A7A45"}} />
                         <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div>
                         <span className="format-tag tag-pdf" style={{ marginTop: 6, display: 'inline-block' }}>PDF</span></>
                     ) : (
@@ -673,6 +684,20 @@ export default function GeneradorIA() {
                   </select>
                 </div>
                 <div className="field">
+                  <label>Profesor responsable</label>
+                  <select value={form.profesor_id} onChange={e => setForm({ ...form, profesor_id: e.target.value })}>
+                    <option value="">Asignar automáticamente</option>
+                    {profesores.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}{p.sede_nombre ? ` — ${p.sede_nombre}` : ''}</option>
+                    ))}
+                  </select>
+                  {!form.profesor_id && (
+                    <span style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'block' }}>
+                      Si no elegís, lo asignaremos automáticamente según sede y estamento
+                    </span>
+                  )}
+                </div>
+                <div className="field">
                   <label>Número de módulos</label>
                   <select value={form.num_modulos} onChange={e => setForm({ ...form, num_modulos: e.target.value })}>
                     <option value="">Automático (según el protocolo)</option>
@@ -705,7 +730,7 @@ export default function GeneradorIA() {
 
               {cargando && (
                 <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                  <Icon icon="lucide:loader-circle" width={32} style={{marginBottom:12,display:"block",color:"#888"}} />
+                  <Icon icon="lucide:loader-circle" width={32} style={{margin:"0 auto 12px",display:"block",color:"#888"}} />
                   <div style={{ fontSize: 13 }}>Analizando el protocolo...</div>
                   <div style={{ fontSize: 11, marginTop: 6 }}>Esto puede tomar 30–60 segundos</div>
                 </div>
@@ -803,7 +828,7 @@ export default function GeneradorIA() {
                           {/* Estado cargando */}
                           {(!pres || pres === 'cargando') && (
                             <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                              <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:10,display:"block",color:"#888"}} />
+                              <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 10px",display:"block",color:"#888"}} />
                               <div style={{ fontSize: 13 }}>Generando presentación con IA...</div>
                               <div style={{ fontSize: 11, marginTop: 4 }}>Puede tomar unos segundos</div>
                             </div>
@@ -1182,6 +1207,7 @@ export default function GeneradorIA() {
                               await api.post('/ia/notificar-profesor', {
                                 curso_id: resultado.curso_id,
                                 curso_nombre: resultado.nombre,
+                                profesor_id: resultado.profesor_id || null,
                                 modulos_count: resultado.modulos?.length,
                                 preguntas_count: resultado.preguntas_count,
                                 nombre_archivo: resultado.nombre_archivo

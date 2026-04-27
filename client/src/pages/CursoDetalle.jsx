@@ -33,6 +33,8 @@ export default function CursoDetalle() {
   const [signedUrls, setSignedUrls] = useState({})
   const [certificadoUrl, setCertificadoUrl] = useState(null)
   const [certError, setCertError] = useState(null)
+  const [generandoPPT, setGenerandoPPT] = useState({})
+  const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
 
   // Buscar certificado aprobado; si no existe, generarlo bajo demanda
@@ -70,8 +72,32 @@ export default function CursoDetalle() {
     if (signedUrls[moduloActivo]) return // ya cacheada
     api.get(`/cursos/${cursoId}/modulos/${moduloActivo}/signed-url`)
       .then(r => setSignedUrls(prev => ({ ...prev, [moduloActivo]: r.data.url })))
-      .catch(() => {})
+      .catch(err => console.error('[signed-url] error:', err?.response?.status, err?.response?.data || err?.message))
   }, [moduloActivo, cursoId])
+
+  // Auto-generar PPT si el módulo activo es tipo ppt y no tiene slides guardadas
+  useEffect(() => {
+    if (!moduloActivo || !curso) return
+    const mod = curso.modulos?.find(m => m.id === moduloActivo)
+    if (!mod || mod.tipo !== 'ppt') return
+    const cp = mod.contenido_presentacion
+    const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+    if (slides.length > 0 || generandoPPT[moduloActivo]) return
+
+    setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: true }))
+    api.post(`/ia/modulo/${moduloActivo}/generar-ppt`)
+      .then(r => {
+        const presentacion = r.data.presentacion
+        setCurso(prev => ({
+          ...prev,
+          modulos: prev.modulos.map(m =>
+            m.id === moduloActivo ? { ...m, contenido_presentacion: presentacion } : m
+          )
+        }))
+      })
+      .catch(err => console.error('[generar-ppt]', err?.response?.data || err?.message))
+      .finally(() => setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: false })))
+  }, [moduloActivo, curso])
 
   useEffect(() => {
     Promise.all([
@@ -92,6 +118,8 @@ export default function CursoDetalle() {
 
         const localBloqueoRaw = localStorage.getItem(`curso_${userId}_${cursoId}_bloqueo`)
         const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
+
+        setEsperandoPractico(!!progresoRes.data?.esperando_practico)
 
         const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
         const intentosFallidosLocal = parseInt(localBloqueo?.intentos_fallidos || 0, 10)
@@ -244,6 +272,11 @@ export default function CursoDetalle() {
     }
     if (bloqueado) return
     setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
+    if (aprobado) {
+      api.get(`/cursos/${cursoId}/mi-progreso`)
+        .then(r => setEsperandoPractico(!!r.data?.esperando_practico))
+        .catch(() => {})
+    }
   }
 
   // ─── render módulo expandido ─────────────────────────────────────────────────
@@ -253,6 +286,17 @@ export default function CursoDetalle() {
       : Array.isArray(cp?.diapositivas) ? cp.diapositivas
       : []
     const esPPT = slides.length > 0
+
+    // PPT sin slides aún: mostrar spinner mientras se genera
+    if (mod.tipo === 'ppt' && !esPPT) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#888' }}>
+          <Icon icon="lucide:loader" width={32} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
+          <div style={{ fontSize: 14, fontWeight: 500 }}>Generando presentación...</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>Esto puede tomar unos segundos</div>
+        </div>
+      )
+    }
     const esVideo = mod.tipo === 'video' && mod.archivo_url
     const esPDF = mod.tipo === 'pdf' && mod.archivo_url
 
@@ -686,7 +730,12 @@ export default function CursoDetalle() {
                               <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
-                              {certificadoUrl ? (
+                              {esperandoPractico ? (
+                                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#C2410C', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
+                                  <Icon icon="lucide:clock" width={16} style={{flexShrink:0}} />
+                                  Has aprobado la evaluación. Falta asistir al práctico para certificarte.
+                                </div>
+                              ) : certificadoUrl ? (
                                 <a href={certificadoUrl} target="_blank" rel="noreferrer"
                                   style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#15803D', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
                                   <Icon icon="lucide:download" width={16} />
@@ -826,6 +875,12 @@ export default function CursoDetalle() {
                     </div>
                     <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : '#555', fontWeight: 500 }}>{progreso}% completado</div>
                   </div>
+                  {esperandoPractico && !resultado && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #F0F0F0', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                      <Icon icon="lucide:clock" width={14} style={{flexShrink:0, marginTop:1}} />
+                      <span>Has aprobado la evaluación. Falta asistir al práctico para certificarte.</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

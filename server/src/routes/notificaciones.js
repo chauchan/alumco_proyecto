@@ -7,9 +7,11 @@ const { verificarToken } = require('../middleware/auth');
 router.get('/', verificarToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT n.*, p.fecha, p.hora_inicio, p.lugar
+      `SELECT n.id, n.tipo, n.entidad, n.entidad_id, n.titulo, n.mensaje,
+              n.leida, n.leida_en, n.created_at,
+              p.fecha, p.hora_inicio, p.lugar
        FROM notificaciones n
-       LEFT JOIN practicos p ON n.practico_id = p.id
+       LEFT JOIN practicos p ON n.entidad = 'practico' AND n.entidad_id = p.id
        WHERE n.usuario_id = ?
        ORDER BY n.created_at DESC
        LIMIT 20`,
@@ -26,7 +28,7 @@ router.get('/', verificarToken, async (req, res) => {
 router.patch('/leer-todas', verificarToken, async (req, res) => {
   try {
     await pool.query(
-      'UPDATE notificaciones SET leida = 1 WHERE usuario_id = ?',
+      'UPDATE notificaciones SET leida = 1, leida_en = NOW() WHERE usuario_id = ? AND leida_en IS NULL',
       [req.usuario.id]
     );
     res.json({ message: 'Notificaciones marcadas como leídas' });
@@ -39,7 +41,7 @@ router.patch('/leer-todas', verificarToken, async (req, res) => {
 router.patch('/:id/leer', verificarToken, async (req, res) => {
   try {
     await pool.query(
-      'UPDATE notificaciones SET leida = 1 WHERE id = ? AND usuario_id = ?',
+      'UPDATE notificaciones SET leida = 1, leida_en = NOW() WHERE id = ? AND usuario_id = ? AND leida_en IS NULL',
       [req.params.id, req.usuario.id]
     );
     res.json({ message: 'Notificación leída' });

@@ -1,283 +1,411 @@
 require('dotenv').config();
 const mysql = require('mysql2/promise');
-const bcrypt = require('bcryptjs');
 
 async function migrate() {
   const conn = await mysql.createConnection({
-    host:     process.env.DB_HOST     || 'localhost',
-    port:     process.env.DB_PORT     || 3306,
-    user:     process.env.DB_USER     || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME     || 'alumco',
+    host:               process.env.DB_HOST     || 'localhost',
+    port:               parseInt(process.env.DB_PORT) || 3306,
+    user:               process.env.DB_USER     || 'root',
+    password:           process.env.DB_PASSWORD || '',
+    database:           process.env.DB_NAME     || 'alumco',
     multipleStatements: true
   });
 
   try {
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
+    // ── Catálogos ──────────────────────────────────────────────────────────────
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS estamentos (
+        id     INT PRIMARY KEY AUTO_INCREMENT,
+        nombre VARCHAR(100) NOT NULL UNIQUE
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS areas (
+        id     INT PRIMARY KEY AUTO_INCREMENT,
+        nombre VARCHAR(100) NOT NULL UNIQUE
+      )
+    `);
+
+    // ── Entidades principales ──────────────────────────────────────────────────
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS sedes (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        nombre VARCHAR(100) NOT NULL,
-        ciudad VARCHAR(100),
-        activa TINYINT(1) DEFAULT 1,
+        id         INT PRIMARY KEY AUTO_INCREMENT,
+        nombre     VARCHAR(100) NOT NULL UNIQUE,
+        ciudad     VARCHAR(100),
+        activa     TINYINT(1) DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        nombre VARCHAR(150) NOT NULL,
-        identificador VARCHAR(50) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        rol ENUM('colaborador','profesor','admin_sede','jefatura') NOT NULL,
-        tipo_contrato ENUM('fijo','reemplazo'),
-        sede_id INT,
-        rango_etario VARCHAR(20),
-        rut VARCHAR(20) DEFAULT NULL,
-        email VARCHAR(150) DEFAULT NULL,
-        telefono VARCHAR(20) DEFAULT NULL,
-        estamento VARCHAR(100) DEFAULT NULL,
-        activo TINYINT(1) DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (sede_id) REFERENCES sedes(id)
+        id                   INT PRIMARY KEY AUTO_INCREMENT,
+        nombre               VARCHAR(150) NOT NULL,
+        identificador        VARCHAR(50) UNIQUE NOT NULL,
+        password_hash        VARCHAR(255) NOT NULL,
+        rol                  ENUM('colaborador','profesor','admin_sede','jefatura') NOT NULL,
+        tipo_contrato        ENUM('fijo','reemplazo'),
+        sede_id              INT,
+        rango_etario         VARCHAR(20),
+        rut                  VARCHAR(20) DEFAULT NULL,
+        email                VARCHAR(150) DEFAULT NULL,
+        telefono             VARCHAR(20) DEFAULT NULL,
+        estamento_id         INT DEFAULT NULL,
+        activo               TINYINT(1) DEFAULT 1,
+        ultimo_acceso        DATETIME DEFAULT NULL,
+        google_access_token  TEXT DEFAULT NULL,
+        google_refresh_token TEXT DEFAULT NULL,
+        created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (sede_id)      REFERENCES sedes(id),
+        FOREIGN KEY (estamento_id) REFERENCES estamentos(id)
       )
     `);
 
-    // Migraciones incrementales de columnas para BDs existentes
-    await conn.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rut VARCHAR(20) DEFAULT NULL`).catch(() => {});
-    await conn.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(150) DEFAULT NULL`).catch(() => {});
-    await conn.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono VARCHAR(20) DEFAULT NULL`).catch(() => {});
-    await conn.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS estamento VARCHAR(100) DEFAULT NULL`).catch(() => {});
-
-    // Actualizar usuarios existentes sin estamento: jefatura → 'Dirección'
-    await conn.query(`
-      UPDATE usuarios SET estamento = 'Dirección'
-      WHERE rol = 'jefatura' AND (estamento IS NULL OR estamento = '')
-    `).catch(() => {});
-
     await conn.query(`
       CREATE TABLE IF NOT EXISTS cursos (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        nombre VARCHAR(200) NOT NULL,
-        descripcion TEXT,
-        area VARCHAR(100),
-        profesor_id INT,
-        publicado TINYINT(1) DEFAULT 0,
+        id              INT PRIMARY KEY AUTO_INCREMENT,
+        nombre          VARCHAR(200) NOT NULL,
+        descripcion     TEXT,
+        area_id         INT,
+        profesor_id     INT,
+        publicado       TINYINT(1) DEFAULT 0,
         generado_por_ia TINYINT(1) DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (profesor_id) REFERENCES usuarios(id)
+        sede_objetivo   INT DEFAULT NULL,
+        obligatorio     TINYINT(1) DEFAULT 0,
+        video_intro_url VARCHAR(500) DEFAULT NULL,
+        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (area_id)       REFERENCES areas(id),
+        FOREIGN KEY (profesor_id)   REFERENCES usuarios(id),
+        FOREIGN KEY (sede_objetivo) REFERENCES sedes(id)
+      )
+    `);
+
+    // curso ↔ estamento  (reemplaza JSON estamento_objetivo)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS curso_estamentos (
+        curso_id     INT NOT NULL,
+        estamento_id INT NOT NULL,
+        PRIMARY KEY (curso_id, estamento_id),
+        FOREIGN KEY (curso_id)     REFERENCES cursos(id)     ON DELETE CASCADE,
+        FOREIGN KEY (estamento_id) REFERENCES estamentos(id) ON DELETE CASCADE
       )
     `);
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS modulos (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        curso_id INT,
-        titulo VARCHAR(200) NOT NULL,
+        id          INT PRIMARY KEY AUTO_INCREMENT,
+        curso_id    INT,
+        titulo      VARCHAR(200) NOT NULL,
         descripcion TEXT,
-        contenido_presentacion JSON,
-        tipo ENUM('pdf','video','ppt'),
+        tipo        ENUM('pdf','video','ppt'),
         archivo_url VARCHAR(500),
-        orden INT DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        orden       INT DEFAULT 1,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
       )
     `);
 
-    // Migraciones incrementales: agregar columnas si no existen en BDs previas
-    await conn.query(`ALTER TABLE modulos ADD COLUMN IF NOT EXISTS contenido_presentacion JSON AFTER descripcion`).catch(() => {});
-    await conn.query(`ALTER TABLE modulos MODIFY COLUMN titulo VARCHAR(500) NOT NULL`).catch(() => {});
-    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS estamento_objetivo TEXT DEFAULT NULL`).catch(() => {});
-    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS sede_objetivo INT DEFAULT NULL`).catch(() => {});
-    // Convertir valores existentes de string a JSON array
+    // slides de módulos PPT  (reemplaza JSON contenido_presentacion)
+    // datos: objeto JSON flexible por tipo de diapositiva
     await conn.query(`
-      UPDATE cursos
-      SET estamento_objetivo = JSON_ARRAY(estamento_objetivo)
-      WHERE estamento_objetivo IS NOT NULL
-        AND JSON_VALID(estamento_objetivo) = 0
-    `).catch(() => {});
-    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS obligatorio TINYINT(1) DEFAULT 0`).catch(() => {});
-    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS video_intro_url VARCHAR(500) DEFAULT NULL`).catch(() => {});
-    await conn.query(`ALTER TABLE cursos ADD COLUMN IF NOT EXISTS imagenes_protocolo JSON DEFAULT NULL`).catch(() => {});
+      CREATE TABLE IF NOT EXISTS modulo_slides (
+        id        INT PRIMARY KEY AUTO_INCREMENT,
+        modulo_id INT NOT NULL,
+        numero    INT NOT NULL,
+        datos     JSON NOT NULL,
+        FOREIGN KEY (modulo_id) REFERENCES modulos(id) ON DELETE CASCADE
+      )
+    `);
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS asignaciones (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        usuario_id INT,
-        curso_id INT,
-        obligatorio TINYINT(1) DEFAULT 0,
+        id           INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id   INT,
+        curso_id     INT,
+        obligatorio  TINYINT(1) DEFAULT 0,
         fecha_limite DATE,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_asignacion (usuario_id, curso_id),
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-        FOREIGN KEY (curso_id) REFERENCES cursos(id)
+        FOREIGN KEY (curso_id)   REFERENCES cursos(id)
       )
     `);
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS progreso (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        usuario_id INT,
-        curso_id INT,
-        completado TINYINT(1) DEFAULT 0,
-        porcentaje INT DEFAULT 0,
-        ultimo_acceso DATETIME,
+        id                INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id        INT,
+        curso_id          INT,
+        porcentaje        INT DEFAULT 0,
+        ultimo_acceso     DATETIME,
         intentos_fallidos INT DEFAULT 0,
-        bloqueado_hasta DATETIME DEFAULT NULL,
+        bloqueado_hasta   DATETIME DEFAULT NULL,
         UNIQUE KEY uq_progreso (usuario_id, curso_id),
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-        FOREIGN KEY (curso_id) REFERENCES cursos(id)
+        FOREIGN KEY (curso_id)   REFERENCES cursos(id)
       )
     `);
-    // Para BDs existentes que no tienen aún estas columnas
-    await conn.query(`ALTER TABLE progreso ADD COLUMN IF NOT EXISTS intentos_fallidos INT DEFAULT 0`).catch(() => {});
-    await conn.query(`ALTER TABLE progreso ADD COLUMN IF NOT EXISTS bloqueado_hasta DATETIME DEFAULT NULL`).catch(() => {});
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS preguntas (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        curso_id INT,
-        texto TEXT NOT NULL,
-        alternativas JSON NOT NULL,
+        id         INT PRIMARY KEY AUTO_INCREMENT,
+        curso_id   INT,
+        texto      TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
       )
     `);
 
+    // alternativas de preguntas  (reemplaza JSON alternativas)
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS intentos (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        usuario_id INT,
-        curso_id INT,
-        numero_intento INT DEFAULT 1,
-        respuestas JSON,
-        nota INT,
-        aprobado TINYINT(1) DEFAULT 0,
-        fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-        FOREIGN KEY (curso_id) REFERENCES cursos(id)
+      CREATE TABLE IF NOT EXISTS alternativas (
+        id          INT PRIMARY KEY AUTO_INCREMENT,
+        pregunta_id INT NOT NULL,
+        texto       TEXT NOT NULL,
+        correcta    TINYINT(1) DEFAULT 0,
+        FOREIGN KEY (pregunta_id) REFERENCES preguntas(id) ON DELETE CASCADE
       )
     `);
 
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS certificados (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        usuario_id INT,
-        curso_id INT,
-        intento_id INT,
-        validado_por INT,
-        estado ENUM('pendiente','aprobado','rechazado') DEFAULT 'pendiente',
-        archivo_url VARCHAR(500),
-        fecha_emision DATETIME,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      CREATE TABLE IF NOT EXISTS intentos (
+        id             INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id     INT,
+        curso_id       INT,
+        numero_intento INT DEFAULT 1,
+        nota           INT,
+        aprobado       TINYINT(1) DEFAULT 0,
+        fecha          DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-        FOREIGN KEY (curso_id) REFERENCES cursos(id),
-        FOREIGN KEY (intento_id) REFERENCES intentos(id),
+        FOREIGN KEY (curso_id)   REFERENCES cursos(id)
+      )
+    `);
+
+    // respuestas por intento  (reemplaza JSON respuestas)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS intento_respuestas (
+        id             INT PRIMARY KEY AUTO_INCREMENT,
+        intento_id     INT NOT NULL,
+        pregunta_id    INT NOT NULL,
+        alternativa_id INT NOT NULL,
+        UNIQUE KEY uq_respuesta (intento_id, pregunta_id),
+        FOREIGN KEY (intento_id)     REFERENCES intentos(id)     ON DELETE CASCADE,
+        FOREIGN KEY (pregunta_id)    REFERENCES preguntas(id),
+        FOREIGN KEY (alternativa_id) REFERENCES alternativas(id)
+      )
+    `);
+
+    // usuario_id y curso_id se derivan de intento_id → no se repiten aquí
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS certificados (
+        id            INT PRIMARY KEY AUTO_INCREMENT,
+        intento_id    INT,
+        validado_por  INT,
+        estado        ENUM('pendiente','aprobado','rechazado') DEFAULT 'pendiente',
+        archivo_url   VARCHAR(500),
+        fecha_emision DATETIME,
+        created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (intento_id)   REFERENCES intentos(id),
         FOREIGN KEY (validado_por) REFERENCES usuarios(id)
       )
     `);
 
-    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS practicos (
+        id          INT PRIMARY KEY AUTO_INCREMENT,
+        curso_id    INT NOT NULL,
+        sede_id     INT NOT NULL,
+        titulo      VARCHAR(200) NOT NULL,
+        descripcion TEXT,
+        fecha       DATE NOT NULL,
+        hora_inicio TIME NOT NULL,
+        hora_fin    TIME,
+        lugar       VARCHAR(200),
+        creado_por  INT NOT NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (curso_id)   REFERENCES cursos(id) ON DELETE CASCADE,
+        FOREIGN KEY (sede_id)    REFERENCES sedes(id),
+        FOREIGN KEY (creado_por) REFERENCES usuarios(id)
+      )
+    `);
 
-    // Sedes iniciales
-    const [sedes] = await conn.query("SELECT id FROM sedes WHERE nombre = 'ELEAM Hualpén'");
-    if (sedes.length === 0) {
-      await conn.query("INSERT INTO sedes (nombre, ciudad) VALUES ('ELEAM Hualpén', 'Hualpén')");
-      await conn.query("INSERT INTO sedes (nombre, ciudad) VALUES ('ELEAM Coyhaique', 'Coyhaique')");
-      console.log('✓ Sedes creadas');
-    }
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS asistencia_practicos (
+        id              INT AUTO_INCREMENT PRIMARY KEY,
+        practico_id     INT NOT NULL,
+        usuario_id      INT NOT NULL,
+        asistio         TINYINT DEFAULT 0,
+        registrado_por  INT NULL,
+        registrado_en   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY ux_asist (practico_id, usuario_id),
+        FOREIGN KEY (practico_id)    REFERENCES practicos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id)     REFERENCES usuarios(id)  ON DELETE CASCADE,
+        FOREIGN KEY (registrado_por) REFERENCES usuarios(id)  ON DELETE SET NULL
+      )
+    `);
 
-    // Perfiles de prueba con todos los atributos
-    const seedUsuarios = [
-      {
-        nombre:         'Administrador ALUMCO',
-        identificador:  'admin',
-        password:       'admin123',
-        rol:            'jefatura',
-        tipo_contrato:  'fijo',
-        sede_id:        1,
-        rango_etario:   '40-49',
-        rut:            '12.345.678-9',
-        email:          'admin@alumco.cl',
-        telefono:       '+56912345678',
-        estamento:      'Dirección'
-      },
-      {
-        nombre:         'Ana González Rojas',
-        identificador:  'ana.gonzalez',
-        password:       'prof123',
-        rol:            'profesor',
-        tipo_contrato:  'fijo',
-        sede_id:        1,
-        rango_etario:   '30-39',
-        rut:            '15.234.567-8',
-        email:          'ana.gonzalez@alumco.cl',
-        telefono:       '+56923456789',
-        estamento:      'Salud'
-      },
-      {
-        nombre:         'Carlos Muñoz Pino',
-        identificador:  'carlos.munoz',
-        password:       'colab123',
-        rol:            'colaborador',
-        tipo_contrato:  'fijo',
-        sede_id:        1,
-        rango_etario:   '20-29',
-        rut:            '18.765.432-1',
-        email:          'carlos.munoz@alumco.cl',
-        telefono:       '+56934567890',
-        estamento:      'Cuidado directo'
-      },
-      {
-        nombre:         'María Torres Vidal',
-        identificador:  'maria.torres',
-        password:       'sede123',
-        rol:            'admin_sede',
-        tipo_contrato:  'fijo',
-        sede_id:        2,
-        rango_etario:   '35-44',
-        rut:            '14.876.543-2',
-        email:          'maria.torres@alumco.cl',
-        telefono:       '+56945678901',
-        estamento:      'Administración'
-      },
-      {
-        nombre:         'Pedro Soto Leal',
-        identificador:  'pedro.soto',
-        password:       'colab123',
-        rol:            'colaborador',
-        tipo_contrato:  'reemplazo',
-        sede_id:        2,
-        rango_etario:   '25-34',
-        rut:            '19.123.456-7',
-        email:          'pedro.soto@alumco.cl',
-        telefono:       '+56956789012',
-        estamento:      'Servicios generales'
-      }
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS notificaciones (
+        id          INT PRIMARY KEY AUTO_INCREMENT,
+        usuario_id  INT NOT NULL,
+        tipo        VARCHAR(32) NOT NULL DEFAULT 'general',
+        entidad     VARCHAR(32) DEFAULT NULL,
+        entidad_id  INT DEFAULT NULL,
+        titulo      VARCHAR(200) NOT NULL,
+        mensaje     TEXT NOT NULL,
+        leida       TINYINT(1) DEFAULT 0,
+        leida_en    DATETIME DEFAULT NULL,
+        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_notif_usuario (usuario_id),
+        INDEX idx_notif_tipo    (tipo),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NULL,
+        accion     VARCHAR(64) NOT NULL,
+        entidad    VARCHAR(64) NOT NULL,
+        entidad_id INT NULL,
+        payload    JSON NULL,
+        ip         VARCHAR(45) NULL,
+        creado_en  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_audit_user    (usuario_id),
+        INDEX idx_audit_entidad (entidad, entidad_id),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        token      VARCHAR(128) NOT NULL UNIQUE,
+        expira_en  DATETIME NOT NULL,
+        usado      TINYINT DEFAULT 0,
+        creado_en  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_pwreset_token (token),
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+
+    // ── Columnas que pueden faltar en tablas ya existentes ────────────────────
+
+    const alteraciones = [
+      // usuarios
+      { tabla: 'usuarios', columna: 'rango_etario',         sql: "ALTER TABLE usuarios ADD COLUMN rango_etario VARCHAR(20)" },
+      { tabla: 'usuarios', columna: 'rut',                  sql: "ALTER TABLE usuarios ADD COLUMN rut VARCHAR(20) DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'email',                sql: "ALTER TABLE usuarios ADD COLUMN email VARCHAR(150) DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'telefono',             sql: "ALTER TABLE usuarios ADD COLUMN telefono VARCHAR(20) DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'estamento_id',         sql: "ALTER TABLE usuarios ADD COLUMN estamento_id INT DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'activo',               sql: "ALTER TABLE usuarios ADD COLUMN activo TINYINT(1) DEFAULT 1" },
+      { tabla: 'usuarios', columna: 'ultimo_acceso',        sql: "ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'google_access_token',  sql: "ALTER TABLE usuarios ADD COLUMN google_access_token TEXT DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'google_refresh_token', sql: "ALTER TABLE usuarios ADD COLUMN google_refresh_token TEXT DEFAULT NULL" },
+      { tabla: 'usuarios', columna: 'updated_at',           sql: "ALTER TABLE usuarios ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
+      // sedes
+      { tabla: 'sedes',    columna: 'ciudad',               sql: "ALTER TABLE sedes ADD COLUMN ciudad VARCHAR(100)" },
+      { tabla: 'sedes',    columna: 'activa',               sql: "ALTER TABLE sedes ADD COLUMN activa TINYINT(1) DEFAULT 1" },
+      // cursos
+      { tabla: 'cursos',   columna: 'descripcion',          sql: "ALTER TABLE cursos ADD COLUMN descripcion TEXT" },
+      { tabla: 'cursos',   columna: 'area_id',              sql: "ALTER TABLE cursos ADD COLUMN area_id INT DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'profesor_id',          sql: "ALTER TABLE cursos ADD COLUMN profesor_id INT DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'publicado',            sql: "ALTER TABLE cursos ADD COLUMN publicado TINYINT(1) DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'generado_por_ia',      sql: "ALTER TABLE cursos ADD COLUMN generado_por_ia TINYINT(1) DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'sede_objetivo',        sql: "ALTER TABLE cursos ADD COLUMN sede_objetivo INT DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'obligatorio',          sql: "ALTER TABLE cursos ADD COLUMN obligatorio TINYINT(1) DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'video_intro_url',      sql: "ALTER TABLE cursos ADD COLUMN video_intro_url VARCHAR(500) DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'requiere_practico',    sql: "ALTER TABLE cursos ADD COLUMN requiere_practico TINYINT DEFAULT 0" },
+      { tabla: 'cursos',   columna: 'updated_at',           sql: "ALTER TABLE cursos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
+      // modulos
+      { tabla: 'modulos',  columna: 'descripcion',          sql: "ALTER TABLE modulos ADD COLUMN descripcion TEXT" },
+      { tabla: 'modulos',  columna: 'tipo',                 sql: "ALTER TABLE modulos ADD COLUMN tipo ENUM('pdf','video','ppt')" },
+      { tabla: 'modulos',  columna: 'archivo_url',          sql: "ALTER TABLE modulos ADD COLUMN archivo_url VARCHAR(500)" },
+      { tabla: 'modulos',  columna: 'orden',                sql: "ALTER TABLE modulos ADD COLUMN orden INT DEFAULT 1" },
+      // asignaciones
+      { tabla: 'asignaciones', columna: 'obligatorio',      sql: "ALTER TABLE asignaciones ADD COLUMN obligatorio TINYINT(1) DEFAULT 0" },
+      { tabla: 'asignaciones', columna: 'fecha_limite',     sql: "ALTER TABLE asignaciones ADD COLUMN fecha_limite DATE" },
+      // progreso
+      { tabla: 'progreso', columna: 'porcentaje',           sql: "ALTER TABLE progreso ADD COLUMN porcentaje INT DEFAULT 0" },
+      { tabla: 'progreso', columna: 'ultimo_acceso',        sql: "ALTER TABLE progreso ADD COLUMN ultimo_acceso DATETIME" },
+      { tabla: 'progreso', columna: 'intentos_fallidos',    sql: "ALTER TABLE progreso ADD COLUMN intentos_fallidos INT DEFAULT 0" },
+      { tabla: 'progreso', columna: 'bloqueado_hasta',      sql: "ALTER TABLE progreso ADD COLUMN bloqueado_hasta DATETIME DEFAULT NULL" },
+      // intentos
+      { tabla: 'intentos', columna: 'numero_intento',       sql: "ALTER TABLE intentos ADD COLUMN numero_intento INT DEFAULT 1" },
+      { tabla: 'intentos', columna: 'nota',                 sql: "ALTER TABLE intentos ADD COLUMN nota INT" },
+      { tabla: 'intentos', columna: 'aprobado',             sql: "ALTER TABLE intentos ADD COLUMN aprobado TINYINT(1) DEFAULT 0" },
+      // practicos
+      { tabla: 'practicos', columna: 'descripcion',         sql: "ALTER TABLE practicos ADD COLUMN descripcion TEXT" },
+      { tabla: 'practicos', columna: 'hora_fin',            sql: "ALTER TABLE practicos ADD COLUMN hora_fin TIME" },
+      { tabla: 'practicos', columna: 'lugar',               sql: "ALTER TABLE practicos ADD COLUMN lugar VARCHAR(200)" },
+      // notificaciones
+      { tabla: 'notificaciones', columna: 'leida',          sql: "ALTER TABLE notificaciones ADD COLUMN leida TINYINT(1) DEFAULT 0" },
+      { tabla: 'notificaciones', columna: 'leida_en',       sql: "ALTER TABLE notificaciones ADD COLUMN leida_en DATETIME DEFAULT NULL" },
+      { tabla: 'notificaciones', columna: 'tipo',           sql: "ALTER TABLE notificaciones ADD COLUMN tipo VARCHAR(32) NOT NULL DEFAULT 'general'" },
+      { tabla: 'notificaciones', columna: 'entidad',        sql: "ALTER TABLE notificaciones ADD COLUMN entidad VARCHAR(32) DEFAULT NULL" },
+      { tabla: 'notificaciones', columna: 'entidad_id',     sql: "ALTER TABLE notificaciones ADD COLUMN entidad_id INT DEFAULT NULL" },
     ];
 
-    for (const u of seedUsuarios) {
-      const [existe] = await conn.query(
-        "SELECT id FROM usuarios WHERE identificador = ?", [u.identificador]
+    for (const { tabla, columna, sql } of alteraciones) {
+      const [cols] = await conn.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [tabla, columna]
       );
-      if (existe.length === 0) {
-        const hash = bcrypt.hashSync(u.password, 10);
-        await conn.query(
-          `INSERT INTO usuarios
-            (nombre, identificador, password_hash, rol, tipo_contrato, sede_id,
-             rango_etario, rut, email, telefono, estamento)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [u.nombre, u.identificador, hash, u.rol, u.tipo_contrato, u.sede_id,
-           u.rango_etario, u.rut, u.email, u.telefono, u.estamento]
-        );
-        console.log(`✓ Usuario creado: ${u.identificador} (${u.rol}) — contraseña: ${u.password}`);
+      if (!cols.length) {
+        await conn.query(sql);
+        console.log(`  + Columna agregada: ${tabla}.${columna}`);
       }
     }
 
-    console.log('✓ Migración MySQL completada exitosamente');
+    // ── T0.4: Normalizar notificaciones — backfill + drop practico_id ────────────
+
+    const [practicoIdColCheck] = await conn.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones' AND COLUMN_NAME = 'practico_id'`
+    );
+    if (practicoIdColCheck.length) {
+      await conn.query(`
+        UPDATE notificaciones
+        SET tipo = 'practico_asignado', entidad = 'practico', entidad_id = practico_id
+        WHERE practico_id IS NOT NULL AND tipo = 'general'
+      `);
+      const [practicoFks] = await conn.query(`
+        SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notificaciones'
+          AND COLUMN_NAME = 'practico_id' AND REFERENCED_TABLE_NAME IS NOT NULL
+      `);
+      for (const fk of practicoFks) {
+        await conn.query(`ALTER TABLE notificaciones DROP FOREIGN KEY \`${fk.CONSTRAINT_NAME}\``);
+        console.log(`  - FK dropped: notificaciones.${fk.CONSTRAINT_NAME}`);
+      }
+      await conn.query(`ALTER TABLE notificaciones DROP COLUMN practico_id`);
+      console.log('  - Column dropped: notificaciones.practico_id');
+    }
+
+    // ── T0.5: Drop progreso.completado (derivable: porcentaje >= 100) ─────────
+
+    const [completadoColCheck] = await conn.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'progreso' AND COLUMN_NAME = 'completado'`
+    );
+    if (completadoColCheck.length) {
+      await conn.query(`ALTER TABLE progreso DROP COLUMN completado`);
+      console.log('  - Column dropped: progreso.completado');
+    }
+
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+
+    console.log('✓ Migración completada — 19 tablas, esquema normalizado a 3FN');
     await conn.end();
     process.exit(0);
   } catch (err) {

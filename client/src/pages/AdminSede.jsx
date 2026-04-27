@@ -5,11 +5,14 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
+import { useToast } from '../context/ToastContext'
 
 export default function AdminSede() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const [resumen, setResumen] = useState(null)
+  const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false)
   const [usuarios, setUsuarios] = useState([])
   const [cursos, setCursos] = useState([])
   const [notificaciones, setNotificaciones] = useState([])
@@ -56,6 +59,18 @@ export default function AdminSede() {
 
   const noLeidas = notificaciones.filter(n => !n.leida).length
 
+  const enviarRecordatoriosAhora = async () => {
+    setEnviandoRecordatorios(true)
+    try {
+      const { data } = await api.post('/reportes/enviar-recordatorios')
+      toast.success(`Recordatorios enviados: ${data.enviados} de ${data.total}${data.errores > 0 ? ` (${data.errores} errores)` : ''}`)
+    } catch {
+      toast.error('Error al enviar recordatorios')
+    } finally {
+      setEnviandoRecordatorios(false)
+    }
+  }
+
   const navItems = [
     { label:'Resumen', active:true, badge:null },
     { label:'Colaboradores', active:false, badge:'3' },
@@ -94,20 +109,8 @@ export default function AdminSede() {
               <div className="page-sub">{usuario?.sede_nombre} · {new Date().toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
             </div>
             <div style={{ display:'flex', gap:8 }}>
-              <button className="btn-outline-dark"
-                disabled={enviandoCorreo}
-                onClick={async () => {
-                  if (!confirm('¿Enviar correo recordatorio a todos los colaboradores con certificados pendientes?')) return
-                  setEnviandoCorreo(true); setMsgCorreo('')
-                  try {
-                    const r = await api.post('/correos/recordatorio-certificados')
-                    setMsgCorreo(r.data.message)
-                  } catch (err) {
-                    setMsgCorreo(err.response?.data?.error || 'Error al enviar correos')
-                  } finally { setEnviandoCorreo(false) }
-                }}>
-                <Icon icon="lucide:mail" width={13} style={{verticalAlign:'middle',marginRight:4}} />
-                {enviandoCorreo ? 'Enviando...' : 'Correo masivo'}
+              <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
+                <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>
               </button>
               <button className="btn-primary" onClick={() => navigate('/jefatura/usuarios')}>
                 <span>+</span> Agregar colaborador
