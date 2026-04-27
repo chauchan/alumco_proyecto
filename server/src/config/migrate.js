@@ -237,6 +237,21 @@ async function migrate() {
     `);
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS asistencia_practicos (
+        id              INT AUTO_INCREMENT PRIMARY KEY,
+        practico_id     INT NOT NULL,
+        usuario_id      INT NOT NULL,
+        asistio         TINYINT DEFAULT 0,
+        registrado_por  INT NULL,
+        registrado_en   DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY ux_asist (practico_id, usuario_id),
+        FOREIGN KEY (practico_id)    REFERENCES practicos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id)     REFERENCES usuarios(id)  ON DELETE CASCADE,
+        FOREIGN KEY (registrado_por) REFERENCES usuarios(id)  ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS notificaciones (
         id          INT PRIMARY KEY AUTO_INCREMENT,
         usuario_id  INT NOT NULL,
@@ -309,6 +324,7 @@ async function migrate() {
       { tabla: 'cursos',   columna: 'sede_objetivo',        sql: "ALTER TABLE cursos ADD COLUMN sede_objetivo INT DEFAULT NULL" },
       { tabla: 'cursos',   columna: 'obligatorio',          sql: "ALTER TABLE cursos ADD COLUMN obligatorio TINYINT(1) DEFAULT 0" },
       { tabla: 'cursos',   columna: 'video_intro_url',      sql: "ALTER TABLE cursos ADD COLUMN video_intro_url VARCHAR(500) DEFAULT NULL" },
+      { tabla: 'cursos',   columna: 'requiere_practico',    sql: "ALTER TABLE cursos ADD COLUMN requiere_practico TINYINT DEFAULT 0" },
       { tabla: 'cursos',   columna: 'updated_at',           sql: "ALTER TABLE cursos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" },
       // modulos
       { tabla: 'modulos',  columna: 'descripcion',          sql: "ALTER TABLE modulos ADD COLUMN descripcion TEXT" },

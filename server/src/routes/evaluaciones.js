@@ -97,22 +97,39 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       );
     }
 
+    let requierePractico = false;
+    let tieneAsistencia = false;
+
     if (cursoAprobado) {
-      await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
-      // Generate placeholder PDF so the collaborator can see a watermarked draft
-      generarCertificadoPDF({
-        certId: intentoId,
-        nombre: (await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id])).rows[0]?.nombre || '',
-        curso:  (await pool.query('SELECT nombre FROM cursos WHERE id = ?',   [curso_id])).rows[0]?.nombre  || '',
-        estado: 'pendiente'
-      }).then(async pdfUrl => {
-        const { rows: [certRow] } = await pool.query(
-          'SELECT id FROM certificados WHERE intento_id = ?', [intentoId]
-        );
-        if (certRow) {
-          await pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id]);
-        }
-      }).catch(e => console.error('[T4.1] Error generando PDF placeholder:', e.message));
+      const { rows: [cursoRow] } = await pool.query('SELECT requiere_practico FROM cursos WHERE id = ?', [curso_id]);
+      requierePractico = parseInt(cursoRow?.requiere_practico || 0) === 1;
+
+      if (requierePractico) {
+        const { rows: asistRows } = await pool.query(`
+          SELECT 1 FROM asistencia_practicos ap
+          JOIN practicos p ON ap.practico_id = p.id
+          WHERE p.curso_id = ? AND ap.usuario_id = ? AND ap.asistio = 1
+          LIMIT 1
+        `, [curso_id, usuario_id]);
+        tieneAsistencia = asistRows.length > 0;
+      }
+
+      if (!requierePractico || tieneAsistencia) {
+        await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
+        generarCertificadoPDF({
+          certId: intentoId,
+          nombre: (await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id])).rows[0]?.nombre || '',
+          curso:  (await pool.query('SELECT nombre FROM cursos WHERE id = ?',   [curso_id])).rows[0]?.nombre  || '',
+          estado: 'pendiente'
+        }).then(async pdfUrl => {
+          const { rows: [certRow] } = await pool.query(
+            'SELECT id FROM certificados WHERE intento_id = ?', [intentoId]
+          );
+          if (certRow) {
+            await pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id]);
+          }
+        }).catch(e => console.error('[T4.1] Error generando PDF placeholder:', e.message));
+      }
     }
 
     if (!cursoAprobado && numero_intento === 2) {
@@ -150,8 +167,11 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       aprobado: cursoAprobado,
       numero_intento,
       doble_fallo: !cursoAprobado && numero_intento === 2,
+      esperando_practico: cursoAprobado && requierePractico && !tieneAsistencia,
       message: cursoAprobado
-        ? 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.'
+        ? (requierePractico && !tieneAsistencia
+            ? 'Aprobaste la evaluación. Debes asistir al práctico para obtener tu certificado.'
+            : 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.')
         : numero_intento === 2
           ? 'No aprobaste. Has alcanzado el máximo de intentos. Contacta a tu profesor para un refuerzo.'
           : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`

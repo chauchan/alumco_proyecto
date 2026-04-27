@@ -32,6 +32,7 @@ export default function CursoDetalle() {
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
   const [generandoPPT, setGenerandoPPT] = useState({})
+  const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
 
   // Obtener URL firmada cuando cambia el módulo activo
@@ -86,6 +87,8 @@ export default function CursoDetalle() {
 
         const localBloqueoRaw = localStorage.getItem(`curso_${userId}_${cursoId}_bloqueo`)
         const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
+
+        setEsperandoPractico(!!progresoRes.data?.esperando_practico)
 
         const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
         const intentosFallidosLocal = parseInt(localBloqueo?.intentos_fallidos || 0, 10)
@@ -237,6 +240,11 @@ export default function CursoDetalle() {
     }
     if (bloqueado) return
     setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
+    if (aprobado) {
+      api.get(`/cursos/${cursoId}/mi-progreso`)
+        .then(r => setEsperandoPractico(!!r.data?.esperando_practico))
+        .catch(() => {})
+    }
   }
 
   // ─── render módulo expandido ─────────────────────────────────────────────────
@@ -676,6 +684,12 @@ export default function CursoDetalle() {
                               <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
+                              {esperandoPractico && (
+                                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#C2410C', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
+                                  <Icon icon="lucide:clock" width={16} style={{flexShrink:0}} />
+                                  Has aprobado la evaluación. Falta asistir al práctico para certificarte.
+                                </div>
+                              )}
                               <button onClick={() => navigate(-1)}
                                 style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
                                 Volver a capacitaciones
@@ -794,6 +808,12 @@ export default function CursoDetalle() {
                     </div>
                     <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : '#555', fontWeight: 500 }}>{progreso}% completado</div>
                   </div>
+                  {esperandoPractico && !resultado && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #F0F0F0', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                      <Icon icon="lucide:clock" width={14} style={{flexShrink:0, marginTop:1}} />
+                      <span>Has aprobado la evaluación. Falta asistir al práctico para certificarte.</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

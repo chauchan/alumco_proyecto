@@ -235,13 +235,13 @@ router.get('/:id', verificarToken, async (req, res) => {
 
 // POST /api/cursos
 router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { nombre, descripcion, area } = req.body;
+  const { nombre, descripcion, area, requiere_practico } = req.body;
   if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
   try {
     const area_id = await resolveAreaId(area);
     const ins = await pool.query(
-      'INSERT INTO cursos (nombre, descripcion, area_id, profesor_id) VALUES (?, ?, ?, ?)',
-      [nombre, descripcion, area_id, req.usuario.id]
+      'INSERT INTO cursos (nombre, descripcion, area_id, profesor_id, requiere_practico) VALUES (?, ?, ?, ?, ?)',
+      [nombre, descripcion, area_id, req.usuario.id, requiere_practico ? 1 : 0]
     );
     const { rows } = await pool.query(
       'SELECT c.*, a.nombre AS area FROM cursos c LEFT JOIN areas a ON a.id = c.area_id WHERE c.id = ?',
@@ -301,17 +301,29 @@ router.post('/:id/asignar', verificarToken, verificarRol('profesor', 'admin_sede
 
 // GET /api/cursos/:id/mi-progreso
 router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
+  const uid = req.usuario.id;
+  const cid = req.params.id;
   try {
-    const { rows } = await pool.query(
-      'SELECT porcentaje, intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = ? AND curso_id = ?',
-      [req.usuario.id, req.params.id]
-    );
-    const r = rows[0];
+    const [progresoRes, cursoRes, intentoSinCertRes] = await Promise.all([
+      pool.query('SELECT porcentaje, intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = ? AND curso_id = ?', [uid, cid]),
+      pool.query('SELECT requiere_practico FROM cursos WHERE id = ?', [cid]),
+      pool.query(
+        `SELECT 1 FROM intentos it
+         WHERE it.usuario_id = ? AND it.curso_id = ? AND it.aprobado = 1
+           AND NOT EXISTS (SELECT 1 FROM certificados cert WHERE cert.intento_id = it.id)
+         LIMIT 1`,
+        [uid, cid]
+      )
+    ]);
+    const r = progresoRes.rows[0];
+    const requierePractico = parseInt(cursoRes.rows[0]?.requiere_practico || 0) === 1;
+    const esperandoPractico = requierePractico && intentoSinCertRes.rows.length > 0;
+    const base = { requiere_practico: requierePractico, esperando_practico: esperandoPractico };
     res.json(r
-      ? { ...r, completado: r.porcentaje >= 100 }
-      : { porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
+      ? { ...r, completado: r.porcentaje >= 100, ...base }
+      : { porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null, ...base });
   } catch {
-    res.json({ porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null });
+    res.json({ porcentaje: 0, completado: false, intentos_fallidos: 0, bloqueado_hasta: null, requiere_practico: false, esperando_practico: false });
   }
 });
 
