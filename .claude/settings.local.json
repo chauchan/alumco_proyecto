@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -nE \"progreso.*completado|completado.*progreso\" server/src/routes/*.js server/src/config/seed.js)"
+      "Bash(grep -nE \"progreso.*completado|completado.*progreso\" server/src/routes/*.js server/src/config/seed.js)",
+      "Bash(npm install *)"
     ]
   }
 }
