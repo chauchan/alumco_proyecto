@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { parseIdParam } = require('../utils/validate');
 
 // GET /api/certificados — listar certificados del usuario o pendientes para profesor
 router.get('/', verificarToken, async (req, res) => {
@@ -48,6 +49,8 @@ router.get('/', verificarToken, async (req, res) => {
 
 // PATCH /api/certificados/:id/validar — aprobar o rechazar certificado
 router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { estado } = req.body;
   if (!['aprobado', 'rechazado'].includes(estado))
     return res.status(400).json({ error: 'Estado debe ser aprobado o rechazado' });
@@ -61,7 +64,7 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
        JOIN usuarios u ON it.usuario_id = u.id
        JOIN cursos c ON it.curso_id = c.id
        WHERE cert.id = ?`,
-      [req.params.id]
+      [id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Certificado no encontrado' });
     const cert = rows[0];
@@ -171,6 +174,8 @@ router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'pro
 
 // GET /api/certificados/:id/descargar — descargar PDF
 router.get('/:id/descargar', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows } = await pool.query(
       `SELECT cert.id, cert.estado, cert.archivo_url,
@@ -179,7 +184,7 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
        JOIN intentos it ON cert.intento_id = it.id
        JOIN usuarios u ON it.usuario_id = u.id
        WHERE cert.id = ?`,
-      [req.params.id]
+      [id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Certificado no encontrado' });
     const cert = rows[0];

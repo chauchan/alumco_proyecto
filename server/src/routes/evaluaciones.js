@@ -6,10 +6,12 @@ const { notificar } = require('../utils/notificar');
 const { generarCertificadoPDF } = require('../utils/pdfCertificado');
 const { auditar } = require('../utils/audit');
 const { enviarBloqueo } = require('../config/mailer');
+const { parseIdParam } = require('../utils/validate');
 
 // GET /api/evaluaciones/:curso_id/estado
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
-  const { curso_id } = req.params;
+  const curso_id = parseIdParam(req, 'curso_id');
+  if (curso_id === null) return res.status(400).json({ error: 'curso_id inválido' });
   const usuario_id = req.usuario.id;
   try {
     const { rows: intentos } = await pool.query(
@@ -34,11 +36,13 @@ router.get('/:curso_id/estado', verificarToken, async (req, res) => {
 // Body: { respuestas: [{ pregunta_id, alternativa_id }] }
 // También acepta alternativa_idx para compatibilidad con el frontend anterior
 router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'), async (req, res) => {
-  const { curso_id } = req.params;
+  const curso_id = parseIdParam(req, 'curso_id');
+  if (curso_id === null) return res.status(400).json({ error: 'curso_id inválido' });
   const usuario_id = req.usuario.id;
   const { respuestas } = req.body;
 
   try {
+    const warnings = [];
     const { rows: [stats] } = await pool.query(
       'SELECT COUNT(*) as total, MAX(aprobado) as aprobado FROM intentos WHERE usuario_id = ? AND curso_id = ?',
       [usuario_id, curso_id]
@@ -115,7 +119,8 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
         [usuario_id, curso_id, cursoAprobado ? 100 : 70, intentos_fallidos_prog, bloqueado_hasta_prog,
          cursoAprobado ? 1 : 0, intentos_fallidos_prog, bloqueado_hasta_prog]
       );
-    } catch (e) { console.error('[evaluaciones] progreso sync:', e.message); }
+    // progreso sync is non-critical — evaluation is already persisted
+    } catch (e) { console.error('[evaluaciones] progreso sync:', e.message); warnings.push('progreso_no_sincronizado'); }
 
     let requierePractico = false;
     let tieneAsistencia = false;
@@ -135,20 +140,25 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       }
 
       if (!requierePractico || tieneAsistencia) {
+        const { rows: [userRow] } = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
+        const { rows: [cursoNombreRow] } = await pool.query('SELECT nombre FROM cursos WHERE id = ?', [curso_id]);
         await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
-        generarCertificadoPDF({
-          certId: intentoId,
-          nombre: (await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id])).rows[0]?.nombre || '',
-          curso:  (await pool.query('SELECT nombre FROM cursos WHERE id = ?',   [curso_id])).rows[0]?.nombre  || '',
-          estado: 'pendiente'
-        }).then(async pdfUrl => {
-          const { rows: [certRow] } = await pool.query(
-            'SELECT id FROM certificados WHERE intento_id = ?', [intentoId]
-          );
+        try {
+          const pdfUrl = await generarCertificadoPDF({
+            certId: intentoId,
+            nombre: userRow?.nombre || '',
+            curso: cursoNombreRow?.nombre || '',
+            estado: 'pendiente'
+          });
+          const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intentoId]);
           if (certRow) {
             await pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id]);
           }
-        }).catch(e => console.error('[T4.1] Error generando PDF placeholder:', e.message));
+        } catch (pdfErr) {
+          console.error('[evaluaciones] Error generando PDF:', pdfErr.message);
+          await pool.query("UPDATE certificados SET estado = 'error' WHERE intento_id = ?", [intentoId]).catch(() => {});
+          return res.status(500).json({ error: 'Error al generar el certificado. La evaluación fue registrada.' });
+        }
       }
     }
 
@@ -211,7 +221,8 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
             : 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.')
         : numero_intento === 2
           ? 'No aprobaste. Has alcanzado el máximo de intentos. Contacta a tu profesor para un refuerzo.'
-          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`
+          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`,
+      ...(warnings.length ? { warnings } : {})
     });
   } catch (err) {
     console.error(err);

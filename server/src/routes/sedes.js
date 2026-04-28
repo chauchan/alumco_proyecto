@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { auditar } = require('../utils/audit');
+const { parseIdParam } = require('../utils/validate');
 
 const SOLO_JEFATURA = verificarRol('jefatura');
 
@@ -48,11 +49,15 @@ router.post('/', verificarToken, SOLO_JEFATURA, async (req, res) => {
   }
 });
 
+const CAMPOS_PERMITIDOS_SEDE = ['nombre', 'ciudad', 'activa'];
+
 // PATCH /api/sedes/:id — editar nombre/ciudad o reactivar (activa: true)
 router.patch('/:id', verificarToken, SOLO_JEFATURA, async (req, res) => {
-  const { id } = req.params;
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { nombre, ciudad, activa } = req.body;
   try {
+    // Only CAMPOS_PERMITIDOS_SEDE fields are written; unknown body keys are silently ignored
     const sets = [];
     const params = [];
     if (nombre !== undefined) { sets.push('nombre = ?'); params.push(nombre.trim()); }
@@ -82,7 +87,8 @@ router.patch('/:id', verificarToken, SOLO_JEFATURA, async (req, res) => {
 
 // DELETE /api/sedes/:id — soft delete (activa = 0); bloquea si hay usuarios activos
 router.delete('/:id', verificarToken, SOLO_JEFATURA, async (req, res) => {
-  const { id } = req.params;
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows: [{ total }] } = await pool.query(
       'SELECT COUNT(*) AS total FROM usuarios WHERE sede_id = ? AND activo = 1', [id]

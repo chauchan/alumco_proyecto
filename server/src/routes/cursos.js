@@ -10,6 +10,8 @@ const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../
 const { notificar } = require('../utils/notificar');
 const { auditar } = require('../utils/audit');
 const { enviarBloqueo, enviarDesbloqueo } = require('../config/mailer');
+const { parseIdParam } = require('../utils/validate');
+const { safeUploadPath } = require('../utils/safePath');
 
 const storage = multerS3({
   s3, bucket: BUCKET, acl: 'public-read', contentType: multerS3.AUTO_CONTENT_TYPE,
@@ -183,6 +185,8 @@ router.get('/pendientes-ia', verificarToken, verificarRol('profesor', 'admin_sed
 
 // GET /api/cursos/:id
 router.get('/:id', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows: cursoRows } = await pool.query(
       `SELECT c.*, a.nombre AS area, u.nombre AS profesor_nombre
@@ -257,6 +261,8 @@ router.post('/', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatur
 
 // PATCH /api/cursos/:id/publicar
 router.patch('/:id/publicar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { publicado } = req.body;
   try {
     await pool.query('UPDATE cursos SET publicado = ?, updated_at = NOW() WHERE id = ?', [publicado, req.params.id]);
@@ -268,6 +274,8 @@ router.patch('/:id/publicar', verificarToken, verificarRol('profesor', 'admin_se
 
 // POST /api/cursos/:id/modulos
 router.post('/:id/modulos', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), upload.single('archivo'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   if (!req.file) return res.status(400).json({ error: 'Archivo requerido' });
   const { titulo, descripcion, orden } = req.body;
   const tipo = req.file.mimetype.startsWith('video') ? 'video'
@@ -286,6 +294,8 @@ router.post('/:id/modulos', verificarToken, verificarRol('profesor', 'admin_sede
 
 // POST /api/cursos/:id/asignar
 router.post('/:id/asignar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { usuario_ids, obligatorio, fecha_limite } = req.body;
   if (!usuario_ids?.length) return res.status(400).json({ error: 'usuario_ids requerido' });
   try {
@@ -304,7 +314,8 @@ router.post('/:id/asignar', verificarToken, verificarRol('profesor', 'admin_sede
 // GET /api/cursos/:id/mi-progreso
 router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
   const uid = req.usuario.id;
-  const cid = req.params.id;
+  const cid = parseIdParam(req, 'id');
+  if (cid === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const [progresoRes, cursoRes, intentoSinCertRes] = await Promise.all([
       pool.query('SELECT porcentaje, intentos_fallidos, bloqueado_hasta FROM progreso WHERE usuario_id = ? AND curso_id = ?', [uid, cid]),
@@ -331,6 +342,8 @@ router.get('/:id/mi-progreso', verificarToken, async (req, res) => {
 
 // PATCH /api/cursos/:id/progreso
 router.patch('/:id/progreso', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { porcentaje, es_evaluacion } = req.body;
   const aprobado  = porcentaje >= 60;
 
@@ -429,6 +442,8 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
 
 // POST /api/cursos/:id/preguntas
 router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { texto, alternativas } = req.body;
   if (!texto || !alternativas?.length)
     return res.status(400).json({ error: 'Texto y alternativas son requeridos' });
@@ -451,8 +466,10 @@ router.post('/:id/preguntas', verificarToken, verificarRol('profesor', 'admin_se
 
 // PATCH /api/cursos/:id/aprobar
 router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
-    const { rows } = await pool.query('SELECT id FROM cursos WHERE id = ?', [req.params.id]);
+    const { rows } = await pool.query('SELECT id FROM cursos WHERE id = ?', [id]);
     if (!rows.length) return res.status(404).json({ error: 'Curso no encontrado' });
     await pool.query('UPDATE cursos SET publicado = 1, profesor_id = ?, updated_at = NOW() WHERE id = ?', [req.usuario.id, req.params.id]);
     res.json({ id: req.params.id, publicado: 1 });
@@ -463,7 +480,8 @@ router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sed
 
 // DELETE /api/cursos/:id
 router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const id = req.params.id;
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows: intentosRows } = await pool.query('SELECT id FROM intentos WHERE curso_id = ?', [id]);
     if (intentosRows.length) {
@@ -483,8 +501,9 @@ router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'je
 
 // PATCH /api/cursos/:id/targeting
 router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const cursoId = parseIdParam(req, 'id');
+  if (cursoId === null) return res.status(400).json({ error: 'id inválido' });
   const { estamento_objetivo, sede_objetivo, obligatorio } = req.body;
-  const cursoId = req.params.id;
   try {
     // Actualizar sede_objetivo y obligatorio en cursos
     await pool.query(
@@ -508,18 +527,25 @@ router.patch('/:id/targeting', verificarToken, verificarRol('profesor', 'admin_s
   }
 });
 
+const CAMPOS_PERMITIDOS_CURSO = ['nombre', 'descripcion', 'sede_objetivo', 'obligatorio'];
+
 // PUT /api/cursos/:id
 router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const cursoId = parseIdParam(req, 'id');
+  if (cursoId === null) return res.status(400).json({ error: 'id inválido' });
   const { nombre, descripcion, modulos, preguntas, estamento_objetivo, sede_objetivo, obligatorio } = req.body;
-  const cursoId = req.params.id;
   try {
-    // Actualizar campos escalares del curso
-    const sets = ['updated_at = NOW()'];
+    // Only CAMPOS_PERMITIDOS_CURSO fields are written; unknown body keys are silently ignored
+    const sets = [];
     const vals = [];
-    if (nombre       !== undefined) { sets.unshift('nombre = ?');       vals.push(nombre ?? null); }
-    if (descripcion  !== undefined) { sets.unshift('descripcion = ?');  vals.push(descripcion ?? null); }
-    if (sede_objetivo !== undefined) { sets.unshift('sede_objetivo = ?'); vals.push(sede_objetivo ? parseInt(sede_objetivo) : null); }
-    if (obligatorio  !== undefined) { sets.unshift('obligatorio = ?');  vals.push(obligatorio ? 1 : 0); }
+    if (nombre       !== undefined) { sets.push('nombre = ?');       vals.push(nombre ?? null); }
+    if (descripcion  !== undefined) { sets.push('descripcion = ?');  vals.push(descripcion ?? null); }
+    if (sede_objetivo !== undefined) { sets.push('sede_objetivo = ?'); vals.push(sede_objetivo ? parseInt(sede_objetivo) : null); }
+    if (obligatorio  !== undefined) { sets.push('obligatorio = ?');  vals.push(obligatorio ? 1 : 0); }
+    if (!sets.length && !modulos?.length && !preguntas?.length && estamento_objetivo === undefined) {
+      return res.status(400).json({ error: 'Nada que actualizar' });
+    }
+    sets.push('updated_at = NOW()');
     vals.push(cursoId);
     await pool.query(`UPDATE cursos SET ${sets.join(', ')} WHERE id = ?`, vals);
 
@@ -588,10 +614,12 @@ router.post('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_
     next();
   });
 }, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   if (!req.file) return res.status(400).json({ error: 'Video requerido' });
   try {
     const url = fileLocation(req.file);
-    await pool.query('UPDATE cursos SET video_intro_url = ?, updated_at = NOW() WHERE id = ?', [url, req.params.id]);
+    await pool.query('UPDATE cursos SET video_intro_url = ?, updated_at = NOW() WHERE id = ?', [url, id]);
     res.json({ video_intro_url: url });
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar video: ' + err.message });
@@ -600,13 +628,16 @@ router.post('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_
 
 // DELETE /api/cursos/:id/video-intro
 router.delete('/:id/video-intro', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
-    const { rows } = await pool.query('SELECT video_intro_url FROM cursos WHERE id = ?', [req.params.id]);
+    const { rows } = await pool.query('SELECT video_intro_url FROM cursos WHERE id = ?', [id]);
     if (rows[0]?.video_intro_url) {
-      const fp = path.join(__dirname, '../../', rows[0].video_intro_url);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+      const safePath = safeUploadPath(rows[0].video_intro_url);
+      if (safePath === null) return res.status(400).json({ error: 'URL de video inválida' });
+      if (fs.existsSync(safePath)) fs.unlinkSync(safePath);
     }
-    await pool.query('UPDATE cursos SET video_intro_url = NULL, updated_at = NOW() WHERE id = ?', [req.params.id]);
+    await pool.query('UPDATE cursos SET video_intro_url = NULL, updated_at = NOW() WHERE id = ?', [id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar video' });
@@ -615,8 +646,9 @@ router.delete('/:id/video-intro', verificarToken, verificarRol('profesor', 'admi
 
 // POST /api/cursos/:id/desbloquear/:usuarioId
 router.post('/:id/desbloquear/:usuarioId', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const curso_id   = parseInt(req.params.id);
-  const usuario_id = parseInt(req.params.usuarioId);
+  const curso_id   = parseIdParam(req, 'id');
+  const usuario_id = parseIdParam(req, 'usuarioId');
+  if (curso_id === null || usuario_id === null) return res.status(400).json({ error: 'id inválido' });
   const { rol, id: actorId, sede_id: actorSede } = req.usuario;
 
   try {
@@ -661,10 +693,13 @@ router.post('/:id/desbloquear/:usuarioId', verificarToken, verificarRol('profeso
 
 // GET /api/cursos/:id/modulos/:moduloId/signed-url
 router.get('/:id/modulos/:moduloId/signed-url', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  const moduloId = parseIdParam(req, 'moduloId');
+  if (id === null || moduloId === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows } = await pool.query(
       'SELECT archivo_url FROM modulos WHERE id = ? AND curso_id = ?',
-      [req.params.moduloId, req.params.id]
+      [moduloId, id]
     );
     if (!rows[0]?.archivo_url) return res.status(404).json({ error: 'Módulo no encontrado' });
     const key = keyFromUrl(rows[0].archivo_url);

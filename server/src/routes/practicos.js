@@ -6,6 +6,7 @@ const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificar } = require('../utils/notificar');
 const { auditar } = require('../utils/audit');
 const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { parseIdParam } = require('../utils/validate');
 
 async function sincronizarConGoogle(usuarioId, practico) {
   try {
@@ -170,7 +171,8 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
 
 // GET /api/practicos/:id/asistencia — lista colaboradores asignados con estado de asistencia
 router.get('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const practicoId = req.params.id;
+  const practicoId = parseIdParam(req, 'id');
+  if (practicoId === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows: practicoRows } = await pool.query(
       'SELECT curso_id, sede_id FROM practicos WHERE id = ?', [practicoId]
@@ -198,7 +200,8 @@ router.get('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_se
 
 // POST /api/practicos/:id/asistencia — upsert masivo de asistencia; auto-crea certs si usuario ya aprobó eval
 router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_sede'), async (req, res) => {
-  const practicoId = req.params.id;
+  const practicoId = parseIdParam(req, 'id');
+  if (practicoId === null) return res.status(400).json({ error: 'id inválido' });
   const registradoPor = req.usuario.id;
   const { asistencias } = req.body;
 
@@ -263,8 +266,10 @@ router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_s
 
 // DELETE /api/practicos/:id — eliminar práctico
 router.delete('/:id', verificarToken, PUEDE_CREAR, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
-    await pool.query('DELETE FROM practicos WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM practicos WHERE id = ?', [id]);
     res.json({ message: 'Práctico eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar práctico' });
