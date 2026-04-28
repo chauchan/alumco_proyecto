@@ -2,12 +2,10 @@ const rateLimit = require('express-rate-limit');
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: 5,
   message: { error: 'Demasiados intentos de inicio de sesión. Intentá de nuevo en 15 minutos.' },
   standardHeaders: true,
   legacyHeaders: false,
-  // Solo cuentan los logins fallidos, no los exitosos
-  skipSuccessfulRequests: true,
 });
 
 const passwordResetLimiter = rateLimit({
