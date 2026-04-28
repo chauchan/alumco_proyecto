@@ -8,6 +8,8 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { s3, BUCKET, fileLocation, generateSignedUrl, keyFromUrl } = require('../config/s3');
 const { notificar } = require('../utils/notificar');
+const { auditar } = require('../utils/audit');
+const { enviarBloqueo, enviarDesbloqueo } = require('../config/mailer');
 
 const storage = multerS3({
   s3, bucket: BUCKET, acl: 'public-read', contentType: multerS3.AUTO_CONTENT_TYPE,
@@ -389,21 +391,37 @@ router.patch('/:id/progreso', verificarToken, async (req, res) => {
     try {
       const { rows: uInfo } = await pool.query('SELECT sede_id, nombre FROM usuarios WHERE id = ?', [req.usuario.id]);
       const { sede_id, nombre: nombreColab } = uInfo[0] || {};
-      const { rows: cInfo } = await pool.query('SELECT nombre FROM cursos WHERE id = ?', [req.params.id]);
-      const nombreCurso = cInfo[0]?.nombre || 'Curso';
+      const { rows: cInfo } = await pool.query('SELECT nombre, profesor_id FROM cursos WHERE id = ?', [req.params.id]);
+      const nombreCurso  = cInfo[0]?.nombre || 'Curso';
+      const profesor_id  = cInfo[0]?.profesor_id;
+      const bloqueMsg = `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`;
+
       if (sede_id) {
-        const { rows: admins } = await pool.query("SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]);
+        const { rows: admins } = await pool.query("SELECT id, email, nombre FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]);
         for (const admin of admins) {
           await notificar(admin.id, {
-            tipo: 'evaluacion_bloqueo',
-            entidad: 'curso',
-            entidad_id: parseInt(req.params.id),
-            titulo: 'Colaborador bloqueado en curso',
-            mensaje: `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado por ${DIAS_BLOQUEO} días.`
+            tipo: 'evaluacion_bloqueo', entidad: 'curso', entidad_id: parseInt(req.params.id),
+            titulo: 'Colaborador bloqueado en curso', mensaje: bloqueMsg
           });
+          if (admin.email) enviarBloqueo(admin.email, admin.nombre, nombreColab, nombreCurso)
+            .catch(e => console.error('[bloqueo] email admin:', e.message));
         }
       }
-    } catch { /* notificación opcional */ }
+
+      if (profesor_id) {
+        await notificar(profesor_id, {
+          tipo: 'evaluacion_bloqueo', entidad: 'curso', entidad_id: parseInt(req.params.id),
+          titulo: 'Colaborador bloqueado en tu curso', mensaje: bloqueMsg
+        });
+        const { rows: [profInfo] } = await pool.query('SELECT email, nombre FROM usuarios WHERE id = ?', [profesor_id]);
+        if (profInfo?.email) enviarBloqueo(profInfo.email, profInfo.nombre, nombreColab, nombreCurso)
+          .catch(e => console.error('[bloqueo] email profesor:', e.message));
+      }
+
+      await auditar(req, 'evaluacion.bloqueo', 'curso', parseInt(req.params.id), {
+        usuario_id: req.usuario.id, nombreColab, nombreCurso
+      });
+    } catch (e) { console.error('[bloqueo] notificación:', e.message); }
   }
 
   res.json({ porcentaje, completado: porcentaje >= 100, intentos_fallidos, bloqueado_hasta });
@@ -583,6 +601,52 @@ router.delete('/:id/video-intro', verificarToken, verificarRol('profesor', 'admi
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar video' });
+  }
+});
+
+// POST /api/cursos/:id/desbloquear/:usuarioId
+router.post('/:id/desbloquear/:usuarioId', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const curso_id   = parseInt(req.params.id);
+  const usuario_id = parseInt(req.params.usuarioId);
+  const { rol, id: actorId, sede_id: actorSede } = req.usuario;
+
+  try {
+    const { rows: [curso] } = await pool.query(
+      'SELECT id, nombre, profesor_id FROM cursos WHERE id = ?', [curso_id]
+    );
+    if (!curso) return res.status(404).json({ error: 'Curso no encontrado' });
+
+    if (rol === 'admin_sede') {
+      const { rows: [userInfo] } = await pool.query('SELECT sede_id FROM usuarios WHERE id = ?', [usuario_id]);
+      if (!userInfo || userInfo.sede_id !== actorSede)
+        return res.status(403).json({ error: 'Solo puedes desbloquear colaboradores de tu sede' });
+    } else if (rol === 'profesor' && curso.profesor_id !== actorId) {
+      return res.status(403).json({ error: 'Solo puedes desbloquear colaboradores en tus cursos' });
+    }
+
+    await pool.query(
+      'UPDATE progreso SET bloqueado_hasta = NULL, intentos_fallidos = 0 WHERE usuario_id = ? AND curso_id = ?',
+      [usuario_id, curso_id]
+    );
+
+    await notificar(usuario_id, {
+      tipo: 'general', entidad: 'curso', entidad_id: curso_id,
+      titulo: 'Acceso restaurado',
+      mensaje: `Tu acceso al curso "${curso.nombre}" ha sido restaurado. Ya puedes intentar la evaluación nuevamente.`
+    });
+
+    try {
+      const { rows: [colab] } = await pool.query('SELECT email, nombre FROM usuarios WHERE id = ?', [usuario_id]);
+      if (colab?.email) enviarDesbloqueo(colab.email, colab.nombre, curso.nombre)
+        .catch(e => console.error('[desbloqueo] email:', e.message));
+    } catch { /* email opcional */ }
+
+    await auditar(req, 'evaluacion.desbloqueo', 'curso', curso_id, { usuario_id, curso_nombre: curso.nombre });
+
+    res.json({ ok: true, message: 'Colaborador desbloqueado correctamente' });
+  } catch (err) {
+    console.error('[desbloquear]', err.message);
+    res.status(500).json({ error: 'Error al desbloquear colaborador' });
   }
 });
 

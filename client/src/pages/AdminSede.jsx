@@ -14,6 +14,8 @@ export default function AdminSede() {
   const [usuarios, setUsuarios] = useState([])
   const [cursos, setCursos] = useState([])
   const [notificaciones, setNotificaciones] = useState([])
+  const [bloqueados, setBloqueados] = useState([])
+  const [desbloqueando, setDesbloqueando] = useState(new Set())
 
   useEffect(() => {
     Promise.all([
@@ -21,12 +23,14 @@ export default function AdminSede() {
       api.get('/usuarios'),
       api.get('/reportes/cursos'),
       api.get('/notificaciones'),
+      api.get('/evaluaciones/dobles-fallos'),
     ])
-      .then(([r, u, c, n]) => {
+      .then(([r, u, c, n, b]) => {
         setResumen(r.data)
         setUsuarios(u.data)
         setCursos(c.data)
         setNotificaciones(n.data.notificaciones || [])
+        setBloqueados(b.data || [])
       })
       .catch(() => {})
   }, [])
@@ -51,6 +55,20 @@ export default function AdminSede() {
   }
 
   const noLeidas = notificaciones.filter(n => !n.leida).length
+
+  const desbloquear = async (curso_id, usuario_id) => {
+    const key = `${curso_id}-${usuario_id}`
+    setDesbloqueando(prev => new Set([...prev, key]))
+    try {
+      await api.post(`/cursos/${curso_id}/desbloquear/${usuario_id}`)
+      setBloqueados(prev => prev.filter(b => !(b.curso_id === curso_id && b.usuario_id === usuario_id)))
+      toast.success('Colaborador desbloqueado correctamente')
+    } catch {
+      toast.error('Error al desbloquear colaborador')
+    } finally {
+      setDesbloqueando(prev => { const n = new Set(prev); n.delete(key); return n })
+    }
+  }
 
   const enviarRecordatoriosAhora = async () => {
     setEnviandoRecordatorios(true)
@@ -168,6 +186,42 @@ export default function AdminSede() {
               ))}
             </div>
           </div>
+
+          {/* Colaboradores bloqueados */}
+          {bloqueados.length > 0 && (
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  Colaboradores bloqueados
+                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                    {bloqueados.length}
+                  </span>
+                </span>
+              </div>
+              {bloqueados.map(b => {
+                const key = `${b.curso_id}-${b.usuario_id}`
+                return (
+                  <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
+                      <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{b.curso_nombre}</div>
+                    </div>
+                    <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>
+                      {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
+                    </span>
+                    <button
+                      className="btn-sm btn-sm-primary"
+                      disabled={desbloqueando.has(key)}
+                      onClick={() => desbloquear(b.curso_id, b.usuario_id)}
+                      style={{ background:'#1A7A45', color:'#fff', minWidth:100 }}
+                    >
+                      {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Alertas */}
           <div className="card">

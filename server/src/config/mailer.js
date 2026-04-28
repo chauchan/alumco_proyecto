@@ -125,4 +125,59 @@ async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
   });
 }
 
-module.exports = { notificarProfesor, enviarResetPassword, enviarRecordatorioCertificados };
+async function enviarBloqueo(email, nombreDestinatario, nombreColab, nombreCurso) {
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: email,
+    subject: `[ALUMCO] Colaborador bloqueado en "${nombreCurso}"`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #C0392B; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Alerta de bloqueo</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombreDestinatario}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            El colaborador <strong>${nombreColab}</strong> ha fallado dos veces consecutivas en el curso
+            "<strong>${nombreCurso}</strong>" y ha sido bloqueado temporalmente.
+          </p>
+          <div style="background: #FFF0F0; border-left: 3px solid #E8505B; padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 16px 0;">
+            <p style="color: #555; font-size: 13px; margin: 0;">
+              Ingresa al sistema ALUMCO para revisar el caso y desbloquear al colaborador si lo consideras necesario.
+            </p>
+          </div>
+          <p style="color: #aaa; font-size: 12px; margin-top: 20px;">
+            Este es un aviso automático del sistema de capacitación ALUMCO.
+          </p>
+        </div>
+      </div>
+    `
+  });
+}
+
+async function enviarDesbloqueo(email, nombreColab, nombreCurso) {
+  await transporter.sendMail({
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    to: email,
+    subject: `[ALUMCO] Tu acceso al curso "${nombreCurso}" ha sido restaurado`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1A7A45; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Acceso restaurado</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombreColab}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            Tu acceso al curso <strong>"${nombreCurso}"</strong> ha sido restaurado.
+            Ya puedes ingresar y volver a intentar la evaluación.
+          </p>
+          <p style="color: #aaa; font-size: 12px; margin-top: 20px;">
+            Este es un aviso automático del sistema de capacitación ALUMCO.
+          </p>
+        </div>
+      </div>
+    `
+  });
+}
+
+module.exports = { notificarProfesor, enviarResetPassword, enviarRecordatorioCertificados, enviarBloqueo, enviarDesbloqueo };

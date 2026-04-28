@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { Slide, SlideEditor } from './GeneradorIA'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -33,7 +34,10 @@ function buildSlidesProfesor(mod, pres) {
 
 export default function Profesor() {
   const { usuario } = useAuth()
+  const toast = useToast()
   const [cursos, setCursos] = useState([])
+  const [bloqueados, setBloqueados] = useState([])
+  const [desbloqueando, setDesbloqueando] = useState(new Set())
   const [certificados, setCertificados] = useState([])
   const [borradoresIA, setBorradoresIA] = useState([])
   const [cursoDetalle, setCursoDetalle] = useState(null)
@@ -67,15 +71,29 @@ export default function Profesor() {
   const [eliminandoVideo, setEliminandoVideo] = useState(false)
 
   useEffect(() => {
-    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
-      .then(([c, cert, bIA]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data) })
+    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
+      .then(([c, cert, bIA, bl]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data); setBloqueados(bl.data || []) })
       .catch(() => {})
   }, [])
 
   const recargar = () => {
-    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
-      .then(([c, cert, bIA]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data) })
+    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
+      .then(([c, cert, bIA, bl]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data); setBloqueados(bl.data || []) })
       .catch(() => {})
+  }
+
+  const desbloquear = async (curso_id, usuario_id) => {
+    const key = `${curso_id}-${usuario_id}`
+    setDesbloqueando(prev => new Set([...prev, key]))
+    try {
+      await api.post(`/cursos/${curso_id}/desbloquear/${usuario_id}`)
+      setBloqueados(prev => prev.filter(b => !(b.curso_id === curso_id && b.usuario_id === usuario_id)))
+      toast.success('Colaborador desbloqueado correctamente')
+    } catch {
+      toast.error('Error al desbloquear colaborador')
+    } finally {
+      setDesbloqueando(prev => { const n = new Set(prev); n.delete(key); return n })
+    }
   }
 
   const abrirPPTModulo = async (mod, idx) => {
@@ -918,6 +936,42 @@ export default function Profesor() {
               ))}
             </div>
           </div>
+
+          {/* Colaboradores bloqueados */}
+          {bloqueados.length > 0 && (
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  Colaboradores bloqueados en mis cursos
+                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                    {bloqueados.length}
+                  </span>
+                </span>
+              </div>
+              {bloqueados.map(b => {
+                const key = `${b.curso_id}-${b.usuario_id}`
+                return (
+                  <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
+                      <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{b.curso_nombre}</div>
+                    </div>
+                    <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>
+                      {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
+                    </span>
+                    <button
+                      className="btn-sm btn-sm-primary"
+                      disabled={desbloqueando.has(key)}
+                      onClick={() => desbloquear(b.curso_id, b.usuario_id)}
+                      style={{ background:'#1A7A45', color:'#fff', minWidth:100 }}
+                    >
+                      {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Zona subida */}
           <div className="card">
