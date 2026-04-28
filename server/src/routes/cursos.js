@@ -463,8 +463,17 @@ router.patch('/:id/aprobar', verificarToken, verificarRol('profesor', 'admin_sed
 
 // DELETE /api/cursos/:id
 router.delete('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = req.params.id;
   try {
-    await pool.query('DELETE FROM cursos WHERE id = ?', [req.params.id]);
+    const { rows: intentosRows } = await pool.query('SELECT id FROM intentos WHERE curso_id = ?', [id]);
+    if (intentosRows.length) {
+      const intentoIds = intentosRows.map(r => r.id);
+      await pool.query(`DELETE FROM certificados WHERE intento_id IN (${intentoIds.map(() => '?').join(',')})`, intentoIds);
+      await pool.query(`DELETE FROM intentos WHERE curso_id = ?`, [id]);
+    }
+    await pool.query('DELETE FROM progreso WHERE curso_id = ?', [id]);
+    await pool.query('DELETE FROM asignaciones WHERE curso_id = ?', [id]);
+    await pool.query('DELETE FROM cursos WHERE id = ?', [id]);
     res.json({ ok: true });
   } catch (err) {
     console.error('[cursos] DELETE error:', err.message);
