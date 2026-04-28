@@ -1,6 +1,36 @@
 require('dotenv').config();
+
+// --- Validaciones de startup (fail-fast antes de cualquier inicialización) ---
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === 'reemplazar_con_clave_segura_larga' || JWT_SECRET.length < 32) {
+  console.error(
+    'ERROR: JWT_SECRET inválido.\n' +
+    '  Debe tener al menos 32 caracteres aleatorios y no puede ser el valor por defecto.\n' +
+    '  Generá uno con: openssl rand -hex 32'
+  );
+  process.exit(1);
+}
+if (process.env.NODE_ENV === 'production' && !process.env.DB_PASSWORD) {
+  console.error('ERROR: DB_PASSWORD está vacío en producción.');
+  process.exit(1);
+}
+
+// --- Configuración de CORS ---
+let corsOrigins;
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.CLIENT_URL) {
+    console.error('ERROR: CLIENT_URL no está definido en producción.');
+    process.exit(1);
+  }
+  corsOrigins = process.env.CLIENT_URL.split(',').map(o => o.trim());
+} else {
+  corsOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map(o => o.trim());
+}
+const corsOptions = { origin: corsOrigins, credentials: true };
+
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const cron = require('node-cron');
 const pool = require('./config/db');
@@ -23,7 +53,8 @@ const modulosRoutes        = require('./routes/modulos');
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+app.use(helmet());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
