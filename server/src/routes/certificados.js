@@ -12,6 +12,7 @@ router.get('/', verificarToken, async (req, res) => {
     let query, params = [];
     if (rol === 'colaborador') {
       query = `SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
+                      it.curso_id,
                       c.nombre as curso_nombre, v.nombre as validado_por_nombre
                FROM certificados cert
                JOIN intentos it ON cert.intento_id = it.id

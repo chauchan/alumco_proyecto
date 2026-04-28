@@ -37,26 +37,17 @@ export default function CursoDetalle() {
   const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
 
-  // Buscar certificado aprobado; si no existe, generarlo bajo demanda
+  // Buscar el certificado del curso al aprobar (puede estar pendiente o aprobado)
   useEffect(() => {
     if (!resultado?.aprobado || certificadoUrl || certError) return
     setCertError(null)
     api.get('/certificados')
       .then(r => {
-        const cert = r.data.find(c => c.curso_id === parseInt(cursoId) && c.estado === 'aprobado' && c.archivo_url)
+        const cert = r.data.find(c => c.curso_id === parseInt(cursoId) && c.archivo_url)
         if (cert) {
           setCertificadoUrl(cert.archivo_url)
         } else {
-          return api.post(`/cursos/${cursoId}/certificado`)
-            .then(res => {
-              if (res.data?.archivo_url) setCertificadoUrl(res.data.archivo_url)
-              else setCertError('El servidor no devolvió la URL del certificado')
-            })
-            .catch(err => {
-              const msg = err?.response?.data?.detalle || err?.response?.data?.error || err.message
-              console.error('[cert] Error al generar:', msg)
-              setCertError(msg)
-            })
+          setCertError('Tu certificado está siendo procesado. Inténtalo en unos momentos.')
         }
       })
       .catch(err => {
