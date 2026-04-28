@@ -298,6 +298,22 @@ async function migrate() {
       )
     `);
 
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS comentarios_modulo (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        modulo_id  INT NOT NULL,
+        usuario_id INT NOT NULL,
+        parent_id  INT NULL,
+        texto      TEXT NOT NULL,
+        creado_en  DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_com_modulo (modulo_id),
+        INDEX idx_com_parent (parent_id),
+        FOREIGN KEY (modulo_id)  REFERENCES modulos(id)             ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id)            ON DELETE CASCADE,
+        FOREIGN KEY (parent_id)  REFERENCES comentarios_modulo(id)  ON DELETE CASCADE
+      )
+    `);
+
     // ── Columnas que pueden faltar en tablas ya existentes ────────────────────
 
     const alteraciones = [
@@ -405,7 +421,7 @@ async function migrate() {
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
-    console.log('✓ Migración completada — 19 tablas, esquema normalizado a 3FN');
+    console.log('✓ Migración completada — 20 tablas, esquema normalizado a 3FN');
     await conn.end();
     process.exit(0);
   } catch (err) {

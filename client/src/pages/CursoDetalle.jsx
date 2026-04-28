@@ -35,6 +35,13 @@ export default function CursoDetalle() {
   const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
 
+  // ── Comentarios por módulo ──────────────────────────────────────────────────
+  const [comentariosPorModulo, setComentariosPorModulo] = useState({})
+  const [textoPorModulo, setTextoPorModulo] = useState({})
+  const [replyingTo, setReplyingTo] = useState({})   // moduloId → comentarioId | null
+  const [replyTexto, setReplyTexto] = useState({})   // moduloId → string
+  const [enviandoCom, setEnviandoCom] = useState({}) // moduloId → bool
+
   // Obtener URL firmada cuando cambia el módulo activo
   useEffect(() => {
     if (!moduloActivo || !cursoId) return
@@ -149,6 +156,38 @@ export default function CursoDetalle() {
       setModuloActivo((primerSinCompletar || curso.modulos[0]).id)
     }
   }, [paso, curso])
+
+  // Cargar comentarios del módulo activo (solo una vez por módulo)
+  useEffect(() => {
+    if (!moduloActivo || comentariosPorModulo[moduloActivo] !== undefined) return
+    api.get(`/modulos/${moduloActivo}/comentarios`)
+      .then(r => setComentariosPorModulo(prev => ({ ...prev, [moduloActivo]: r.data })))
+      .catch(() => setComentariosPorModulo(prev => ({ ...prev, [moduloActivo]: [] })))
+  }, [moduloActivo])
+
+  const cargarComentarios = (modId) =>
+    api.get(`/modulos/${modId}/comentarios`)
+      .then(r => setComentariosPorModulo(prev => ({ ...prev, [modId]: r.data })))
+      .catch(() => {})
+
+  const enviarComentario = async (modId, texto, parentId = null) => {
+    if (!texto?.trim()) return
+    setEnviandoCom(prev => ({ ...prev, [modId]: true }))
+    try {
+      await api.post(`/modulos/${modId}/comentarios`, { texto: texto.trim(), parent_id: parentId })
+      await cargarComentarios(modId)
+      if (parentId) {
+        setReplyTexto(prev => ({ ...prev, [modId]: '' }))
+        setReplyingTo(prev => ({ ...prev, [modId]: null }))
+      } else {
+        setTextoPorModulo(prev => ({ ...prev, [modId]: '' }))
+      }
+    } catch {
+      // silencioso; el usuario puede reintentar
+    } finally {
+      setEnviandoCom(prev => ({ ...prev, [modId]: false }))
+    }
+  }
 
   // ─── progreso ────────────────────────────────────────────────────────────────
   const calcProgreso = () => {
@@ -619,6 +658,116 @@ export default function CursoDetalle() {
                                 ) : (
                                   renderContenidoModulo(mod)
                                 )}
+
+                                {/* ── Sección de comentarios del módulo ─────── */}
+                                {(() => {
+                                  const coms = comentariosPorModulo[mod.id] || []
+                                  const raices = coms.filter(c => !c.parent_id)
+                                  const respuestasDe = (parentId) => coms.filter(c => c.parent_id === parentId)
+                                  const textoInput = textoPorModulo[mod.id] || ''
+                                  const enviando = !!enviandoCom[mod.id]
+                                  const replyParent = replyingTo[mod.id] || null
+                                  const textoReply = replyTexto[mod.id] || ''
+
+                                  const fmtFecha = (iso) => {
+                                    const d = new Date(iso)
+                                    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }) +
+                                      ' ' + d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                                  }
+
+                                  return (
+                                    <div style={{ marginTop: 28, borderTop: '0.5px solid #F0F0F0', paddingTop: 20 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: '#444', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Icon icon="lucide:message-circle" width={15} style={{color:'#2B4BA0'}} />
+                                        Preguntas y comentarios
+                                        {coms.length > 0 && (
+                                          <span style={{ fontSize: 11, background: '#EEF2FF', color: '#2B4BA0', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
+                                            {coms.length}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Lista de comentarios raíz */}
+                                      {raices.length === 0 && (
+                                        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 14 }}>
+                                          Sé el primero en preguntar o comentar sobre este módulo.
+                                        </div>
+                                      )}
+                                      {raices.map(com => (
+                                        <div key={com.id} style={{ marginBottom: 14 }}>
+                                          {/* Comentario raíz */}
+                                          <div style={{ background: '#F9FAFB', border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '10px 14px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                              <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{com.autor_nombre}</span>
+                                              <span style={{ fontSize: 11, color: '#aaa' }}>{fmtFecha(com.creado_en)}</span>
+                                            </div>
+                                            <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, wordBreak: 'break-word' }}>{com.texto}</div>
+                                            <button
+                                              onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: prev[mod.id] === com.id ? null : com.id }))}
+                                              style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: '#2B4BA0', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                              <Icon icon="lucide:corner-down-right" width={11} /> Responder
+                                            </button>
+                                          </div>
+
+                                          {/* Respuestas hijas */}
+                                          {respuestasDe(com.id).map(rep => (
+                                            <div key={rep.id} style={{ marginLeft: 24, marginTop: 6, background: '#fff', border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '8px 12px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{rep.autor_nombre}</span>
+                                                <span style={{ fontSize: 11, color: '#aaa' }}>{fmtFecha(rep.creado_en)}</span>
+                                              </div>
+                                              <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, wordBreak: 'break-word' }}>{rep.texto}</div>
+                                            </div>
+                                          ))}
+
+                                          {/* Caja de respuesta */}
+                                          {replyParent === com.id && (
+                                            <div style={{ marginLeft: 24, marginTop: 6, display: 'flex', gap: 8 }}>
+                                              <textarea
+                                                value={textoReply}
+                                                onChange={e => setReplyTexto(prev => ({ ...prev, [mod.id]: e.target.value }))}
+                                                placeholder="Escribe una respuesta..."
+                                                rows={2}
+                                                style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid #D0D5DD', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                                              />
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                <button
+                                                  onClick={() => enviarComentario(mod.id, textoReply, com.id)}
+                                                  disabled={!textoReply.trim() || enviando}
+                                                  style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: textoReply.trim() ? 'pointer' : 'not-allowed', opacity: textoReply.trim() ? 1 : 0.5 }}>
+                                                  {enviando ? '...' : 'Enviar'}
+                                                </button>
+                                                <button
+                                                  onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: null }))}
+                                                  style={{ background: '#F4F5F7', color: '#555', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                                                  Cancelar
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+
+                                      {/* Nueva pregunta / comentario raíz */}
+                                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                        <textarea
+                                          value={textoInput}
+                                          onChange={e => setTextoPorModulo(prev => ({ ...prev, [mod.id]: e.target.value }))}
+                                          placeholder="Escribe una pregunta o comentario sobre este módulo..."
+                                          rows={2}
+                                          style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid #D0D5DD', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                                        />
+                                        <button
+                                          onClick={() => enviarComentario(mod.id, textoInput, null)}
+                                          disabled={!textoInput.trim() || enviando}
+                                          style={{ alignSelf: 'flex-end', background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: textoInput.trim() ? 'pointer' : 'not-allowed', opacity: textoInput.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                                          <Icon icon="lucide:send" width={14} style={{verticalAlign:'middle',marginRight:4}} />
+                                          {enviando ? 'Enviando...' : 'Comentar'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
                               </div>
                             )
                           })()}
