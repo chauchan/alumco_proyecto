@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -34,6 +35,7 @@ function buildSlidesProfesor(mod, pres) {
 
 export default function Profesor() {
   const { usuario } = useAuth()
+  const navigate = useNavigate()
   const toast = useToast()
   const [cursos, setCursos] = useState([])
   const [bloqueados, setBloqueados] = useState([])
@@ -287,14 +289,6 @@ export default function Profesor() {
 
   const pendientes = certificados.filter(c => c.estado === 'pendiente')
 
-  const navItems = [
-    { label:'Mis cursos', active:true },
-    { label:'Validar certificados', active:false, badge: pendientes.length || null },
-    { label:'Subir material', active:false },
-    { label:'Evaluaciones', active:false },
-    { label:'Mi perfil', active:false },
-  ]
-
   const tagClass = (tipo) => ({ pdf:'tag-pdf', video:'tag-video', ppt:'tag-ppt' }[tipo] || 'tag-pdf')
 
   return (
@@ -312,7 +306,7 @@ export default function Profesor() {
               <div className="page-title">Panel del Profesor</div>
               <div className="page-sub">Gestión de cursos y validación de certificados</div>
             </div>
-            <button className="btn-primary">+ Nuevo curso</button>
+            <button className="btn-primary" onClick={() => navigate('/profesor/nuevo-curso')}>+ Nuevo curso</button>
           </div>
 
           {/* Stats */}
@@ -973,19 +967,6 @@ export default function Profesor() {
             </div>
           )}
 
-          {/* Zona subida */}
-          <div className="card">
-            <div className="card-title" style={{ marginBottom:12 }}>Subir material formativo</div>
-            <div className="upload-zone">
-              <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>Arrastra o selecciona un archivo</div>
-              <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>Formatos aceptados: PDF, Video (MP4, máx 5 min), PPT</div>
-              <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
-                <span className="format-tag tag-pdf">PDF</span>
-                <span className="format-tag tag-video">Video</span>
-                <span className="format-tag tag-ppt">PPT</span>
-              </div>
-            </div>
-          </div>
         </main>
       </div>
     </div>

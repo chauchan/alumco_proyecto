@@ -26,30 +26,58 @@ router.get('/estamentos', verificarToken, SOLO_ADMIN, async (req, res) => {
 });
 
 // GET /api/usuarios
+// Con ?page&limit → devuelve { rows, total, page, limit } (paginado)
+// Sin ?page       → devuelve array plano (compatible con consumidores existentes)
 router.get('/', verificarToken, SOLO_ADMIN, async (req, res) => {
   const { rol, sede_id } = req.usuario;
-  const { sede_id: sedeQuery, tipo_contrato } = req.query;
+  const { sede_id: sedeQuery, tipo_contrato, q, rol: rolQuery, page, limit } = req.query;
   try {
-    let query = `
+    let where = 'WHERE 1=1';
+    const params = [];
+
+    if (rol === 'admin_sede') {
+      where += ' AND u.sede_id = ?'; params.push(sede_id);
+    } else if (sedeQuery) {
+      where += ' AND u.sede_id = ?'; params.push(parseInt(sedeQuery));
+    }
+    if (tipo_contrato) {
+      where += ' AND u.tipo_contrato = ?'; params.push(tipo_contrato);
+    }
+    if (q) {
+      where += ' AND (u.nombre LIKE ? OR u.identificador LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    if (rolQuery) {
+      where += ' AND u.rol = ?'; params.push(rolQuery);
+    }
+
+    const selectCols = `
       SELECT u.id, u.nombre, u.identificador, u.rol, u.tipo_contrato,
              e.nombre AS estamento, u.estamento_id, u.activo,
              u.sede_id, s.nombre AS sede_nombre, u.created_at
       FROM usuarios u
       LEFT JOIN sedes      s ON u.sede_id      = s.id
       LEFT JOIN estamentos e ON u.estamento_id = e.id
-      WHERE 1=1
     `;
-    const params = [];
-    if (rol === 'admin_sede') {
-      query += ' AND u.sede_id = ?'; params.push(sede_id);
-    } else if (sedeQuery) {
-      query += ' AND u.sede_id = ?'; params.push(parseInt(sedeQuery));
+
+    if (page !== undefined) {
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+      const offset = (pageNum - 1) * limitNum;
+
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*) AS total FROM usuarios u ${where}`, params
+      );
+      const total = countRows[0].total;
+
+      const { rows } = await pool.query(
+        `${selectCols} ${where} ORDER BY u.nombre LIMIT ? OFFSET ?`,
+        [...params, limitNum, offset]
+      );
+      return res.json({ rows, total, page: pageNum, limit: limitNum });
     }
-    if (tipo_contrato) {
-      query += ' AND u.tipo_contrato = ?'; params.push(tipo_contrato);
-    }
-    query += ' ORDER BY u.nombre';
-    const { rows } = await pool.query(query, params);
+
+    const { rows } = await pool.query(`${selectCols} ${where} ORDER BY u.nombre`, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener usuarios' });

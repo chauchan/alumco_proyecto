@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import * as XLSX from 'xlsx'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Paginacion from '../components/Paginacion'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 
@@ -54,6 +55,9 @@ export default function GestionUsuarios() {
   const fileInputRef = useRef(null)
 
   const [usuarios, setUsuarios] = useState([])
+  const [total, setTotal] = useState(0)
+  const [pagina, setPagina] = useState(1)
+  const LIMIT = 20
   const [sedes, setSedes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -73,30 +77,40 @@ export default function GestionUsuarios() {
   const [importResult, setImportResult] = useState(null)
   const [importando, setImportando] = useState(false)
 
-  const cargar = (contrato = '') => {
+  const busquedaRef = useRef(busqueda)
+  busquedaRef.current = busqueda
+  const prevBusquedaRef = useRef(busqueda)
+
+  const cargar = useCallback((pag = 1) => {
     setCargando(true)
-    const params = {}
-    if (contrato) params.tipo_contrato = contrato
+    const params = { page: pag, limit: LIMIT }
+    if (busquedaRef.current) params.q = busquedaRef.current
+    if (filtroRol) params.rol = filtroRol
+    if (filtroSede) params.sede_id = filtroSede
+    if (filtroContrato) params.tipo_contrato = filtroContrato
+
     Promise.all([api.get('/usuarios', { params }), api.get('/sedes')])
-      .then(([u, s]) => { setUsuarios(u.data); setSedes(s.data) })
+      .then(([u, s]) => {
+        setUsuarios(u.data.rows)
+        setTotal(u.data.total)
+        setPagina(u.data.page)
+        setSedes(s.data)
+      })
       .catch(() => {})
       .finally(() => setCargando(false))
-  }
+  }, [filtroRol, filtroSede, filtroContrato])
 
-  useEffect(() => { cargar(filtroContrato) }, [filtroContrato])
+  // Único efecto: debounce corto para texto, inmediato para selects
+  useEffect(() => {
+    const delay = busqueda !== prevBusquedaRef.current ? 300 : 0
+    prevBusquedaRef.current = busqueda
+    const t = setTimeout(() => cargar(1), delay)
+    return () => clearTimeout(t)
+  }, [busqueda, filtroRol, filtroSede, filtroContrato])
 
-  const usuariosFiltrados = usuarios.filter(u => {
-    const matchBusqueda = !busqueda ||
-      u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      u.identificador.toLowerCase().includes(busqueda.toLowerCase())
-    const matchRol = !filtroRol || u.rol === filtroRol
-    const matchSede = !filtroSede || String(u.sede_id) === filtroSede
-    return matchBusqueda && matchRol && matchSede
-  })
-
-  const activosVisibles = usuariosFiltrados.filter(u => u.activo)
-  const todosVisiblesSeleccionados = usuariosFiltrados.length > 0 && usuariosFiltrados.every(u => seleccionados.has(u.id))
-  const algunoVisible = usuariosFiltrados.some(u => seleccionados.has(u.id))
+  const activosVisibles = usuarios.filter(u => u.activo)
+  const todosVisiblesSeleccionados = usuarios.length > 0 && usuarios.every(u => seleccionados.has(u.id))
+  const algunoVisible = usuarios.some(u => seleccionados.has(u.id))
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -116,9 +130,9 @@ export default function GestionUsuarios() {
     setSeleccionados(prev => {
       const next = new Set(prev)
       if (todosVisiblesSeleccionados) {
-        usuariosFiltrados.forEach(u => next.delete(u.id))
+        usuarios.forEach(u => next.delete(u.id))
       } else {
-        usuariosFiltrados.forEach(u => next.add(u.id))
+        usuarios.forEach(u => next.add(u.id))
       }
       return next
     })
@@ -134,7 +148,7 @@ export default function GestionUsuarios() {
       toast.success(`Usuario "${form.nombre}" creado. Usuario: ${username} · Contraseña: alumco2026`)
       setForm(FORM_INICIAL)
       setMostrarForm(false)
-      cargar(filtroContrato)
+      cargar(1)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear usuario')
     }
@@ -145,7 +159,7 @@ export default function GestionUsuarios() {
     try {
       await api.patch(`/usuarios/${id}`, { activo: false })
       toast.success(`Usuario "${nombre}" desactivado`)
-      cargar(filtroContrato)
+      cargar(pagina)
     } catch {
       toast.error('Error al desactivar usuario')
     }
@@ -156,7 +170,7 @@ export default function GestionUsuarios() {
     try {
       await api.patch(`/usuarios/${id}`, { activo: true })
       toast.success(`Usuario "${nombre}" reactivado`)
-      cargar(filtroContrato)
+      cargar(pagina)
     } catch {
       toast.error('Error al reactivar usuario')
     }
@@ -172,7 +186,7 @@ export default function GestionUsuarios() {
       toast.success(`${count} usuario${count !== 1 ? 's' : ''} ${verbo}${count !== 1 ? 's' : ''} correctamente`)
       setConfirmarBulk(null)
       setSeleccionados(new Set())
-      cargar(filtroContrato)
+      cargar(1)
     } catch (err) {
       toast.error(err.response?.data?.error || `Error al ${tipo} usuarios`)
     }
@@ -221,7 +235,7 @@ export default function GestionUsuarios() {
       const { data } = await api.post('/usuarios/bulk', { rows: xlsxRows })
       setImportResult(data)
       setImportStep(3)
-      if (data.creados > 0) cargar(filtroContrato)
+      if (data.creados > 0) cargar(1)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al importar usuarios')
     } finally {
@@ -238,7 +252,7 @@ export default function GestionUsuarios() {
   }
 
   const limpiarFiltros = () => {
-    setBusqueda(''); setFiltroRol(''); setFiltroSede(''); setFiltroContrato('')
+    setBusqueda(''); setFiltroRol(''); setFiltroSede(''); setFiltroContrato(''); setPagina(1)
   }
 
   const hayFiltros = busqueda || filtroRol || filtroSede || filtroContrato
@@ -260,7 +274,7 @@ export default function GestionUsuarios() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="page-title">Gestión de usuarios</div>
-              <div className="page-sub">Crear y administrar usuarios de todas las sedes · {usuarios.filter(u => u.activo).length} activos</div>
+              <div className="page-sub">Crear y administrar usuarios de todas las sedes · {total} en total</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
@@ -373,7 +387,7 @@ export default function GestionUsuarios() {
                 </button>
               )}
               <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>
-                {usuariosFiltrados.length} resultado{usuariosFiltrados.length !== 1 ? 's' : ''}
+                {total} resultado{total !== 1 ? 's' : ''}
               </span>
             </div>
           </div>
@@ -383,7 +397,7 @@ export default function GestionUsuarios() {
             {cargando ? (
               <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} aria-live="polite">
                 <thead>
                   <tr style={{ background: '#F4F5F7' }}>
                     <th style={{ padding: '10px 14px', borderBottom: '0.5px solid #E8E8E8', width: 36 }}>
@@ -401,9 +415,9 @@ export default function GestionUsuarios() {
                   </tr>
                 </thead>
                 <tbody>
-                  {usuariosFiltrados.length === 0 ? (
+                  {usuarios.length === 0 ? (
                     <tr><td colSpan={9} style={{ textAlign: 'center', color: '#888', padding: 32 }}>No se encontraron usuarios</td></tr>
-                  ) : usuariosFiltrados.map(u => (
+                  ) : usuarios.map(u => (
                     <tr key={u.id} style={{ borderBottom: '0.5px solid #E8E8E8', opacity: u.activo ? 1 : 0.5, background: seleccionados.has(u.id) ? '#F0F4FF' : 'transparent' }}>
                       <td style={{ padding: '10px 14px' }}>
                         <input
@@ -445,6 +459,8 @@ export default function GestionUsuarios() {
               </table>
             )}
           </div>
+
+          <Paginacion total={total} limit={LIMIT} pagina={pagina} onChange={p => cargar(p)} />
         </main>
       </div>
 
