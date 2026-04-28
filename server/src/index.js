@@ -2,13 +2,19 @@ require('dotenv').config();
 
 // --- Validaciones de startup (fail-fast antes de cualquier inicialización) ---
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET || JWT_SECRET === 'reemplazar_con_clave_segura_larga' || JWT_SECRET.length < 32) {
+if (!JWT_SECRET || JWT_SECRET === 'reemplazar_con_clave_segura_larga' || JWT_SECRET.length < 16) {
   console.error(
     'ERROR: JWT_SECRET inválido.\n' +
-    '  Debe tener al menos 32 caracteres aleatorios y no puede ser el valor por defecto.\n' +
+    '  Debe tener al menos 16 caracteres y no puede ser el valor por defecto.\n' +
     '  Generá uno con: openssl rand -hex 32'
   );
   process.exit(1);
+}
+if (JWT_SECRET.length < 32) {
+  console.warn(
+    'WARNING: JWT_SECRET tiene menos de 32 caracteres. Se recomienda rotar a uno más largo.\n' +
+    '  Generá uno con: openssl rand -hex 32'
+  );
 }
 if (process.env.NODE_ENV === 'production' && !process.env.DB_PASSWORD) {
   console.error('ERROR: DB_PASSWORD está vacío en producción.');
