@@ -139,8 +139,13 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
         if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
           fs.unlinkSync(finalPath); continue;
         }
-        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-      } catch {}
+        const buf = fs.readFileSync(finalPath);
+        const s3Key = `imagenes_protocolo/${cursoId}/${path.basename(finalPath)}`;
+        const url = await uploadBuffer(buf, s3Key, 'image/png');
+        utiles.push(url);
+      } catch (e) {
+        console.warn('[IA] Error procesando imagen:', e.message);
+      }
     }
 
     console.log('[IA] Imágenes count:', utiles.length);
@@ -572,7 +577,7 @@ Reglas:
     const imagenesProtocolo = await extraerImagenesPDF(pdfPathGuardado, cursoId);
     if (imagenesProtocolo.length > 0) {
       try {
-        await pool.query('UPDATE cursos SET imagenes_protocolo = $1 WHERE id = $2',
+        await pool.query('UPDATE cursos SET imagenes_protocolo = ? WHERE id = ?',
           [JSON.stringify(imagenesProtocolo), cursoId]);
       } catch (e) {
         console.warn('[IA] No se pudo guardar imagenes_protocolo en BD:', e.message);

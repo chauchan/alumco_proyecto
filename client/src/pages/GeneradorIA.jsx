@@ -6,10 +6,12 @@ import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
+const KNOWN_SLIDE_TYPES = ['objetivos', 'desempeno', 'introduccion', 'seccion', 'caso_practico', 'puntos_clave', 'importante', 'conclusion']
+
 // ── buildSlides: usa diapositivas IA si existen ──────────────────────────────
 function buildSlides(mod, pres) {
   if (Array.isArray(pres.diapositivas) && pres.diapositivas.length > 0) {
-    return pres.diapositivas
+    return pres.diapositivas.filter(s => s && typeof s === 'object' && KNOWN_SLIDE_TYPES.includes(s.tipo))
   }
   return []
 }
