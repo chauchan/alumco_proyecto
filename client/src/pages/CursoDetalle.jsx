@@ -226,63 +226,53 @@ export default function CursoDetalle() {
 
   const enviarEvaluacion = async () => {
     if (!curso?.preguntas?.length) return
+
+    // Compute correctas locally for the result UI, and build the payload
     let correctas = 0
-    curso.preguntas.forEach(p => {
+    const respuestasFormateadas = curso.preguntas.map(p => {
       const alts = (p.alternativas || []).filter(a => a?.texto?.trim()).slice(0, 4)
-      if (respuestas[p.id] !== undefined && alts[respuestas[p.id]]?.correcta) correctas++
-    })
-    const score = Math.round((correctas / curso.preguntas.length) * 100)
-    const aprobado = score >= 60
+      const idx = respuestas[p.id]
+      if (idx !== undefined && alts[idx]?.correcta) correctas++
+      return { pregunta_id: p.id, alternativa_idx: idx }
+    }).filter(r => r.alternativa_idx !== undefined)
+
     setEnviando(true)
-    let bloqueado = false
-    const intentosFallidosLocales = aprobado ? 0 : (2 - intentosRestantes) + 1
-    const bloqueadoHastaLocal = (!aprobado && intentosFallidosLocales >= 2)
-      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-      : null
     try {
-      const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
-      const fallidosFinal = aprobado ? 0 : parseInt(r.data?.intentos_fallidos ?? intentosFallidosLocales, 10)
-      const bhFinal = r.data?.bloqueado_hasta ?? bloqueadoHastaLocal
-      if (bhFinal && new Date(bhFinal) > new Date()) {
-        setBloqueadoHasta(new Date(bhFinal))
-        bloqueado = true
-        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: bhFinal }))
-      } else {
-        setIntentosRestantes(Math.max(0, 2 - fallidosFinal))
-        if (!aprobado) {
-          localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: null }))
-        }
+      const { data } = await api.post(`/evaluaciones/${cursoId}/responder`, { respuestas: respuestasFormateadas })
+      const { nota: score, aprobado, numero_intento, doble_fallo, bloqueado_hasta: bh, esperando_practico } = data
+
+      if (doble_fallo && bh && new Date(bh) > new Date()) {
+        setBloqueadoHasta(new Date(bh))
+        setIntentosRestantes(0)
+        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh }))
+        return
       }
-      if (aprobado) {
+
+      if (!aprobado) {
+        setIntentosRestantes(Math.max(0, 2 - numero_intento))
+        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: numero_intento, bloqueado_hasta: null }))
+      } else {
         localStorage.removeItem(`curso_${userId}_${cursoId}_completados`)
         localStorage.removeItem(`curso_${userId}_${cursoId}_bloqueo`)
+        setEsperandoPractico(!!esperando_practico)
       }
+
+      setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
     } catch (err) {
-      const bh403 = err?.response?.data?.bloqueado_hasta
-      if (err?.response?.status === 403 && bh403) {
-        setBloqueadoHasta(new Date(bh403))
-        bloqueado = true
-        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh403 }))
+      if (err?.response?.status === 400) {
+        // Already passed or max attempts reached — refresh state from server
+        api.get(`/cursos/${cursoId}/mi-progreso`)
+          .then(r => {
+            const bh = r.data?.bloqueado_hasta
+            if (bh && new Date(bh) > new Date()) setBloqueadoHasta(new Date(bh))
+            setIntentosRestantes(Math.max(0, 2 - (r.data?.intentos_fallidos || 0)))
+          })
+          .catch(() => {})
       } else {
-        console.error('[evaluacion] error al guardar progreso:', err?.response?.data || err?.message)
-        if (!aprobado) {
-          setIntentosRestantes(Math.max(0, 2 - intentosFallidosLocales))
-          if (bloqueadoHastaLocal) {
-            setBloqueadoHasta(new Date(bloqueadoHastaLocal))
-            bloqueado = true
-          }
-          localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: intentosFallidosLocales, bloqueado_hasta: bloqueadoHastaLocal }))
-        }
+        console.error('[evaluacion]', err?.response?.data || err?.message)
       }
     } finally {
       setEnviando(false)
-    }
-    if (bloqueado) return
-    setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
-    if (aprobado) {
-      api.get(`/cursos/${cursoId}/mi-progreso`)
-        .then(r => setEsperandoPractico(!!r.data?.esperando_practico))
-        .catch(() => {})
     }
   }
 

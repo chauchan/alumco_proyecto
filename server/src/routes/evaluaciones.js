@@ -99,6 +99,24 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       );
     }
 
+    // Sync blocking state into progreso table so mi-progreso reflects the attempt
+    const DIAS_BLOQUEO = 7;
+    const intentos_fallidos_prog = cursoAprobado ? 0 : numero_intento;
+    const bloqueado_hasta_prog = (!cursoAprobado && numero_intento >= 2)
+      ? new Date(Date.now() + DIAS_BLOQUEO * 86400000)
+      : null;
+    try {
+      await pool.query(
+        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
+         VALUES (?, ?, ?, NOW(), ?, ?)
+         ON DUPLICATE KEY UPDATE
+           porcentaje = IF(? = 1, 100, GREATEST(porcentaje, 70)),
+           ultimo_acceso = NOW(), intentos_fallidos = ?, bloqueado_hasta = ?`,
+        [usuario_id, curso_id, cursoAprobado ? 100 : 70, intentos_fallidos_prog, bloqueado_hasta_prog,
+         cursoAprobado ? 1 : 0, intentos_fallidos_prog, bloqueado_hasta_prog]
+      );
+    } catch (e) { console.error('[evaluaciones] progreso sync:', e.message); }
+
     let requierePractico = false;
     let tieneAsistencia = false;
 
@@ -185,6 +203,7 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       aprobado: cursoAprobado,
       numero_intento,
       doble_fallo: !cursoAprobado && numero_intento === 2,
+      bloqueado_hasta: bloqueado_hasta_prog,
       esperando_practico: cursoAprobado && requierePractico && !tieneAsistencia,
       message: cursoAprobado
         ? (requierePractico && !tieneAsistencia
