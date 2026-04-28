@@ -403,6 +403,17 @@ async function migrate() {
       console.log('  - Column dropped: progreso.completado');
     }
 
+    // ── T0.6: Drop preguntas.alternativas (migrado a tabla alternativas) ──────
+
+    const [pregAltColCheck] = await conn.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'preguntas' AND COLUMN_NAME = 'alternativas'`
+    );
+    if (pregAltColCheck.length) {
+      await conn.query(`ALTER TABLE preguntas DROP COLUMN alternativas`);
+      console.log('  - Column dropped: preguntas.alternativas');
+    }
+
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
     console.log('✓ Migración completada — 19 tablas, esquema normalizado a 3FN');

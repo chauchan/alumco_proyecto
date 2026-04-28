@@ -85,28 +85,6 @@ export default function GestionUsuarios() {
 
   useEffect(() => { cargar(filtroContrato) }, [filtroContrato])
 
-  const handleDesactivar = async (id, nombre) => {
-    if (!confirm(`¿Desactivar a ${nombre}? El usuario no podrá ingresar al sistema pero su historial se conservará.`)) return
-    try {
-      await api.patch(`/usuarios/${id}`, { activo: false })
-      setExito(`Usuario "${nombre}" desactivado correctamente`)
-      cargar()
-    } catch {
-      setError('Error al desactivar usuario')
-    }
-  }
-
-  const handleReactivar = async (id, nombre) => {
-    if (!confirm(`¿Reactivar a ${nombre}?`)) return
-    try {
-      await api.patch(`/usuarios/${id}`, { activo: true })
-      setExito(`Usuario "${nombre}" reactivado correctamente`)
-      cargar()
-    } catch {
-      setError('Error al reactivar usuario')
-    }
-  }
-
   const usuariosFiltrados = usuarios.filter(u => {
     const matchBusqueda = !busqueda ||
       u.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||

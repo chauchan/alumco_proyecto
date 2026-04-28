@@ -201,40 +201,6 @@ export default function Practicos() {
     }
   }
 
-  const abrirModalAsistencia = async (practico) => {
-    setModalAsistencia(practico)
-    setCargandoAsistencia(true)
-    setListaAsistencia([])
-    setAsistentesSelec(new Set())
-    try {
-      const r = await api.get(`/practicos/${practico.id}/asistencia`)
-      setListaAsistencia(r.data)
-      setAsistentesSelec(new Set(r.data.filter(u => u.asistio).map(u => u.id)))
-    } catch { setError('Error al cargar lista de asistencia') }
-    finally { setCargandoAsistencia(false) }
-  }
-
-  const toggleAsistente = (userId) => {
-    setAsistentesSelec(prev => {
-      const next = new Set(prev)
-      if (next.has(userId)) next.delete(userId)
-      else next.add(userId)
-      return next
-    })
-  }
-
-  const guardarAsistencia = async () => {
-    if (!modalAsistencia) return
-    setGuardandoAsistencia(true)
-    try {
-      const r = await api.post(`/practicos/${modalAsistencia.id}/asistencia`, { asistentes: [...asistentesSelec] })
-      setExito(r.data.message || 'Asistencia guardada')
-      setModalAsistencia(null)
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error al guardar asistencia')
-    } finally { setGuardandoAsistencia(false) }
-  }
-
   return (
     <div className="app-shell">
       <Topbar seccion="Calendario de prácticos" />
@@ -421,17 +387,10 @@ export default function Practicos() {
                             </button>
                           )}
                           {puedeCrear && (
-                            <>
-                              <button
-                                onClick={() => abrirModalAsistencia(p)}
-                                style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'0.5px solid #2B4BA0', color:'#2B4BA0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
-                                <Icon icon="lucide:user-check" width={12} /> Registrar asistencia
-                              </button>
-                              <button className="btn-rechazar" style={{ fontSize:11 }}
-                                onClick={() => handleEliminar(p.id)}>
-                                Eliminar
-                              </button>
-                            </>
+                            <button className="btn-rechazar" style={{ fontSize:11 }}
+                              onClick={() => handleEliminar(p.id)}>
+                              Eliminar
+                            </button>
                           )}
                         </div>
                       )}
