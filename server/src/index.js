@@ -60,6 +60,10 @@ const modulosRoutes        = require('./routes/modulos');
 
 const app = express();
 
+// Confiar en el proxy de Railway/Heroku/etc para que req.ip sea la IP real del cliente
+// (necesario para que express-rate-limit cuente por usuario, no globalmente)
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json());
