@@ -94,14 +94,32 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
 });
 
 // GET /api/certificados/todos — para jefatura y admin_sede con filtros
+// Con ?page&limit → devuelve { rows, total, page, limit }
+// Sin ?page       → devuelve array plano (compatible hacia atrás)
 router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'profesor'), async (req, res) => {
   const { rol, sede_id } = req.usuario;
+  const { q, sede_id: sedeQuery, estado, estamento, page, limit } = req.query;
   try {
+    let where = 'WHERE 1=1';
     const params = [];
-    let filtro = '';
-    if (rol === 'admin_sede') { filtro = 'AND u.sede_id = ?'; params.push(sede_id); }
 
-    const { rows } = await pool.query(`
+    if (rol === 'admin_sede') {
+      where += ' AND u.sede_id = ?'; params.push(sede_id);
+    } else if (sedeQuery) {
+      where += ' AND u.sede_id = ?'; params.push(parseInt(sedeQuery));
+    }
+    if (estado) {
+      where += ' AND cert.estado = ?'; params.push(estado);
+    }
+    if (estamento) {
+      where += ' AND e.nombre = ?'; params.push(estamento);
+    }
+    if (q) {
+      where += ' AND (u.nombre LIKE ? OR u.identificador LIKE ? OR c.nombre LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+
+    const selectSQL = `
       SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
              u.nombre as usuario_nombre, u.identificador as usuario_rut,
              e.nombre AS estamento, u.sede_id,
@@ -116,9 +134,35 @@ router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'pro
       LEFT JOIN areas ar ON c.area_id = ar.id
       LEFT JOIN sedes s ON u.sede_id = s.id
       LEFT JOIN usuarios v ON cert.validado_por = v.id
-      WHERE 1=1 ${filtro}
-      ORDER BY cert.created_at DESC
-    `, params);
+    `;
+
+    if (page !== undefined) {
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+      const offset = (pageNum - 1) * limitNum;
+
+      const countSQL = `
+        SELECT COUNT(*) AS total
+        FROM certificados cert
+        JOIN intentos it ON cert.intento_id = it.id
+        JOIN usuarios u ON it.usuario_id = u.id
+        JOIN cursos c ON it.curso_id = c.id
+        LEFT JOIN estamentos e ON u.estamento_id = e.id
+        ${where}
+      `;
+      const { rows: countRows } = await pool.query(countSQL, params);
+      const total = countRows[0].total;
+
+      const { rows } = await pool.query(
+        `${selectSQL} ${where} ORDER BY cert.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limitNum, offset]
+      );
+      return res.json({ rows, total, page: pageNum, limit: limitNum });
+    }
+
+    const { rows } = await pool.query(
+      `${selectSQL} ${where} ORDER BY cert.created_at DESC`, params
+    );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener certificados' });

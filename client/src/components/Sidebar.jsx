@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -49,6 +50,16 @@ export default function Sidebar() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [abierto, setAbierto] = useState(false)
+
+  useEffect(() => {
+    const onToggle = () => setAbierto(v => !v)
+    window.addEventListener('toggle-sidebar', onToggle)
+    return () => window.removeEventListener('toggle-sidebar', onToggle)
+  }, [])
+
+  // Cerrar al navegar en mobile
+  useEffect(() => { setAbierto(false) }, [location.pathname])
 
   const items = NAV_ITEMS[usuario?.rol] || []
   const label = SECTION_LABEL[usuario?.rol] || 'Menú'
@@ -59,24 +70,13 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="sidebar">
-      <div className="nav-section-label">{label}</div>
-      {items.map(item => {
-        const isActive = location.pathname === item.path
-        return (
-          <div
-            key={item.label}
-            className={`nav-item ${isActive ? 'active' : ''}`}
-            onClick={() => navigate(item.path)}
-          >
-            <span style={{ flex: 1 }}>{item.label}</span>
-          </div>
-        )
-      })}
-
-      <div style={{ marginTop: 'auto', borderTop: '0.5px solid var(--gris-borde)', paddingTop: 4 }}>
-        <div className="nav-section-label">Mi cuenta</div>
-        {MI_CUENTA.map(item => {
+    <>
+      {abierto && (
+        <div className="sidebar-overlay" onClick={() => setAbierto(false)} />
+      )}
+      <aside className={`sidebar${abierto ? ' sidebar-open' : ''}`}>
+        <div className="nav-section-label">{label}</div>
+        {items.map(item => {
           const isActive = location.pathname === item.path
           return (
             <div
@@ -88,7 +88,23 @@ export default function Sidebar() {
             </div>
           )
         })}
-      </div>
-    </aside>
+
+        <div style={{ marginTop: 'auto', borderTop: '0.5px solid var(--gris-borde)', paddingTop: 4 }}>
+          <div className="nav-section-label">Mi cuenta</div>
+          {MI_CUENTA.map(item => {
+            const isActive = location.pathname === item.path
+            return (
+              <div
+                key={item.label}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => navigate(item.path)}
+              >
+                <span style={{ flex: 1 }}>{item.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      </aside>
+    </>
   )
 }

@@ -72,6 +72,14 @@ export default function Topbar({ seccion }) {
   return (
     <header className="topbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       <div className="topbar-left">
+        <button
+          className="hamburger-btn"
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+          aria-label="Menú"
+          style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4 }}
+        >
+          <Icon icon="lucide:menu" width={22} />
+        </button>
         <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 34, cursor: 'pointer' }}
           onClick={() => navigate(rutaInicio[usuario?.rol] || '/')} />
         <img src={LOGO_LETRAS} alt="alumco"

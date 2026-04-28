@@ -4,6 +4,8 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificar } = require('../utils/notificar');
 const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { auditar } = require('../utils/audit');
+const { enviarBloqueo } = require('../config/mailer');
 
 // GET /api/evaluaciones/:curso_id/estado
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
@@ -139,25 +141,41 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
           'SELECT sede_id, nombre FROM usuarios WHERE id = ?', [usuario_id]
         );
         const { rows: [cursoInfo] } = await pool.query(
-          'SELECT nombre FROM cursos WHERE id = ?', [curso_id]
+          'SELECT nombre, profesor_id FROM cursos WHERE id = ?', [curso_id]
         );
-        const sede_id = userInfo?.sede_id;
+        const sede_id    = userInfo?.sede_id;
         const nombreColab = userInfo?.nombre;
         const nombreCurso = cursoInfo?.nombre || 'Curso';
+        const profesor_id = cursoInfo?.profesor_id;
+        const bloqueMsg = `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`;
+
         if (sede_id) {
           const { rows: admins } = await pool.query(
-            "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]
+            "SELECT id, email, nombre FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]
           );
           for (const admin of admins) {
             await notificar(admin.id, {
-              tipo: 'evaluacion_bloqueo',
-              entidad: 'curso',
-              entidad_id: parseInt(curso_id),
-              titulo: 'Colaborador bloqueado en curso',
-              mensaje: `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`
+              tipo: 'evaluacion_bloqueo', entidad: 'curso', entidad_id: parseInt(curso_id),
+              titulo: 'Colaborador bloqueado en curso', mensaje: bloqueMsg
             });
+            if (admin.email) enviarBloqueo(admin.email, admin.nombre, nombreColab, nombreCurso)
+              .catch(e => console.error('[bloqueo] email admin:', e.message));
           }
         }
+
+        if (profesor_id) {
+          await notificar(profesor_id, {
+            tipo: 'evaluacion_bloqueo', entidad: 'curso', entidad_id: parseInt(curso_id),
+            titulo: 'Colaborador bloqueado en tu curso', mensaje: bloqueMsg
+          });
+          const { rows: [profInfo] } = await pool.query(
+            'SELECT email, nombre FROM usuarios WHERE id = ?', [profesor_id]
+          );
+          if (profInfo?.email) enviarBloqueo(profInfo.email, profInfo.nombre, nombreColab, nombreCurso)
+            .catch(e => console.error('[bloqueo] email profesor:', e.message));
+        }
+
+        await auditar(req, 'evaluacion.bloqueo', 'curso', parseInt(curso_id), { usuario_id, nombreColab, nombreCurso });
       } catch (notifErr) {
         console.error('[ALERTA] Error al enviar notificación de doble fallo:', notifErr.message);
       }
@@ -185,13 +203,16 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
 
 // GET /api/evaluaciones/dobles-fallos
 router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { sede_id, rol } = req.usuario;
+  const { sede_id, rol, id: userId } = req.usuario;
   try {
     const params = [];
     let whereExtra = '';
     if (rol === 'admin_sede') {
       whereExtra = ' AND u.sede_id = ?';
       params.push(sede_id);
+    } else if (rol === 'profesor') {
+      whereExtra = ' AND c.profesor_id = ?';
+      params.push(userId);
     }
     const { rows } = await pool.query(`
       SELECT u.id as usuario_id, u.nombre as usuario_nombre, u.sede_id,
