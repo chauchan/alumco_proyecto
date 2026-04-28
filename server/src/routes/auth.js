@@ -7,6 +7,7 @@ const pool = require('../config/db');
 const { verificarToken } = require('../middleware/auth');
 const { enviarResetPassword } = require('../config/mailer');
 const { auditar } = require('../utils/audit');
+const { loginLimiter, passwordResetLimiter } = require('../middlewares/rateLimit');
 
 const SELECT_USUARIO = `
   SELECT u.id, u.nombre, u.identificador, u.rol, u.tipo_contrato,
@@ -19,7 +20,7 @@ const SELECT_USUARIO = `
 `;
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { identificador, password } = req.body;
   if (!identificador || !password)
     return res.status(400).json({ error: 'Identificador y contraseña son requeridos' });
@@ -130,7 +131,7 @@ router.patch('/mis-datos', verificarToken, async (req, res) => {
 });
 
 // POST /api/auth/forgot-password — siempre 200, nunca revela si el email existe
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
   res.json({ message: 'Si el email está registrado, recibirás instrucciones en tu correo.' });
 
   const { email } = req.body || {};
@@ -160,7 +161,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
   const { token, nueva_password } = req.body || {};
   if (!token || !nueva_password)
     return res.status(400).json({ error: 'Token y nueva contraseña son requeridos' });

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { auditar } = require('../utils/audit');
+const { parseIdParam } = require('../utils/validate');
 
 const SOLO_ADMIN = verificarRol('admin_sede', 'jefatura');
 
@@ -255,9 +256,12 @@ router.post('/', verificarToken, SOLO_ADMIN, async (req, res) => {
   }
 });
 
+const CAMPOS_PERMITIDOS_USUARIO = ['nombre', 'tipo_contrato', 'sede_id', 'activo', 'estamento_id'];
+
 // PATCH /api/usuarios/:id
 router.patch('/:id', verificarToken, SOLO_ADMIN, async (req, res) => {
-  const { id } = req.params;
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { nombre, tipo_contrato, sede_id, activo, estamento } = req.body;
   try {
     const sets = [];
@@ -296,8 +300,10 @@ router.patch('/:id', verificarToken, SOLO_ADMIN, async (req, res) => {
 
 // DELETE /api/usuarios/:id
 router.delete('/:id', verificarToken, verificarRol('jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
-    await pool.query('UPDATE usuarios SET activo = 0 WHERE id = ?', [req.params.id]);
+    await pool.query('UPDATE usuarios SET activo = 0 WHERE id = ?', [id]);
     res.json({ message: 'Usuario desactivado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar usuario' });
