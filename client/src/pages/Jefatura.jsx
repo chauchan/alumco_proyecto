@@ -2,10 +2,25 @@ import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line,
+  PieChart, Pie, Cell, Legend
+} from 'recharts'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
+
+const DONUT_COLORS = ['#2B4BA0', '#7BC67A', '#F5A623', '#E8505B', '#A855F7', '#06B6D4', '#F43F5E', '#14B8A6']
+
+const hoyISO = () => new Date().toISOString().slice(0, 10)
+const hace12MesesISO = () => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 11)
+  d.setDate(1)
+  return d.toISOString().slice(0, 10)
+}
 
 export default function Jefatura() {
   const navigate = useNavigate()
@@ -15,11 +30,37 @@ export default function Jefatura() {
   const [cursos, setCursos] = useState([])
   const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false)
 
+  // --- Gráficos ---
+  const [desde, setDesde] = useState(hace12MesesISO)
+  const [hasta, setHasta] = useState(hoyISO)
+  const [coberturaData, setCoberturaData] = useState([])
+  const [certMesData, setCertMesData] = useState([])
+  const [estamentoData, setEstamentoData] = useState([])
+  const [cargandoGraficos, setCargandoGraficos] = useState(false)
+
   useEffect(() => {
     Promise.all([api.get('/reportes/resumen'), api.get('/reportes/sedes'), api.get('/reportes/cursos')])
       .then(([r, s, c]) => { setResumen(r.data); setSedes(s.data); setCursos(c.data) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!desde || !hasta) return
+    setCargandoGraficos(true)
+    const qs = `?desde=${desde}&hasta=${hasta}`
+    Promise.all([
+      api.get(`/reportes/graficos/cobertura-sede${qs}`),
+      api.get(`/reportes/graficos/certificaciones-mes${qs}`),
+      api.get(`/reportes/graficos/distribucion-estamento${qs}`)
+    ])
+      .then(([c, m, e]) => {
+        setCoberturaData(c.data)
+        setCertMesData(m.data)
+        setEstamentoData(e.data)
+      })
+      .catch(() => {})
+      .finally(() => setCargandoGraficos(false))
+  }, [desde, hasta])
 
   const navItems = [
     { label:'Resumen global', active:true },
@@ -184,6 +225,121 @@ export default function Jefatura() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Gráficos analíticos ── */}
+          <div>
+            {/* Encabezado con filtro de fechas */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <div>
+                <div className="card-title" style={{ fontSize:14 }}>Análisis y gráficos</div>
+                {cargandoGraficos && <div style={{ fontSize:11, color:'#999', marginTop:2 }}>Cargando…</div>}
+              </div>
+              <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                <label style={{ fontSize:11, color:'#888' }}>Desde</label>
+                <input
+                  type="date"
+                  value={desde}
+                  max={hasta}
+                  onChange={e => setDesde(e.target.value)}
+                  style={{ fontSize:11, padding:'4px 6px', border:'1px solid #DDD', borderRadius:4, color:'#333' }}
+                />
+                <label style={{ fontSize:11, color:'#888' }}>Hasta</label>
+                <input
+                  type="date"
+                  value={hasta}
+                  min={desde}
+                  max={hoyISO()}
+                  onChange={e => setHasta(e.target.value)}
+                  style={{ fontSize:11, padding:'4px 6px', border:'1px solid #DDD', borderRadius:4, color:'#333' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:16 }}>
+
+              {/* Barra: cobertura por sede */}
+              <div className="card">
+                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Cobertura por sede (%)</div>
+                {coberturaData.length === 0 && !cargandoGraficos
+                  ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
+                  : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={coberturaData} margin={{ top:4, right:8, left:-20, bottom:4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+                        <XAxis dataKey="nombre" tick={{ fontSize:10 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize:10 }} unit="%" />
+                        <Tooltip
+                          formatter={(v, n, p) => [`${v}% (${p.payload.completaron}/${p.payload.total})`, 'Cobertura']}
+                          contentStyle={{ fontSize:11 }}
+                        />
+                        <Bar dataKey="pct_completado" name="Cobertura" fill="#2B4BA0" radius={[3,3,0,0]} maxBarSize={60} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )
+                }
+              </div>
+
+              {/* Línea: certificaciones por mes */}
+              <div className="card">
+                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Certificaciones emitidas por mes</div>
+                {certMesData.length === 0 && !cargandoGraficos
+                  ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
+                  : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={certMesData} margin={{ top:4, right:8, left:-20, bottom:4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+                        <XAxis dataKey="label" tick={{ fontSize:9 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize:10 }} allowDecimals={false} />
+                        <Tooltip contentStyle={{ fontSize:11 }} />
+                        <Line
+                          type="monotone"
+                          dataKey="total"
+                          name="Certificaciones"
+                          stroke="#7BC67A"
+                          strokeWidth={2}
+                          dot={{ r:3 }}
+                          activeDot={{ r:5 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )
+                }
+              </div>
+
+              {/* Donut: distribución por estamento */}
+              <div className="card">
+                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Distribución por estamento</div>
+                {estamentoData.length === 0 && !cargandoGraficos
+                  ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
+                  : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={estamentoData}
+                          dataKey="total"
+                          nameKey="nombre"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={48}
+                          outerRadius={75}
+                          paddingAngle={2}
+                        >
+                          {estamentoData.map((_, i) => (
+                            <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v, name) => [v, name]} contentStyle={{ fontSize:11 }} />
+                        <Legend iconSize={9} wrapperStyle={{ fontSize:10 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )
+                }
+              </div>
+
+            </div>
+          </div>
+          {/* ── fin gráficos ── */}
+
         </main>
       </div>
     </div>
