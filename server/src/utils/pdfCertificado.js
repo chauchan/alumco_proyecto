@@ -64,7 +64,12 @@ async function generarCertificadoPDF({ certId, nombre, curso, fecha, estado = 'a
 
     // ── Logo ALUMCO (parte superior izquierda) ───────────────────────────────
     if (LOGO_BUFFER) {
-      doc.image(LOGO_BUFFER, 44, 36, { width: 120 });
+      try {
+        doc.image(LOGO_BUFFER, 44, 36, { width: 120 });
+      } catch {
+        doc.fillColor('#2B4BA0').fontSize(20).font('Helvetica-Bold')
+           .text('ONG ALUMCO', 44, 50);
+      }
     } else {
       doc.fillColor('#2B4BA0').fontSize(20).font('Helvetica-Bold')
          .text('ONG ALUMCO', 44, 50);

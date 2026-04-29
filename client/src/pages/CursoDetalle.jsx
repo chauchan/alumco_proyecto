@@ -43,7 +43,7 @@ export default function CursoDetalle() {
     setCertError(null)
     api.get('/certificados')
       .then(r => {
-        const cert = r.data.find(c => c.curso_id === parseInt(cursoId) && c.archivo_url)
+        const cert = r.data.find(c => String(c.curso_id) === String(cursoId) && c.archivo_url)
         if (cert) {
           setCertificadoUrl(cert.archivo_url)
         } else {
