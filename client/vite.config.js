@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'https://alumcoproyecto-production.up.railway.app', changeOrigin: true },
-      '/uploads': { target: 'https://alumcoproyecto-production.up.railway.app', changeOrigin: true }
+      '/api': { target: 'alumcoproyecto-production-3949.up.railway.app', changeOrigin: true },
+      '/uploads': { target: 'alumcoproyecto-production-3949.up.railway.app', changeOrigin: true }
     }
   }
 })
