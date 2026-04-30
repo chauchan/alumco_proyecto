@@ -300,6 +300,20 @@ async function migrate() {
     `);
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS protocolos (
+        id             INT PRIMARY KEY AUTO_INCREMENT,
+        nombre         VARCHAR(200) NOT NULL,
+        descripcion    TEXT,
+        archivo_nombre VARCHAR(500),
+        archivo_path   VARCHAR(500),
+        creado_por     INT DEFAULT NULL,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS comentarios_modulo (
         id         INT AUTO_INCREMENT PRIMARY KEY,
         modulo_id  INT NOT NULL,

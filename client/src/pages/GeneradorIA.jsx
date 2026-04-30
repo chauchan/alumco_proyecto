@@ -5,6 +5,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import MascotaFoye from '../components/MascotaFoye'
 
 // ── buildSlides: usa diapositivas IA si existen ──────────────────────────────
 function buildSlides(mod, pres) {
@@ -737,9 +738,9 @@ export default function GeneradorIA() {
               )}
 
               {!resultado && !cargando && (
-                <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0', color: '#CCC' }}>
-                  <Icon icon="lucide:bot" width={40} style={{marginBottom:12,display:"block",color:"#888"}} />
-                  <div style={{ fontSize: 13 }}>El borrador aparecerá aquí</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0', color: '#CCC' }}>
+                  <MascotaFoye size={72} estado="neutral" animate />
+                  <div style={{ fontSize: 13, marginTop: 12, color: '#888' }}>El borrador aparecerá aquí</div>
                 </div>
               )}
 
