@@ -585,17 +585,38 @@ router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefat
       }
     }
 
-    // Actualizar preguntas y sus alternativas
-    if (preguntas?.length) {
+    // Actualizar preguntas y sus alternativas (update existentes, insert nuevas)
+    if (Array.isArray(preguntas) && preguntas.length) {
       for (const preg of preguntas) {
-        await pool.query('UPDATE preguntas SET texto = ? WHERE id = ?', [preg.texto, preg.id]);
-        if (Array.isArray(preg.alternativas)) {
-          await pool.query('DELETE FROM alternativas WHERE pregunta_id = ?', [preg.id]);
-          for (const alt of preg.alternativas) {
-            await pool.query(
-              'INSERT INTO alternativas (pregunta_id, texto, correcta) VALUES (?, ?, ?)',
-              [preg.id, alt.texto, alt.correcta ? 1 : 0]
-            );
+        if (preg.id) {
+          await pool.query('UPDATE preguntas SET texto = ? WHERE id = ?', [preg.texto, preg.id]);
+          if (Array.isArray(preg.alternativas)) {
+            for (const alt of preg.alternativas) {
+              if (alt.id) {
+                await pool.query(
+                  'UPDATE alternativas SET texto = ?, correcta = ? WHERE id = ?',
+                  [alt.texto, alt.correcta ? 1 : 0, alt.id]
+                );
+              } else {
+                await pool.query(
+                  'INSERT INTO alternativas (pregunta_id, texto, correcta) VALUES (?, ?, ?)',
+                  [preg.id, alt.texto, alt.correcta ? 1 : 0]
+                );
+              }
+            }
+          }
+        } else {
+          const { lastID: pregId } = await pool.query(
+            'INSERT INTO preguntas (curso_id, texto) VALUES (?, ?)',
+            [cursoId, preg.texto]
+          );
+          if (Array.isArray(preg.alternativas)) {
+            for (const alt of preg.alternativas) {
+              await pool.query(
+                'INSERT INTO alternativas (pregunta_id, texto, correcta) VALUES (?, ?, ?)',
+                [pregId, alt.texto, alt.correcta ? 1 : 0]
+              );
+            }
           }
         }
       }
@@ -603,7 +624,27 @@ router.put('/:id', verificarToken, verificarRol('profesor', 'admin_sede', 'jefat
 
     res.json({ ok: true });
   } catch (err) {
+    console.error('[PUT /cursos/:id]', err.message);
     res.status(500).json({ error: 'Error al actualizar curso' });
+  }
+});
+
+// DELETE /api/cursos/:id/preguntas/:pregId
+router.delete('/:id/preguntas/:pregId', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const cursoId = parseIdParam(req, 'id');
+  const pregId  = parseInt(req.params.pregId);
+  if (!cursoId || !pregId) return res.status(400).json({ error: 'id inválido' });
+  try {
+    const { rows } = await pool.query('SELECT id FROM preguntas WHERE id = ? AND curso_id = ?', [pregId, cursoId]);
+    if (!rows.length) return res.status(404).json({ error: 'Pregunta no encontrada' });
+    await pool.query('DELETE FROM alternativas WHERE pregunta_id = ?', [pregId]);
+    await pool.query('DELETE FROM preguntas WHERE id = ?', [pregId]);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(409).json({ error: 'No se puede eliminar: la pregunta ya tiene respuestas de alumnos.' });
+    }
+    res.status(500).json({ error: 'Error al eliminar pregunta' });
   }
 });
 

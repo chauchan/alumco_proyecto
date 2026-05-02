@@ -58,7 +58,7 @@ export default function CursoDetalle() {
     if (!mod || mod.tipo !== 'ppt') return
     const cp = mod.contenido_presentacion
     const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
-    if (slides.length > 0 || generandoPPT[moduloActivo]) return
+    if (slides.length > 0 || generandoPPT[moduloActivo] || mod.archivo_url) return
 
     setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: true }))
     api.post(`/ia/modulo/${moduloActivo}/generar-ppt`)
@@ -284,8 +284,8 @@ export default function CursoDetalle() {
       : []
     const esPPT = slides.length > 0
 
-    // PPT sin slides aún: mostrar spinner mientras se genera
-    if (mod.tipo === 'ppt' && !esPPT) {
+    // PPT sin slides y sin archivo subido: mostrar spinner mientras se genera con IA
+    if (mod.tipo === 'ppt' && !esPPT && !mod.archivo_url) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 16px', color: '#888' }}>
           <Icon icon="lucide:loader" width={32} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
@@ -371,23 +371,17 @@ export default function CursoDetalle() {
     }
 
     if (mod.archivo_url) {
-      const fileSrc = signedUrls[mod.id] || ''
+      const downloadSrc = signedUrls[mod.id] || mod.archivo_url
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {fileSrc ? (
-            <iframe
-              key={fileSrc}
-              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileSrc)}`}
-              style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
-              title={mod.titulo}
-            />
-          ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 13 }}>
-              Cargando presentación...
-            </div>
-          )}
+          <iframe
+            key={mod.archivo_url}
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(mod.archivo_url)}`}
+            style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
+            title={mod.titulo}
+          />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <a href={fileSrc} download target="_blank" rel="noreferrer"
+            <a href={downloadSrc} download target="_blank" rel="noreferrer"
               style={{ background: '#F4F5F7', color: '#333', borderRadius: 8, padding: '8px 14px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <Icon icon="lucide:download" width={12} /> Descargar PPT
             </a>

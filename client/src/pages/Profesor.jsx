@@ -62,6 +62,7 @@ export default function Profesor() {
   // edición de preguntas
   const [editandoPreguntas, setEditandoPreguntas] = useState(false)
   const [preguntasEdit, setPreguntasEdit] = useState([])
+  const [deletedPregIds, setDeletedPregIds] = useState([])
   const [guardandoPreguntas, setGuardandoPreguntas] = useState(false)
   // selección masiva de cursos
   const [modoSeleccion, setModoSeleccion] = useState(false)
@@ -136,7 +137,7 @@ export default function Profesor() {
     setPptModuloIdx(null); setPptPresentaciones({}); setPptSlide(0)
     setPptEditando(false); setPptEditData({})
     setEditandoModulos(false); setModulosEdit([])
-    setEditandoPreguntas(false); setPreguntasEdit([])
+    setEditandoPreguntas(false); setPreguntasEdit([]); setDeletedPregIds([])
     setTargeting({ estamento_objetivo: null, sede_objetivo: null, obligatorio: false })
     setVideoIntroUrl(null)
   }
@@ -230,12 +231,34 @@ export default function Profesor() {
   const guardarPreguntas = async () => {
     setGuardandoPreguntas(true)
     try {
-      await api.put(`/cursos/${cursoDetalle.id}`, { preguntas: preguntasEdit })
-      setCursoDetalle(prev => ({ ...prev, preguntas: preguntasEdit }))
+      const paraGuardar = preguntasEdit.filter(p => p.texto?.trim())
+      if (paraGuardar.length > 0) {
+        await api.put(`/cursos/${cursoDetalle.id}`, { preguntas: paraGuardar })
+      }
+      for (const pid of deletedPregIds) {
+        await api.delete(`/cursos/${cursoDetalle.id}/preguntas/${pid}`)
+          .catch(e => {
+            const msg = e?.response?.data?.error || ''
+            if (msg) alert(msg)
+          })
+      }
+      const { data } = await api.get(`/cursos/${cursoDetalle.id}`)
+      setCursoDetalle(prev => ({ ...prev, preguntas: data.preguntas }))
+      setDeletedPregIds([])
       setEditandoPreguntas(false)
     } catch { alert('Error al guardar preguntas') }
     finally { setGuardandoPreguntas(false) }
   }
+
+  const nuevaPreguntaVacia = () => ({
+    texto: '',
+    alternativas: [
+      { texto: '', correcta: false },
+      { texto: '', correcta: false },
+      { texto: '', correcta: false },
+      { texto: '', correcta: false },
+    ]
+  })
 
   const iniciarEdicion = (idx, slides) => {
     setPptEditData(prev => ({ ...prev, [idx]: JSON.parse(JSON.stringify(slides)) }))
@@ -407,7 +430,10 @@ export default function Profesor() {
                       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, gap:6 }}>
                         {editandoPreguntas ? (
                           <>
-                            <button onClick={() => setEditandoPreguntas(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
+                            <button onClick={() => { setEditandoPreguntas(false); setDeletedPregIds([]) }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
+                            <button onClick={() => setPreguntasEdit(prev => [...prev, nuevaPreguntaVacia()])} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #2B4BA0', background:'#EEF2FF', color:'#2B4BA0', cursor:'pointer', fontWeight:500 }}>
+                              <><Icon icon="lucide:plus" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Agregar pregunta</>
+                            </button>
                             <button onClick={guardarPreguntas} disabled={guardandoPreguntas} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
                               {guardandoPreguntas ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar cambios</>}
                             </button>
@@ -418,6 +444,7 @@ export default function Profesor() {
                               ...p,
                               alternativas: typeof p.alternativas === 'string' ? JSON.parse(p.alternativas) : p.alternativas
                             })))
+                            setDeletedPregIds([])
                             setEditandoPreguntas(true)
                           }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
                             <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar preguntas</>
@@ -438,6 +465,12 @@ export default function Profesor() {
                               <textarea value={preg.texto} rows={2}
                                 onChange={e => { const arr=[...preguntasEdit]; arr[j]={...arr[j],texto:e.target.value}; setPreguntasEdit(arr) }}
                                 style={{ flex:1, fontSize:12, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', resize:'none', lineHeight:1.5, boxSizing:'border-box' }} />
+                              <button onClick={() => {
+                                if (preg.id) setDeletedPregIds(prev => [...prev, preg.id])
+                                setPreguntasEdit(prev => prev.filter((_, i) => i !== j))
+                              }} style={{ background:'none', border:'none', cursor:'pointer', color:'#CCC', padding:2, flexShrink:0 }} title="Eliminar pregunta">
+                                <Icon icon="lucide:trash-2" width={14} />
+                              </button>
                             </div>
                             <div style={{ paddingLeft:26, display:'flex', flexDirection:'column', gap:6 }}>
                               {alts?.map((alt, k) => (
@@ -843,6 +876,15 @@ export default function Profesor() {
                         onClick={() => setSeleccionados(seleccionados.size===cursos.length ? new Set() : new Set(cursos.map(c=>c.id)))}>
                         {seleccionados.size===cursos.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
                       </button>
+                      {seleccionados.size === 1 && (
+                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer', fontWeight:500 }}
+                          onClick={() => {
+                            const c = cursos.find(c => seleccionados.has(c.id))
+                            if (c) { setModoSeleccion(false); setSeleccionados(new Set()); abrirDetalleCurso(c) }
+                          }}>
+                          <><Icon icon="lucide:pencil" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Editar</>
+                        </button>
+                      )}
                       {seleccionados.size > 0 && (
                         <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background:'#E8505B', color:'#fff', cursor:'pointer', fontWeight:500 }}
                           onClick={eliminarMasivo} disabled={eliminandoMasivo}>
@@ -858,8 +900,8 @@ export default function Profesor() {
                   )}
                 </div>
               </div>
-              <div style={{ maxHeight: modoSeleccion ? 340 : 'none', overflowY: modoSeleccion ? 'auto' : 'visible' }}>
-                {(modoSeleccion ? cursos : cursos.slice(0,4)).map(c => (
+              <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+                {cursos.map(c => (
                   <div key={c.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', cursor: modoSeleccion ? 'pointer' : 'default' }}
                     onClick={modoSeleccion ? () => toggleSeleccion(c.id) : undefined}>
                     {modoSeleccion && (
@@ -892,12 +934,6 @@ export default function Profesor() {
                     )}
                   </div>
                 ))}
-                {!modoSeleccion && cursos.length > 4 && (
-                  <div style={{ fontSize:11, color:'#888', textAlign:'center', paddingTop:8, cursor:'pointer' }}
-                    onClick={() => setModoSeleccion(true)}>
-                    +{cursos.length - 4} más · Ver todos
-                  </div>
-                )}
               </div>
             </div>
 

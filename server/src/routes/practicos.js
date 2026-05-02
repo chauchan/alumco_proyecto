@@ -240,13 +240,26 @@ router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_s
         if (pendiente.length) {
           const { intento_id, usuario_nombre, curso_nombre } = pendiente[0];
           await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intento_id]);
-          certCreados++;
-          generarCertificadoPDF({ certId: intento_id, nombre: usuario_nombre, curso: curso_nombre, estado: 'pendiente' })
-            .then(async pdfUrl => {
-              const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intento_id]);
-              if (certRow) await pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id]);
+          const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intento_id]);
+          if (certRow) {
+            certCreados++;
+            const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${certRow.id}`;
+            generarCertificadoPDF({
+              certId: certRow.id,
+              nombre: usuario_nombre,
+              curso: curso_nombre,
+              fecha: new Date(),
+              estado: 'aprobado',
+              qrUrl
             })
-            .catch(e => console.error('[asistencia] PDF error:', e.message));
+              .then(async pdfUrl => {
+                await pool.query(
+                  "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
+                  [pdfUrl, certRow.id]
+                );
+              })
+              .catch(e => console.error('[asistencia] PDF error:', e.message));
+          }
         }
       }
     }

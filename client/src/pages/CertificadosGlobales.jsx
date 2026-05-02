@@ -18,6 +18,7 @@ const ESTAMENTOS = [
 
 const LIMIT = 20
 
+
 export default function CertificadosGlobales() {
   const { usuario } = useAuth()
   const [certificados, setCertificados] = useState([])
@@ -186,10 +187,12 @@ export default function CertificadosGlobales() {
                       <td style={{ padding: '10px 14px' }}>
                         {cert.estado === 'aprobado' && cert.archivo_url ? (
                           <a
-                            href={`/api/certificados/${cert.id}/descargar`}
-                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px' }}
+                            href={cert.archivo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
                           >
-                            <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
+                            <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
                           </a>
                         ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
                           <button

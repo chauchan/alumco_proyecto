@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
+
 export default function MisCertificados() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
@@ -120,15 +121,17 @@ export default function MisCertificados() {
                       <td style={{ padding: '12px 14px' }}>
                         {cert.estado === 'aprobado' && cert.archivo_url ? (
                           <a
-                            href={`/api/certificados/${cert.id}/descargar`}
+                            href={cert.archivo_url}
+                            target="_blank"
+                            rel="noreferrer"
                             style={{
                               fontSize: 11, color: '#2B4BA0',
                               border: '0.5px solid #E8E8E8', borderRadius: 8,
                               padding: '5px 10px', display: 'inline-flex',
-                              alignItems: 'center', gap: 4
+                              alignItems: 'center', gap: 4, textDecoration: 'none'
                             }}
                           >
-                            <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
+                            <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
                           </a>
                         ) : (
                           <span style={{ fontSize: 11, color: '#AAA' }}>—</span>

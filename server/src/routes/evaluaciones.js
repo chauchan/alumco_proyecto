@@ -143,21 +143,27 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
         const { rows: [userRow] } = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
         const { rows: [cursoNombreRow] } = await pool.query('SELECT nombre FROM cursos WHERE id = ?', [curso_id]);
         await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
-        try {
-          const pdfUrl = await generarCertificadoPDF({
-            certId: intentoId,
-            nombre: userRow?.nombre || '',
-            curso: cursoNombreRow?.nombre || '',
-            estado: 'pendiente'
-          });
-          const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intentoId]);
-          if (certRow) {
-            await pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id]);
+        const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intentoId]);
+        if (certRow) {
+          const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${certRow.id}`;
+          try {
+            const pdfUrl = await generarCertificadoPDF({
+              certId: certRow.id,
+              nombre: userRow?.nombre || '',
+              curso: cursoNombreRow?.nombre || '',
+              fecha: new Date(),
+              estado: 'aprobado',
+              qrUrl
+            });
+            await pool.query(
+              "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
+              [pdfUrl, certRow.id]
+            );
+          } catch (pdfErr) {
+            console.error('[evaluaciones] Error generando PDF:', pdfErr.message);
+            await pool.query("UPDATE certificados SET estado = 'error' WHERE id = ?", [certRow.id]).catch(() => {});
+            return res.status(500).json({ error: 'Error al generar el certificado. La evaluación fue registrada.' });
           }
-        } catch (pdfErr) {
-          console.error('[evaluaciones] Error generando PDF:', pdfErr.message);
-          await pool.query("UPDATE certificados SET estado = 'error' WHERE intento_id = ?", [intentoId]).catch(() => {});
-          return res.status(500).json({ error: 'Error al generar el certificado. La evaluación fue registrada.' });
         }
       }
     }
