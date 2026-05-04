@@ -10,7 +10,8 @@ const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
-const { uploadBuffer } = require('../config/s3');
+const { uploadBuffer, s3, BUCKET, keyFromUrl } = require('../config/s3');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { auditar } = require('../utils/audit');
 
 const OLLAMA_URL        = process.env.OLLAMA_URL        || 'http://localhost:11434';
@@ -139,8 +140,14 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
         if ((meta.width || 0) < 100 || (meta.height || 0) < 100) {
           fs.unlinkSync(finalPath); continue;
         }
-        utiles.push(`/uploads/imagenes/${cursoId}/${path.basename(finalPath)}`);
-      } catch {}
+        // Subir a S3 en lugar de guardar localmente (Railway filesystem es efímero)
+        const buffer = fs.readFileSync(finalPath);
+        const s3Key = `imagenes-curso/${cursoId}/${path.basename(finalPath)}`;
+        const url = await uploadBuffer(buffer, s3Key, 'image/png');
+        utiles.push(url);
+      } catch (e) {
+        console.warn('[IA] Error subiendo imagen a S3:', e.message);
+      }
     }
 
     console.log('[IA] Imágenes count:', utiles.length);
@@ -392,14 +399,16 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
   try {
     console.log('[IA] Paso 1: archivo recibido', req.file.originalname);
 
-    // Si el archivo viene del bucket S3 (URL), descargarlo a un temp local
+    // Si el archivo viene del bucket S3 (URL), descargarlo con el SDK autenticado
     if (req.file._fromLib && req.file.path.startsWith('http')) {
       console.log('[IA] Descargando protocolo desde S3:', req.file.path);
-      const resp = await undiciFetch(req.file.path);
-      if (!resp.ok) throw new Error(`No se pudo descargar el protocolo: HTTP ${resp.status}`);
-      const arrayBuf = await resp.arrayBuffer();
+      const key = keyFromUrl(req.file.path);
+      if (!key) throw new Error(`No se pudo extraer la key S3 de la URL: ${req.file.path}`);
+      const s3Resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+      const chunks = [];
+      for await (const chunk of s3Resp.Body) chunks.push(chunk);
       const tmpPath = path.join(os.tmpdir(), `protocolo_${Date.now()}.pdf`);
-      fs.writeFileSync(tmpPath, Buffer.from(arrayBuf));
+      fs.writeFileSync(tmpPath, Buffer.concat(chunks));
       req.file.path = tmpPath;
       req.file._tmpDownload = true;
       console.log('[IA] Protocolo descargado a:', tmpPath);

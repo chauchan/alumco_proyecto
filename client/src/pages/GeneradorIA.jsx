@@ -730,10 +730,10 @@ export default function GeneradorIA() {
               </div>
 
               {cargando && (
-                <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                  <Icon icon="lucide:loader-circle" width={32} style={{margin:"0 auto 12px",display:"block",color:"#888"}} />
-                  <div style={{ fontSize: 13 }}>Analizando el protocolo...</div>
-                  <div style={{ fontSize: 11, marginTop: 6 }}>Esto puede tomar 30–60 segundos</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0' }}>
+                  <MascotaFoye size={80} estado="activo" animate />
+                  <div style={{ fontSize: 13, marginTop: 12, color: '#555', fontWeight: 500 }}>Analizando el protocolo...</div>
+                  <div style={{ fontSize: 11, marginTop: 6, color: '#888' }}>Esto puede tomar 30–60 segundos</div>
                 </div>
               )}
 
@@ -828,10 +828,10 @@ export default function GeneradorIA() {
 
                           {/* Estado cargando */}
                           {(!pres || pres === 'cargando') && (
-                            <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-                              <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 10px",display:"block",color:"#888"}} />
-                              <div style={{ fontSize: 13 }}>Generando presentación con IA...</div>
-                              <div style={{ fontSize: 11, marginTop: 4 }}>Puede tomar unos segundos</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0' }}>
+                              <MascotaFoye size={64} estado="activo" animate />
+                              <div style={{ fontSize: 13, marginTop: 10, color: '#555', fontWeight: 500 }}>Generando presentación con IA...</div>
+                              <div style={{ fontSize: 11, marginTop: 4, color: '#888' }}>Puede tomar unos segundos</div>
                             </div>
                           )}
 
