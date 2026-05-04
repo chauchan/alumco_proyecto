@@ -21,7 +21,7 @@ export default function NuevoCurso() {
   const { usuario } = useAuth()
   const [paso, setPaso] = useState(1) // 1: info, 2: módulos, 3: evaluación, 4: audiencia
   const [cursoId, setCursoId] = useState(null)
-  const [form, setForm] = useState({ nombre:'', descripcion:'', area:'' })
+  const [form, setForm] = useState({ nombre:'', descripcion:'', area:'', requiere_practico: false })
   const [modulos, setModulos] = useState([])
   const [preguntas, setPreguntas] = useState([
     { texto:'', alternativas:[{texto:'',correcta:true},{texto:'',correcta:false},{texto:'',correcta:false},{texto:'',correcta:false}] }
@@ -81,7 +81,7 @@ export default function NuevoCurso() {
       }
       setPaso(4)
     } catch (err) {
-      setError('Error al guardar las preguntas')
+      setError(err.response?.data?.error || err.message || 'Error al guardar las preguntas')
     }
   }
 
@@ -207,6 +207,19 @@ export default function NuevoCurso() {
                   <textarea rows={3} placeholder="Descripción breve del contenido del curso..."
                     value={form.descripcion} onChange={e => setForm({...form, descripcion:e.target.value})}
                     style={{ resize:'none' }} />
+                </div>
+                <div className="field">
+                  <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontWeight:400 }}>
+                    <input type="checkbox"
+                      checked={form.requiere_practico}
+                      onChange={e => setForm({...form, requiere_practico: e.target.checked})}
+                      style={{ accentColor:'#2B4BA0', width:15, height:15 }}
+                    />
+                    Este curso requiere práctico presencial
+                  </label>
+                  <div style={{ fontSize:11, color:'#888', marginTop:4, paddingLeft:23 }}>
+                    El colaborador debe asistir al práctico para obtener el certificado, aunque apruebe la evaluación.
+                  </div>
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <button type="submit" className="btn-primary">Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} /></button>

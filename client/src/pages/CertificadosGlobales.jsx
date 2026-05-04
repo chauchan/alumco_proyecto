@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Paginacion from '../components/Paginacion'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
@@ -15,9 +16,14 @@ const ESTAMENTOS = [
   'Directivos',
 ]
 
+const LIMIT = 20
+
+
 export default function CertificadosGlobales() {
   const { usuario } = useAuth()
   const [certificados, setCertificados] = useState([])
+  const [total, setTotal] = useState(0)
+  const [pagina, setPagina] = useState(1)
   const [sedes, setSedes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -25,29 +31,38 @@ export default function CertificadosGlobales() {
   const [filtroEstamento, setFiltroEstamento] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
 
-  useEffect(() => {
-    Promise.all([
-      api.get('/certificados/todos'),
-      api.get('/sedes'),
-    ])
-      .then(([c, s]) => { setCertificados(c.data); setSedes(s.data) })
+  const busquedaRef = useRef(busqueda)
+  busquedaRef.current = busqueda
+  const prevBusquedaRef = useRef(busqueda)
+
+  const cargar = useCallback((pag = 1) => {
+    setCargando(true)
+    const params = { page: pag, limit: LIMIT }
+    if (busquedaRef.current) params.q = busquedaRef.current
+    if (filtroSede) params.sede_id = filtroSede
+    if (filtroEstamento) params.estamento = filtroEstamento
+    if (filtroEstado) params.estado = filtroEstado
+
+    Promise.all([api.get('/certificados/todos', { params }), api.get('/sedes')])
+      .then(([c, s]) => {
+        setCertificados(c.data.rows)
+        setTotal(c.data.total)
+        setPagina(c.data.page)
+        setSedes(s.data)
+      })
       .catch(() => {})
       .finally(() => setCargando(false))
-  }, [])
+  }, [filtroSede, filtroEstamento, filtroEstado])
 
-  const filtrados = certificados.filter(c => {
-    const matchBusqueda = !busqueda ||
-      c.usuario_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      c.usuario_rut?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      c.curso_nombre?.toLowerCase().includes(busqueda.toLowerCase())
-    const matchSede = !filtroSede || String(c.sede_id) === filtroSede
-    const matchEstamento = !filtroEstamento || c.estamento === filtroEstamento
-    const matchEstado = !filtroEstado || c.estado === filtroEstado
-    return matchBusqueda && matchSede && matchEstamento && matchEstado
-  })
+  useEffect(() => {
+    const delay = busqueda !== prevBusquedaRef.current ? 300 : 0
+    prevBusquedaRef.current = busqueda
+    const t = setTimeout(() => cargar(1), delay)
+    return () => clearTimeout(t)
+  }, [busqueda, filtroSede, filtroEstamento, filtroEstado])
 
-  const aprobados = filtrados.filter(c => c.estado === 'aprobado').length
-  const pendientes = filtrados.filter(c => c.estado === 'pendiente').length
+  const aprobados = certificados.filter(c => c.estado === 'aprobado').length
+  const pendientes = certificados.filter(c => c.estado === 'pendiente').length
 
   const titulo = usuario?.rol === 'jefatura' ? 'Certificados ONG' : 'Certificados de la sede'
 
@@ -71,9 +86,9 @@ export default function CertificadosGlobales() {
           {/* Stats */}
           <div className="stats-grid-3">
             {[
-              { val: filtrados.length, label: 'Total (con filtros)', color: '#2B4BA0' },
-              { val: aprobados,         label: 'Aprobados',          color: '#7BC67A' },
-              { val: pendientes,        label: 'Pendientes',         color: '#F5A623' },
+              { val: total,     label: 'Total (con filtros)', color: '#2B4BA0' },
+              { val: aprobados, label: 'Aprobados (pág. actual)',  color: '#7BC67A' },
+              { val: pendientes,label: 'Pendientes (pág. actual)', color: '#F5A623' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">{s.label}</div>
@@ -113,14 +128,14 @@ export default function CertificadosGlobales() {
               </select>
               {(busqueda || filtroSede || filtroEstamento || filtroEstado) && (
                 <button
-                  onClick={() => { setBusqueda(''); setFiltroSede(''); setFiltroEstamento(''); setFiltroEstado('') }}
+                  onClick={() => { setBusqueda(''); setFiltroSede(''); setFiltroEstamento(''); setFiltroEstado(''); setPagina(1) }}
                   style={{ height: 36, background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 12, color: '#888', cursor: 'pointer' }}
                 >
                   Limpiar
                 </button>
               )}
               <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>
-                {filtrados.length} resultado{filtrados.length !== 1 ? 's' : ''}
+                {total} resultado{total !== 1 ? 's' : ''}
               </span>
             </div>
           </div>
@@ -129,7 +144,7 @@ export default function CertificadosGlobales() {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {cargando ? (
               <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
-            ) : filtrados.length === 0 ? (
+            ) : certificados.length === 0 ? (
               <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
                 <Icon icon="lucide:clipboard-list" width={32} style={{marginBottom:8,display:"block",color:"#CCC"}} />
                 <div style={{ fontSize: 14, fontWeight: 500 }}>No se encontraron certificados</div>
@@ -146,7 +161,7 @@ export default function CertificadosGlobales() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrados.map(cert => (
+                  {certificados.map(cert => (
                     <tr key={cert.id} style={{ borderBottom: '0.5px solid #E8E8E8' }}>
                       <td style={{ padding: '10px 14px', fontWeight: 500 }}>{cert.usuario_nombre}</td>
                       <td style={{ padding: '10px 14px', color: '#888', fontSize: 12 }}>{cert.usuario_rut || '—'}</td>
@@ -172,16 +187,18 @@ export default function CertificadosGlobales() {
                       <td style={{ padding: '10px 14px' }}>
                         {cert.estado === 'aprobado' && cert.archivo_url ? (
                           <a
-                            href={`/api/certificados/${cert.id}/descargar`}
-                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px' }}
+                            href={cert.archivo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
                           >
-                            <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
+                            <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
                           </a>
                         ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
                           <button
                             className="btn-aprobar"
                             onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado: 'aprobado' })
-                              .then(() => setCertificados(prev => prev.map(c => c.id === cert.id ? {...c, estado:'aprobado'} : c)))
+                              .then(() => cargar(pagina))
                             }
                           >
                             Validar
@@ -196,6 +213,8 @@ export default function CertificadosGlobales() {
               </table>
             )}
           </div>
+
+          <Paginacion total={total} limit={LIMIT} pagina={pagina} onChange={p => cargar(p)} />
         </main>
       </div>
     </div>

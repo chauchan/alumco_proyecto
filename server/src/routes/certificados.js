@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const PDFDocument = require('pdfkit');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { uploadBuffer } = require('../config/s3');
+const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { parseIdParam } = require('../utils/validate');
 
 // GET /api/certificados — listar certificados del usuario o pendientes para profesor
 router.get('/', verificarToken, async (req, res) => {
@@ -49,6 +49,8 @@ router.get('/', verificarToken, async (req, res) => {
 
 // PATCH /api/certificados/:id/validar — aprobar o rechazar certificado
 router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { estado } = req.body;
   if (!['aprobado', 'rechazado'].includes(estado))
     return res.status(400).json({ error: 'Estado debe ser aprobado o rechazado' });
@@ -62,7 +64,7 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
        JOIN usuarios u ON it.usuario_id = u.id
        JOIN cursos c ON it.curso_id = c.id
        WHERE cert.id = ?`,
-      [req.params.id]
+      [id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Certificado no encontrado' });
     const cert = rows[0];
@@ -70,7 +72,15 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
     let archivo_url = null;
     let fecha_emision = null;
     if (estado === 'aprobado') {
-      archivo_url = await generarCertificadoPDF(cert);
+      const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${req.params.id}`;
+      archivo_url = await generarCertificadoPDF({
+        certId: cert.id,
+        nombre: cert.usuario_nombre,
+        curso: cert.curso_nombre,
+        fecha: new Date(),
+        estado: 'aprobado',
+        qrUrl
+      });
       fecha_emision = new Date();
     }
 
@@ -87,14 +97,32 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
 });
 
 // GET /api/certificados/todos — para jefatura y admin_sede con filtros
+// Con ?page&limit → devuelve { rows, total, page, limit }
+// Sin ?page       → devuelve array plano (compatible hacia atrás)
 router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'profesor'), async (req, res) => {
   const { rol, sede_id } = req.usuario;
+  const { q, sede_id: sedeQuery, estado, estamento, page, limit } = req.query;
   try {
+    let where = 'WHERE 1=1';
     const params = [];
-    let filtro = '';
-    if (rol === 'admin_sede') { filtro = 'AND u.sede_id = ?'; params.push(sede_id); }
 
-    const { rows } = await pool.query(`
+    if (rol === 'admin_sede') {
+      where += ' AND u.sede_id = ?'; params.push(sede_id);
+    } else if (sedeQuery) {
+      where += ' AND u.sede_id = ?'; params.push(parseInt(sedeQuery));
+    }
+    if (estado) {
+      where += ' AND cert.estado = ?'; params.push(estado);
+    }
+    if (estamento) {
+      where += ' AND e.nombre = ?'; params.push(estamento);
+    }
+    if (q) {
+      where += ' AND (u.nombre LIKE ? OR u.identificador LIKE ? OR c.nombre LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+
+    const selectSQL = `
       SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
              u.nombre as usuario_nombre, u.identificador as usuario_rut,
              e.nombre AS estamento, u.sede_id,
@@ -109,9 +137,35 @@ router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'pro
       LEFT JOIN areas ar ON c.area_id = ar.id
       LEFT JOIN sedes s ON u.sede_id = s.id
       LEFT JOIN usuarios v ON cert.validado_por = v.id
-      WHERE 1=1 ${filtro}
-      ORDER BY cert.created_at DESC
-    `, params);
+    `;
+
+    if (page !== undefined) {
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+      const offset = (pageNum - 1) * limitNum;
+
+      const countSQL = `
+        SELECT COUNT(*) AS total
+        FROM certificados cert
+        JOIN intentos it ON cert.intento_id = it.id
+        JOIN usuarios u ON it.usuario_id = u.id
+        JOIN cursos c ON it.curso_id = c.id
+        LEFT JOIN estamentos e ON u.estamento_id = e.id
+        ${where}
+      `;
+      const { rows: countRows } = await pool.query(countSQL, params);
+      const total = countRows[0].total;
+
+      const { rows } = await pool.query(
+        `${selectSQL} ${where} ORDER BY cert.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limitNum, offset]
+      );
+      return res.json({ rows, total, page: pageNum, limit: limitNum });
+    }
+
+    const { rows } = await pool.query(
+      `${selectSQL} ${where} ORDER BY cert.created_at DESC`, params
+    );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener certificados' });
@@ -120,6 +174,8 @@ router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'pro
 
 // GET /api/certificados/:id/descargar — descargar PDF
 router.get('/:id/descargar', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows } = await pool.query(
       `SELECT cert.id, cert.estado, cert.archivo_url,
@@ -128,7 +184,7 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
        JOIN intentos it ON cert.intento_id = it.id
        JOIN usuarios u ON it.usuario_id = u.id
        WHERE cert.id = ?`,
-      [req.params.id]
+      [id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Certificado no encontrado' });
     const cert = rows[0];
@@ -141,43 +197,5 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
     res.status(500).json({ error: 'Error al descargar certificado' });
   }
 });
-
-async function generarCertificadoPDF(cert) {
-  const buffer = await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    doc.rect(0, 0, doc.page.width, doc.page.height).fill('#F4F5F7');
-    doc.rect(20, 20, doc.page.width - 40, doc.page.height - 40).stroke('#2B4BA0');
-
-    doc.fillColor('#1E3A6E').fontSize(32).font('Helvetica-Bold')
-       .text('CERTIFICADO DE CAPACITACIÓN', 0, 80, { align: 'center' });
-
-    doc.fillColor('#333333').fontSize(16).font('Helvetica')
-       .text('Este certificado acredita que', 0, 160, { align: 'center' });
-    doc.fillColor('#2B4BA0').fontSize(26).font('Helvetica-Bold')
-       .text(cert.usuario_nombre.toUpperCase(), 0, 195, { align: 'center' });
-    doc.fillColor('#333333').fontSize(16).font('Helvetica')
-       .text('ha completado exitosamente el curso', 0, 240, { align: 'center' });
-    doc.fillColor('#2B4BA0').fontSize(22).font('Helvetica-Bold')
-       .text(cert.curso_nombre, 0, 270, { align: 'center' });
-
-    const fecha = new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
-    doc.fillColor('#555555').fontSize(12).font('Helvetica')
-       .text(`Hualpén, ${fecha}`, 0, 350, { align: 'center' });
-
-    doc.moveTo(250, 420).lineTo(550, 420).stroke('#333333');
-    doc.fillColor('#333333').fontSize(11).text('ONG ALUMCO', 0, 430, { align: 'center' });
-    doc.fontSize(10).fillColor('#888888').text('Plataforma de Capacitación Interna', 0, 448, { align: 'center' });
-
-    doc.end();
-  });
-
-  const key = `certificados/cert_${cert.id}_${Date.now()}.pdf`;
-  return uploadBuffer(buffer, key, 'application/pdf');
-}
 
 module.exports = router;

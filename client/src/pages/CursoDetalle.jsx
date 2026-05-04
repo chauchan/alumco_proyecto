@@ -31,7 +31,16 @@ export default function CursoDetalle() {
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
+  const [generandoPPT, setGenerandoPPT] = useState({})
+  const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
+
+  // ── Comentarios por módulo ──────────────────────────────────────────────────
+  const [comentariosPorModulo, setComentariosPorModulo] = useState({})
+  const [textoPorModulo, setTextoPorModulo] = useState({})
+  const [replyingTo, setReplyingTo] = useState({})   // moduloId → comentarioId | null
+  const [replyTexto, setReplyTexto] = useState({})   // moduloId → string
+  const [enviandoCom, setEnviandoCom] = useState({}) // moduloId → bool
 
   // Obtener URL firmada cuando cambia el módulo activo
   useEffect(() => {
@@ -39,8 +48,32 @@ export default function CursoDetalle() {
     if (signedUrls[moduloActivo]) return // ya cacheada
     api.get(`/cursos/${cursoId}/modulos/${moduloActivo}/signed-url`)
       .then(r => setSignedUrls(prev => ({ ...prev, [moduloActivo]: r.data.url })))
-      .catch(() => {})
+      .catch(err => console.error('[signed-url] error:', err?.response?.status, err?.response?.data || err?.message))
   }, [moduloActivo, cursoId])
+
+  // Auto-generar PPT si el módulo activo es tipo ppt y no tiene slides guardadas
+  useEffect(() => {
+    if (!moduloActivo || !curso) return
+    const mod = curso.modulos?.find(m => m.id === moduloActivo)
+    if (!mod || mod.tipo !== 'ppt') return
+    const cp = mod.contenido_presentacion
+    const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+    if (slides.length > 0 || generandoPPT[moduloActivo] || mod.archivo_url) return
+
+    setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: true }))
+    api.post(`/ia/modulo/${moduloActivo}/generar-ppt`)
+      .then(r => {
+        const presentacion = r.data.presentacion
+        setCurso(prev => ({
+          ...prev,
+          modulos: prev.modulos.map(m =>
+            m.id === moduloActivo ? { ...m, contenido_presentacion: presentacion } : m
+          )
+        }))
+      })
+      .catch(err => console.error('[generar-ppt]', err?.response?.data || err?.message))
+      .finally(() => setGenerandoPPT(prev => ({ ...prev, [moduloActivo]: false })))
+  }, [moduloActivo, curso])
 
   useEffect(() => {
     Promise.all([
@@ -61,6 +94,8 @@ export default function CursoDetalle() {
 
         const localBloqueoRaw = localStorage.getItem(`curso_${userId}_${cursoId}_bloqueo`)
         const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
+
+        setEsperandoPractico(!!progresoRes.data?.esperando_practico)
 
         const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
         const intentosFallidosLocal = parseInt(localBloqueo?.intentos_fallidos || 0, 10)
@@ -122,6 +157,38 @@ export default function CursoDetalle() {
     }
   }, [paso, curso])
 
+  // Cargar comentarios del módulo activo (solo una vez por módulo)
+  useEffect(() => {
+    if (!moduloActivo || comentariosPorModulo[moduloActivo] !== undefined) return
+    api.get(`/modulos/${moduloActivo}/comentarios`)
+      .then(r => setComentariosPorModulo(prev => ({ ...prev, [moduloActivo]: r.data })))
+      .catch(() => setComentariosPorModulo(prev => ({ ...prev, [moduloActivo]: [] })))
+  }, [moduloActivo])
+
+  const cargarComentarios = (modId) =>
+    api.get(`/modulos/${modId}/comentarios`)
+      .then(r => setComentariosPorModulo(prev => ({ ...prev, [modId]: r.data })))
+      .catch(() => {})
+
+  const enviarComentario = async (modId, texto, parentId = null) => {
+    if (!texto?.trim()) return
+    setEnviandoCom(prev => ({ ...prev, [modId]: true }))
+    try {
+      await api.post(`/modulos/${modId}/comentarios`, { texto: texto.trim(), parent_id: parentId })
+      await cargarComentarios(modId)
+      if (parentId) {
+        setReplyTexto(prev => ({ ...prev, [modId]: '' }))
+        setReplyingTo(prev => ({ ...prev, [modId]: null }))
+      } else {
+        setTextoPorModulo(prev => ({ ...prev, [modId]: '' }))
+      }
+    } catch {
+      // silencioso; el usuario puede reintentar
+    } finally {
+      setEnviandoCom(prev => ({ ...prev, [modId]: false }))
+    }
+  }
+
   // ─── progreso ────────────────────────────────────────────────────────────────
   const calcProgreso = () => {
     if (!curso) return 0
@@ -159,59 +226,54 @@ export default function CursoDetalle() {
 
   const enviarEvaluacion = async () => {
     if (!curso?.preguntas?.length) return
+
+    // Compute correctas locally for the result UI, and build the payload
     let correctas = 0
-    curso.preguntas.forEach(p => {
+    const respuestasFormateadas = curso.preguntas.map(p => {
       const alts = (p.alternativas || []).filter(a => a?.texto?.trim()).slice(0, 4)
-      if (respuestas[p.id] !== undefined && alts[respuestas[p.id]]?.correcta) correctas++
-    })
-    const score = Math.round((correctas / curso.preguntas.length) * 100)
-    const aprobado = score >= 60
+      const idx = respuestas[p.id]
+      if (idx !== undefined && alts[idx]?.correcta) correctas++
+      return { pregunta_id: p.id, alternativa_idx: idx }
+    }).filter(r => r.alternativa_idx !== undefined)
+
     setEnviando(true)
-    let bloqueado = false
-    const intentosFallidosLocales = aprobado ? 0 : (2 - intentosRestantes) + 1
-    const bloqueadoHastaLocal = (!aprobado && intentosFallidosLocales >= 2)
-      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-      : null
     try {
-      const r = await api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: aprobado ? 100 : score, es_evaluacion: true })
-      const fallidosFinal = aprobado ? 0 : parseInt(r.data?.intentos_fallidos ?? intentosFallidosLocales, 10)
-      const bhFinal = r.data?.bloqueado_hasta ?? bloqueadoHastaLocal
-      if (bhFinal && new Date(bhFinal) > new Date()) {
-        setBloqueadoHasta(new Date(bhFinal))
-        bloqueado = true
-        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: bhFinal }))
-      } else {
-        setIntentosRestantes(Math.max(0, 2 - fallidosFinal))
-        if (!aprobado) {
-          localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: fallidosFinal, bloqueado_hasta: null }))
-        }
+      const { data } = await api.post(`/evaluaciones/${cursoId}/responder`, { respuestas: respuestasFormateadas })
+      const { nota: score, aprobado, numero_intento, doble_fallo, bloqueado_hasta: bh, esperando_practico } = data
+
+      if (doble_fallo && bh && new Date(bh) > new Date()) {
+        setBloqueadoHasta(new Date(bh))
+        setIntentosRestantes(0)
+        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh }))
+        return
       }
-      if (aprobado) {
+
+      if (!aprobado) {
+        setIntentosRestantes(Math.max(0, 2 - numero_intento))
+        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: numero_intento, bloqueado_hasta: null }))
+      } else {
         localStorage.removeItem(`curso_${userId}_${cursoId}_completados`)
         localStorage.removeItem(`curso_${userId}_${cursoId}_bloqueo`)
+        setEsperandoPractico(!!esperando_practico)
       }
+
+      setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
     } catch (err) {
-      const bh403 = err?.response?.data?.bloqueado_hasta
-      if (err?.response?.status === 403 && bh403) {
-        setBloqueadoHasta(new Date(bh403))
-        bloqueado = true
-        localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: 2, bloqueado_hasta: bh403 }))
+      if (err?.response?.status === 400) {
+        // Already passed or max attempts reached — refresh state from server
+        api.get(`/cursos/${cursoId}/mi-progreso`)
+          .then(r => {
+            const bh = r.data?.bloqueado_hasta
+            if (bh && new Date(bh) > new Date()) setBloqueadoHasta(new Date(bh))
+            setIntentosRestantes(Math.max(0, 2 - (r.data?.intentos_fallidos || 0)))
+          })
+          .catch(() => {})
       } else {
-        console.error('[evaluacion] error al guardar progreso:', err?.response?.data || err?.message)
-        if (!aprobado) {
-          setIntentosRestantes(Math.max(0, 2 - intentosFallidosLocales))
-          if (bloqueadoHastaLocal) {
-            setBloqueadoHasta(new Date(bloqueadoHastaLocal))
-            bloqueado = true
-          }
-          localStorage.setItem(`curso_${userId}_${cursoId}_bloqueo`, JSON.stringify({ intentos_fallidos: intentosFallidosLocales, bloqueado_hasta: bloqueadoHastaLocal }))
-        }
+        console.error('[evaluacion]', err?.response?.data || err?.message)
       }
     } finally {
       setEnviando(false)
     }
-    if (bloqueado) return
-    setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
   }
 
   // ─── render módulo expandido ─────────────────────────────────────────────────
@@ -221,6 +283,17 @@ export default function CursoDetalle() {
       : Array.isArray(cp?.diapositivas) ? cp.diapositivas
       : []
     const esPPT = slides.length > 0
+
+    // PPT sin slides y sin archivo subido: mostrar spinner mientras se genera con IA
+    if (mod.tipo === 'ppt' && !esPPT && !mod.archivo_url) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#888' }}>
+          <Icon icon="lucide:loader" width={32} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
+          <div style={{ fontSize: 14, fontWeight: 500 }}>Generando presentación...</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>Esto puede tomar unos segundos</div>
+        </div>
+      )
+    }
     const esVideo = mod.tipo === 'video' && mod.archivo_url
     const esPDF = mod.tipo === 'pdf' && mod.archivo_url
 
@@ -298,23 +371,17 @@ export default function CursoDetalle() {
     }
 
     if (mod.archivo_url) {
-      const fileSrc = signedUrls[mod.id] || ''
+      const downloadSrc = signedUrls[mod.id] || mod.archivo_url
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {fileSrc ? (
-            <iframe
-              key={fileSrc}
-              src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileSrc)}`}
-              style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
-              title={mod.titulo}
-            />
-          ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: 13 }}>
-              Cargando presentación...
-            </div>
-          )}
+          <iframe
+            key={mod.archivo_url}
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(mod.archivo_url)}`}
+            style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
+            title={mod.titulo}
+          />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <a href={fileSrc} download target="_blank" rel="noreferrer"
+            <a href={downloadSrc} download target="_blank" rel="noreferrer"
               style={{ background: '#F4F5F7', color: '#333', borderRadius: 8, padding: '8px 14px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <Icon icon="lucide:download" width={12} /> Descargar PPT
             </a>
@@ -575,6 +642,116 @@ export default function CursoDetalle() {
                                 ) : (
                                   renderContenidoModulo(mod)
                                 )}
+
+                                {/* ── Sección de comentarios del módulo ─────── */}
+                                {(() => {
+                                  const coms = comentariosPorModulo[mod.id] || []
+                                  const raices = coms.filter(c => !c.parent_id)
+                                  const respuestasDe = (parentId) => coms.filter(c => c.parent_id === parentId)
+                                  const textoInput = textoPorModulo[mod.id] || ''
+                                  const enviando = !!enviandoCom[mod.id]
+                                  const replyParent = replyingTo[mod.id] || null
+                                  const textoReply = replyTexto[mod.id] || ''
+
+                                  const fmtFecha = (iso) => {
+                                    const d = new Date(iso)
+                                    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }) +
+                                      ' ' + d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+                                  }
+
+                                  return (
+                                    <div style={{ marginTop: 28, borderTop: '0.5px solid #F0F0F0', paddingTop: 20 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: '#444', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Icon icon="lucide:message-circle" width={15} style={{color:'#2B4BA0'}} />
+                                        Preguntas y comentarios
+                                        {coms.length > 0 && (
+                                          <span style={{ fontSize: 11, background: '#EEF2FF', color: '#2B4BA0', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
+                                            {coms.length}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Lista de comentarios raíz */}
+                                      {raices.length === 0 && (
+                                        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 14 }}>
+                                          Sé el primero en preguntar o comentar sobre este módulo.
+                                        </div>
+                                      )}
+                                      {raices.map(com => (
+                                        <div key={com.id} style={{ marginBottom: 14 }}>
+                                          {/* Comentario raíz */}
+                                          <div style={{ background: '#F9FAFB', border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '10px 14px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                              <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{com.autor_nombre}</span>
+                                              <span style={{ fontSize: 11, color: '#aaa' }}>{fmtFecha(com.creado_en)}</span>
+                                            </div>
+                                            <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, wordBreak: 'break-word' }}>{com.texto}</div>
+                                            <button
+                                              onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: prev[mod.id] === com.id ? null : com.id }))}
+                                              style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: '#2B4BA0', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                              <Icon icon="lucide:corner-down-right" width={11} /> Responder
+                                            </button>
+                                          </div>
+
+                                          {/* Respuestas hijas */}
+                                          {respuestasDe(com.id).map(rep => (
+                                            <div key={rep.id} style={{ marginLeft: 24, marginTop: 6, background: '#fff', border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '8px 12px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{rep.autor_nombre}</span>
+                                                <span style={{ fontSize: 11, color: '#aaa' }}>{fmtFecha(rep.creado_en)}</span>
+                                              </div>
+                                              <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, wordBreak: 'break-word' }}>{rep.texto}</div>
+                                            </div>
+                                          ))}
+
+                                          {/* Caja de respuesta */}
+                                          {replyParent === com.id && (
+                                            <div style={{ marginLeft: 24, marginTop: 6, display: 'flex', gap: 8 }}>
+                                              <textarea
+                                                value={textoReply}
+                                                onChange={e => setReplyTexto(prev => ({ ...prev, [mod.id]: e.target.value }))}
+                                                placeholder="Escribe una respuesta..."
+                                                rows={2}
+                                                style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid #D0D5DD', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                                              />
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                <button
+                                                  onClick={() => enviarComentario(mod.id, textoReply, com.id)}
+                                                  disabled={!textoReply.trim() || enviando}
+                                                  style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: textoReply.trim() ? 'pointer' : 'not-allowed', opacity: textoReply.trim() ? 1 : 0.5 }}>
+                                                  {enviando ? '...' : 'Enviar'}
+                                                </button>
+                                                <button
+                                                  onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: null }))}
+                                                  style={{ background: '#F4F5F7', color: '#555', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                                                  Cancelar
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+
+                                      {/* Nueva pregunta / comentario raíz */}
+                                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                        <textarea
+                                          value={textoInput}
+                                          onChange={e => setTextoPorModulo(prev => ({ ...prev, [mod.id]: e.target.value }))}
+                                          placeholder="Escribe una pregunta o comentario sobre este módulo..."
+                                          rows={2}
+                                          style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid #D0D5DD', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                                        />
+                                        <button
+                                          onClick={() => enviarComentario(mod.id, textoInput, null)}
+                                          disabled={!textoInput.trim() || enviando}
+                                          style={{ alignSelf: 'flex-end', background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: textoInput.trim() ? 'pointer' : 'not-allowed', opacity: textoInput.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                                          <Icon icon="lucide:send" width={14} style={{verticalAlign:'middle',marginRight:4}} />
+                                          {enviando ? 'Enviando...' : 'Comentar'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
                               </div>
                             )
                           })()}
@@ -640,6 +817,12 @@ export default function CursoDetalle() {
                               <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
+                              {esperandoPractico && (
+                                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#C2410C', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
+                                  <Icon icon="lucide:clock" width={16} style={{flexShrink:0}} />
+                                  Has aprobado la evaluación. Falta asistir al práctico para certificarte.
+                                </div>
+                              )}
                               <button onClick={() => navigate(-1)}
                                 style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
                                 Volver a capacitaciones
@@ -758,6 +941,12 @@ export default function CursoDetalle() {
                     </div>
                     <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : '#555', fontWeight: 500 }}>{progreso}% completado</div>
                   </div>
+                  {esperandoPractico && !resultado && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #F0F0F0', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                      <Icon icon="lucide:clock" width={14} style={{flexShrink:0, marginTop:1}} />
+                      <span>Has aprobado la evaluación. Falta asistir al práctico para certificarte.</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

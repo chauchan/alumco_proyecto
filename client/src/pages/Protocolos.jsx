@@ -89,7 +89,7 @@ export default function Protocolos() {
                   <input ref={inputRef} type="file" accept=".pdf" style={{ display: 'none' }}
                     onChange={e => setArchivo(e.target.files[0])} />
                   {archivo ? (
-                    <><Icon icon="lucide:check" width={24} style={{marginBottom:4,display:"block",color:"#1A7A45"}} />
+                    <><Icon icon="lucide:check" width={24} style={{margin:"0 auto 4px",display:"block",color:"#1A7A45"}} />
                       <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div></>
                   ) : (
                     <><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Arrastra o selecciona el PDF</div>
@@ -107,7 +107,7 @@ export default function Protocolos() {
           {/* Lista de protocolos */}
           {cargando ? (
             <div style={{ textAlign: 'center', padding: '3rem 0', color: '#888' }}>
-              <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:10,display:"block",color:"#888"}} />
+              <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 10px",display:"block",color:"#888"}} />
               <div style={{ fontSize: 13 }}>Cargando protocolos...</div>
             </div>
           ) : protocolos.length === 0 ? (

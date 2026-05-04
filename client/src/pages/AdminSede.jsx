@@ -4,13 +4,18 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
+import { useToast } from '../context/ToastContext'
 
 export default function AdminSede() {
   const { usuario } = useAuth()
+  const toast = useToast()
   const [resumen, setResumen] = useState(null)
+  const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false)
   const [usuarios, setUsuarios] = useState([])
   const [cursos, setCursos] = useState([])
   const [notificaciones, setNotificaciones] = useState([])
+  const [bloqueados, setBloqueados] = useState([])
+  const [desbloqueando, setDesbloqueando] = useState(new Set())
 
   useEffect(() => {
     Promise.all([
@@ -18,12 +23,14 @@ export default function AdminSede() {
       api.get('/usuarios'),
       api.get('/reportes/cursos'),
       api.get('/notificaciones'),
+      api.get('/evaluaciones/dobles-fallos'),
     ])
-      .then(([r, u, c, n]) => {
+      .then(([r, u, c, n, b]) => {
         setResumen(r.data)
         setUsuarios(u.data)
         setCursos(c.data)
         setNotificaciones(n.data.notificaciones || [])
+        setBloqueados(b.data || [])
       })
       .catch(() => {})
   }, [])
@@ -48,6 +55,32 @@ export default function AdminSede() {
   }
 
   const noLeidas = notificaciones.filter(n => !n.leida).length
+
+  const desbloquear = async (curso_id, usuario_id) => {
+    const key = `${curso_id}-${usuario_id}`
+    setDesbloqueando(prev => new Set([...prev, key]))
+    try {
+      await api.post(`/cursos/${curso_id}/desbloquear/${usuario_id}`)
+      setBloqueados(prev => prev.filter(b => !(b.curso_id === curso_id && b.usuario_id === usuario_id)))
+      toast.success('Colaborador desbloqueado correctamente')
+    } catch {
+      toast.error('Error al desbloquear colaborador')
+    } finally {
+      setDesbloqueando(prev => { const n = new Set(prev); n.delete(key); return n })
+    }
+  }
+
+  const enviarRecordatoriosAhora = async () => {
+    setEnviandoRecordatorios(true)
+    try {
+      const { data } = await api.post('/reportes/enviar-recordatorios')
+      toast.success(`Recordatorios enviados: ${data.enviados} de ${data.total}${data.errores > 0 ? ` (${data.errores} errores)` : ''}`)
+    } catch {
+      toast.error('Error al enviar recordatorios')
+    } finally {
+      setEnviandoRecordatorios(false)
+    }
+  }
 
   const navItems = [
     { label:'Resumen', active:true, badge:null },
@@ -86,9 +119,14 @@ export default function AdminSede() {
               <div className="page-title">Resumen de sede</div>
               <div className="page-sub">{usuario?.sede_nombre} · {new Date().toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
             </div>
-            <button className="btn-primary">
-              <span>+</span> Agregar colaborador
-            </button>
+            <div style={{ display:'flex', gap:8 }}>
+              <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
+                <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>
+              </button>
+              <button className="btn-primary">
+                <span>+</span> Agregar colaborador
+              </button>
+            </div>
           </div>
 
           {/* Stats */}
@@ -149,6 +187,42 @@ export default function AdminSede() {
             </div>
           </div>
 
+          {/* Colaboradores bloqueados */}
+          {bloqueados.length > 0 && (
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  Colaboradores bloqueados
+                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                    {bloqueados.length}
+                  </span>
+                </span>
+              </div>
+              {bloqueados.map(b => {
+                const key = `${b.curso_id}-${b.usuario_id}`
+                return (
+                  <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
+                      <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{b.curso_nombre}</div>
+                    </div>
+                    <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>
+                      {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
+                    </span>
+                    <button
+                      className="btn-sm btn-sm-primary"
+                      disabled={desbloqueando.has(key)}
+                      onClick={() => desbloquear(b.curso_id, b.usuario_id)}
+                      style={{ background:'#1A7A45', color:'#fff', minWidth:100 }}
+                    >
+                      {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           {/* Alertas */}
           <div className="card">
             <div className="card-header">
@@ -169,7 +243,7 @@ export default function AdminSede() {
             </div>
             {notificaciones.length === 0 ? (
               <div style={{ padding:'20px 0', textAlign:'center', color:'#aaa', fontSize:12 }}>
-                <Icon icon="lucide:check-circle" width={20} style={{display:'block', alignItems:'center',margin:'0 auto 8px',color:'#22C55E'}} />
+                <Icon icon="lucide:check-circle" width={20} style={{display:'block',margin:'0 auto 8px',color:'#22C55E'}} />
                 Sin alertas pendientes
               </div>
             ) : notificaciones.map(n => (

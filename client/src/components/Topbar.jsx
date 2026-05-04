@@ -19,6 +19,11 @@ const rutaInicio = {
   admin_sede: '/admin', jefatura: '/jefatura',
 }
 
+function rutaPorTipo(n, rol) {
+  if (n.entidad === 'practico' || n.tipo === 'practico_asignado') return '/practicos';
+  return rutaInicio[rol] || '/';
+}
+
 const ROLES_VISTA = [
   { rol: 'colaborador', label: 'Colaborador', color: '#F5A623', ruta: '/colaborador' },
   { rol: 'profesor',    label: 'Profesor',    color: '#E8505B', ruta: '/profesor' },
@@ -67,6 +72,14 @@ export default function Topbar({ seccion }) {
   return (
     <header className="topbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
       <div className="topbar-left">
+        <button
+          className="hamburger-btn"
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+          aria-label="Menú"
+          style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4 }}
+        >
+          <Icon icon="lucide:menu" width={22} />
+        </button>
         <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 34, cursor: 'pointer' }}
           onClick={() => navigate(rutaInicio[usuario?.rol] || '/')} />
         <img src={LOGO_LETRAS} alt="alumco"
@@ -165,8 +178,7 @@ export default function Topbar({ seccion }) {
                         api.patch(`/notificaciones/${n.id}/leer`)
                         setNoLeidas(prev => Math.max(0, prev - (n.leida ? 0 : 1)))
                         setNotificaciones(prev => prev.map(x => x.id === n.id ? { ...x, leida: true } : x))
-                        // Si la notificación viene de un práctico, ir a prácticos; si no, ir al inicio del rol
-                        navigate(n.practico_id ? '/practicos' : (rutaInicio[usuario?.rol] || '/'))
+                        navigate(rutaPorTipo(n, usuario?.rol))
                         setNotifAbierto(false)
                       }}
                     >

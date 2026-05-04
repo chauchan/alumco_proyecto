@@ -1,9 +1,47 @@
 require('dotenv').config();
+
+// --- Validaciones de startup (fail-fast antes de cualquier inicialización) ---
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === 'reemplazar_con_clave_segura_larga' || JWT_SECRET.length < 16) {
+  console.error(
+    'ERROR: JWT_SECRET inválido.\n' +
+    '  Debe tener al menos 16 caracteres y no puede ser el valor por defecto.\n' +
+    '  Generá uno con: openssl rand -hex 32'
+  );
+  process.exit(1);
+}
+if (JWT_SECRET.length < 32) {
+  console.warn(
+    'WARNING: JWT_SECRET tiene menos de 32 caracteres. Se recomienda rotar a uno más largo.\n' +
+    '  Generá uno con: openssl rand -hex 32'
+  );
+}
+if (process.env.NODE_ENV === 'production' && !process.env.DB_PASSWORD) {
+  console.error('ERROR: DB_PASSWORD está vacío en producción.');
+  process.exit(1);
+}
+
+// --- Configuración de CORS ---
+let corsOrigins;
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.CLIENT_URL) {
+    console.error('ERROR: CLIENT_URL no está definido en producción.');
+    process.exit(1);
+  }
+  corsOrigins = process.env.CLIENT_URL.split(',').map(o => o.trim());
+} else {
+  corsOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map(o => o.trim());
+}
+const corsOptions = { origin: corsOrigins, credentials: true };
+
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
+const cron = require('node-cron');
 const pool = require('./config/db');
 const { makeBucketPublic } = require('./config/s3');
+const { enviarRecordatorios } = require('./jobs/recordatoriosCertificados');
 
 const authRoutes          = require('./routes/auth');
 const usuariosRoutes      = require('./routes/usuarios');
@@ -17,10 +55,16 @@ const practicosRoutes     = require('./routes/practicos');
 const notificacionesRoutes = require('./routes/notificaciones');
 const googleRoutes         = require('./routes/google');
 const protocolosRoutes     = require('./routes/protocolos');
+const modulosRoutes        = require('./routes/modulos');
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+// Confiar en el proxy de Railway/Heroku/etc para que req.ip sea la IP real del cliente
+// (necesario para que express-rate-limit cuente por usuario, no globalmente)
+app.set('trust proxy', 1);
+
+app.use(helmet());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -37,6 +81,7 @@ app.use('/api/practicos',      practicosRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/google',        googleRoutes);
 app.use('/api/protocolos',   protocolosRoutes);
+app.use('/api/modulos',      modulosRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
@@ -101,25 +146,6 @@ async function start() {
     console.warn('⚠ UNIQUE KEY progreso:', err.message);
   }
 
-  // Crear tabla notificaciones si no existe (puede faltar si no se corrió migrate_practicos)
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS notificaciones (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        usuario_id INT NOT NULL,
-        practico_id INT DEFAULT NULL,
-        titulo VARCHAR(200) NOT NULL,
-        mensaje TEXT NOT NULL,
-        leida TINYINT(1) DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-      )
-    `);
-    console.log('✓ Tabla notificaciones lista');
-  } catch (err) {
-    console.warn('⚠ notificaciones table:', err.message);
-  }
-
   // Agregar columna ultimo_acceso a usuarios si no existe
   try {
     await pool.query(`ALTER TABLE usuarios ADD COLUMN ultimo_acceso DATETIME DEFAULT NULL`);
@@ -138,6 +164,13 @@ async function start() {
       console.warn('⚠ imagenes_protocolo column:', err.message);
     }
   }
+
+  // Recordatorios diarios a las 09:00 para todos los colaboradores con cursos pendientes
+  cron.schedule('0 9 * * *', () => {
+    enviarRecordatorios(null, null)
+      .then(r => console.log(`[cron] Recordatorios enviados: ${r.enviados}/${r.total} (${r.errores} errores)`))
+      .catch(e => console.error('[cron] Error recordatorios:', e.message));
+  });
 
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
 

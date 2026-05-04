@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { Slide, SlideEditor } from './GeneradorIA'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -33,7 +35,11 @@ function buildSlidesProfesor(mod, pres) {
 
 export default function Profesor() {
   const { usuario } = useAuth()
+  const navigate = useNavigate()
+  const toast = useToast()
   const [cursos, setCursos] = useState([])
+  const [bloqueados, setBloqueados] = useState([])
+  const [desbloqueando, setDesbloqueando] = useState(new Set())
   const [certificados, setCertificados] = useState([])
   const [borradoresIA, setBorradoresIA] = useState([])
   const [cursoDetalle, setCursoDetalle] = useState(null)
@@ -56,6 +62,7 @@ export default function Profesor() {
   // edición de preguntas
   const [editandoPreguntas, setEditandoPreguntas] = useState(false)
   const [preguntasEdit, setPreguntasEdit] = useState([])
+  const [deletedPregIds, setDeletedPregIds] = useState([])
   const [guardandoPreguntas, setGuardandoPreguntas] = useState(false)
   // selección masiva de cursos
   const [modoSeleccion, setModoSeleccion] = useState(false)
@@ -67,15 +74,29 @@ export default function Profesor() {
   const [eliminandoVideo, setEliminandoVideo] = useState(false)
 
   useEffect(() => {
-    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
-      .then(([c, cert, bIA]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data) })
+    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
+      .then(([c, cert, bIA, bl]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data); setBloqueados(bl.data || []) })
       .catch(() => {})
   }, [])
 
   const recargar = () => {
-    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia')])
-      .then(([c, cert, bIA]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data) })
+    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
+      .then(([c, cert, bIA, bl]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data); setBloqueados(bl.data || []) })
       .catch(() => {})
+  }
+
+  const desbloquear = async (curso_id, usuario_id) => {
+    const key = `${curso_id}-${usuario_id}`
+    setDesbloqueando(prev => new Set([...prev, key]))
+    try {
+      await api.post(`/cursos/${curso_id}/desbloquear/${usuario_id}`)
+      setBloqueados(prev => prev.filter(b => !(b.curso_id === curso_id && b.usuario_id === usuario_id)))
+      toast.success('Colaborador desbloqueado correctamente')
+    } catch {
+      toast.error('Error al desbloquear colaborador')
+    } finally {
+      setDesbloqueando(prev => { const n = new Set(prev); n.delete(key); return n })
+    }
   }
 
   const abrirPPTModulo = async (mod, idx) => {
@@ -116,7 +137,7 @@ export default function Profesor() {
     setPptModuloIdx(null); setPptPresentaciones({}); setPptSlide(0)
     setPptEditando(false); setPptEditData({})
     setEditandoModulos(false); setModulosEdit([])
-    setEditandoPreguntas(false); setPreguntasEdit([])
+    setEditandoPreguntas(false); setPreguntasEdit([]); setDeletedPregIds([])
     setTargeting({ estamento_objetivo: null, sede_objetivo: null, obligatorio: false })
     setVideoIntroUrl(null)
   }
@@ -210,12 +231,34 @@ export default function Profesor() {
   const guardarPreguntas = async () => {
     setGuardandoPreguntas(true)
     try {
-      await api.put(`/cursos/${cursoDetalle.id}`, { preguntas: preguntasEdit })
-      setCursoDetalle(prev => ({ ...prev, preguntas: preguntasEdit }))
+      const paraGuardar = preguntasEdit.filter(p => p.texto?.trim())
+      if (paraGuardar.length > 0) {
+        await api.put(`/cursos/${cursoDetalle.id}`, { preguntas: paraGuardar })
+      }
+      for (const pid of deletedPregIds) {
+        await api.delete(`/cursos/${cursoDetalle.id}/preguntas/${pid}`)
+          .catch(e => {
+            const msg = e?.response?.data?.error || ''
+            if (msg) alert(msg)
+          })
+      }
+      const { data } = await api.get(`/cursos/${cursoDetalle.id}`)
+      setCursoDetalle(prev => ({ ...prev, preguntas: data.preguntas }))
+      setDeletedPregIds([])
       setEditandoPreguntas(false)
     } catch { alert('Error al guardar preguntas') }
     finally { setGuardandoPreguntas(false) }
   }
+
+  const nuevaPreguntaVacia = () => ({
+    texto: '',
+    alternativas: [
+      { texto: '', correcta: false },
+      { texto: '', correcta: false },
+      { texto: '', correcta: false },
+      { texto: '', correcta: false },
+    ]
+  })
 
   const iniciarEdicion = (idx, slides) => {
     setPptEditData(prev => ({ ...prev, [idx]: JSON.parse(JSON.stringify(slides)) }))
@@ -269,14 +312,6 @@ export default function Profesor() {
 
   const pendientes = certificados.filter(c => c.estado === 'pendiente')
 
-  const navItems = [
-    { label:'Mis cursos', active:true },
-    { label:'Validar certificados', active:false, badge: pendientes.length || null },
-    { label:'Subir material', active:false },
-    { label:'Evaluaciones', active:false },
-    { label:'Mi perfil', active:false },
-  ]
-
   const tagClass = (tipo) => ({ pdf:'tag-pdf', video:'tag-video', ppt:'tag-ppt' }[tipo] || 'tag-pdf')
 
   return (
@@ -294,7 +329,7 @@ export default function Profesor() {
               <div className="page-title">Panel del Profesor</div>
               <div className="page-sub">Gestión de cursos y validación de certificados</div>
             </div>
-            <button className="btn-primary">+ Nuevo curso</button>
+            <button className="btn-primary" onClick={() => navigate('/profesor/nuevo-curso')}>+ Nuevo curso</button>
           </div>
 
           {/* Stats */}
@@ -395,7 +430,10 @@ export default function Profesor() {
                       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, gap:6 }}>
                         {editandoPreguntas ? (
                           <>
-                            <button onClick={() => setEditandoPreguntas(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
+                            <button onClick={() => { setEditandoPreguntas(false); setDeletedPregIds([]) }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
+                            <button onClick={() => setPreguntasEdit(prev => [...prev, nuevaPreguntaVacia()])} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #2B4BA0', background:'#EEF2FF', color:'#2B4BA0', cursor:'pointer', fontWeight:500 }}>
+                              <><Icon icon="lucide:plus" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Agregar pregunta</>
+                            </button>
                             <button onClick={guardarPreguntas} disabled={guardandoPreguntas} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
                               {guardandoPreguntas ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar cambios</>}
                             </button>
@@ -406,6 +444,7 @@ export default function Profesor() {
                               ...p,
                               alternativas: typeof p.alternativas === 'string' ? JSON.parse(p.alternativas) : p.alternativas
                             })))
+                            setDeletedPregIds([])
                             setEditandoPreguntas(true)
                           }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
                             <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar preguntas</>
@@ -426,6 +465,12 @@ export default function Profesor() {
                               <textarea value={preg.texto} rows={2}
                                 onChange={e => { const arr=[...preguntasEdit]; arr[j]={...arr[j],texto:e.target.value}; setPreguntasEdit(arr) }}
                                 style={{ flex:1, fontSize:12, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', resize:'none', lineHeight:1.5, boxSizing:'border-box' }} />
+                              <button onClick={() => {
+                                if (preg.id) setDeletedPregIds(prev => [...prev, preg.id])
+                                setPreguntasEdit(prev => prev.filter((_, i) => i !== j))
+                              }} style={{ background:'none', border:'none', cursor:'pointer', color:'#CCC', padding:2, flexShrink:0 }} title="Eliminar pregunta">
+                                <Icon icon="lucide:trash-2" width={14} />
+                              </button>
                             </div>
                             <div style={{ paddingLeft:26, display:'flex', flexDirection:'column', gap:6 }}>
                               {alts?.map((alt, k) => (
@@ -516,7 +561,7 @@ export default function Profesor() {
                             </button>
                             {ppres === 'cargando' && (
                               <div style={{ textAlign:'center', padding:'2rem 0', color:'#888' }}>
-                                <Icon icon="lucide:loader-circle" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />
+                                <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 8px",display:"block",color:"#888"}} />
                                 <div style={{ fontSize:13 }}>Generando presentación...</div>
                               </div>
                             )}
@@ -831,6 +876,15 @@ export default function Profesor() {
                         onClick={() => setSeleccionados(seleccionados.size===cursos.length ? new Set() : new Set(cursos.map(c=>c.id)))}>
                         {seleccionados.size===cursos.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
                       </button>
+                      {seleccionados.size === 1 && (
+                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer', fontWeight:500 }}
+                          onClick={() => {
+                            const c = cursos.find(c => seleccionados.has(c.id))
+                            if (c) { setModoSeleccion(false); setSeleccionados(new Set()); abrirDetalleCurso(c) }
+                          }}>
+                          <><Icon icon="lucide:pencil" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Editar</>
+                        </button>
+                      )}
                       {seleccionados.size > 0 && (
                         <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background:'#E8505B', color:'#fff', cursor:'pointer', fontWeight:500 }}
                           onClick={eliminarMasivo} disabled={eliminandoMasivo}>
@@ -846,8 +900,8 @@ export default function Profesor() {
                   )}
                 </div>
               </div>
-              <div style={{ maxHeight: modoSeleccion ? 340 : 'none', overflowY: modoSeleccion ? 'auto' : 'visible' }}>
-                {(modoSeleccion ? cursos : cursos.slice(0,4)).map(c => (
+              <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+                {cursos.map(c => (
                   <div key={c.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', cursor: modoSeleccion ? 'pointer' : 'default' }}
                     onClick={modoSeleccion ? () => toggleSeleccion(c.id) : undefined}>
                     {modoSeleccion && (
@@ -880,12 +934,6 @@ export default function Profesor() {
                     )}
                   </div>
                 ))}
-                {!modoSeleccion && cursos.length > 4 && (
-                  <div style={{ fontSize:11, color:'#888', textAlign:'center', paddingTop:8, cursor:'pointer' }}
-                    onClick={() => setModoSeleccion(true)}>
-                    +{cursos.length - 4} más · Ver todos
-                  </div>
-                )}
               </div>
             </div>
 
@@ -919,19 +967,42 @@ export default function Profesor() {
             </div>
           </div>
 
-          {/* Zona subida */}
-          <div className="card">
-            <div className="card-title" style={{ marginBottom:12 }}>Subir material formativo</div>
-            <div className="upload-zone">
-              <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>Arrastra o selecciona un archivo</div>
-              <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>Formatos aceptados: PDF, Video (MP4, máx 5 min), PPT</div>
-              <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
-                <span className="format-tag tag-pdf">PDF</span>
-                <span className="format-tag tag-video">Video</span>
-                <span className="format-tag tag-ppt">PPT</span>
+          {/* Colaboradores bloqueados */}
+          {bloqueados.length > 0 && (
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  Colaboradores bloqueados en mis cursos
+                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                    {bloqueados.length}
+                  </span>
+                </span>
               </div>
+              {bloqueados.map(b => {
+                const key = `${b.curso_id}-${b.usuario_id}`
+                return (
+                  <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
+                      <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{b.curso_nombre}</div>
+                    </div>
+                    <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>
+                      {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
+                    </span>
+                    <button
+                      className="btn-sm btn-sm-primary"
+                      disabled={desbloqueando.has(key)}
+                      onClick={() => desbloquear(b.curso_id, b.usuario_id)}
+                      style={{ background:'#1A7A45', color:'#fff', minWidth:100 }}
+                    >
+                      {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-          </div>
+          )}
+
         </main>
       </div>
     </div>

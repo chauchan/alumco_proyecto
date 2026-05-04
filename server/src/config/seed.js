@@ -36,7 +36,7 @@ async function seed() {
     // ── Sedes ──────────────────────────────────────────────────────────────────
 
     const sid = {};
-    for (const [nombre, ciudad] of [['ELEAM Hualpén','Hualpén'],['ELEAM Coyhaique','Coyhaique'],['ELEAM Temuco','Temuco']]) {
+    for (const [nombre, ciudad] of [['ELEAM Hualpén','Hualpén'],['ELEAM Coyhaique','Coyhaique']]) {
       const [ex] = await conn.query('SELECT id FROM sedes WHERE nombre = ?', [nombre]);
       if (ex.length) { sid[nombre] = ex[0].id; continue; }
       const [r] = await conn.query('INSERT INTO sedes (nombre, ciudad) VALUES (?,?)', [nombre, ciudad]);
@@ -51,11 +51,9 @@ async function seed() {
       { nombre:'Ana González Rojas',    id:'ana.gonzalez',     pw:'prof123',  rol:'profesor',   tc:'fijo',      sede:'ELEAM Hualpén',   re:'30-39', rut:'15.234.567-8', email:'ana.gonzalez@alumco.cl',     tel:'+56923456789', est:'Salud'              },
       { nombre:'Roberto Fuentes Vera',  id:'roberto.fuentes',  pw:'prof123',  rol:'profesor',   tc:'fijo',      sede:'ELEAM Coyhaique', re:'45-54', rut:'11.987.654-3', email:'roberto.fuentes@alumco.cl',  tel:'+56911223344', est:'Salud'              },
       { nombre:'María Torres Vidal',    id:'maria.torres',     pw:'sede123',  rol:'admin_sede', tc:'fijo',      sede:'ELEAM Coyhaique', re:'35-44', rut:'14.876.543-2', email:'maria.torres@alumco.cl',     tel:'+56945678901', est:'Administración'     },
-      { nombre:'Jorge Rivas Campos',    id:'jorge.rivas',      pw:'sede123',  rol:'admin_sede', tc:'fijo',      sede:'ELEAM Temuco',    re:'38-47', rut:'13.654.321-0', email:'jorge.rivas@alumco.cl',      tel:'+56966778899', est:'Administración'     },
       { nombre:'Carlos Muñoz Pino',     id:'carlos.munoz',     pw:'colab123', rol:'colaborador',tc:'fijo',      sede:'ELEAM Hualpén',   re:'20-29', rut:'18.765.432-1', email:'carlos.munoz@alumco.cl',     tel:'+56934567890', est:'Cuidado directo'    },
       { nombre:'Pedro Soto Leal',       id:'pedro.soto',       pw:'colab123', rol:'colaborador',tc:'reemplazo', sede:'ELEAM Coyhaique', re:'25-34', rut:'19.123.456-7', email:'pedro.soto@alumco.cl',       tel:'+56956789012', est:'Servicios generales'},
       { nombre:'Valentina Rojas Díaz',  id:'valentina.rojas',  pw:'colab123', rol:'colaborador',tc:'fijo',      sede:'ELEAM Hualpén',   re:'28-37', rut:'20.345.678-K', email:'valentina.rojas@alumco.cl',  tel:'+56978901234', est:'Cuidado directo'    },
-      { nombre:'Luis Herrera Castillo', id:'luis.herrera',     pw:'colab123', rol:'colaborador',tc:'reemplazo', sede:'ELEAM Temuco',    re:'22-31', rut:'21.456.789-2', email:'luis.herrera@alumco.cl',     tel:'+56989012345', est:'Nutrición'          },
       { nombre:'Carmen Sepúlveda Mora', id:'carmen.sepulveda', pw:'colab123', rol:'colaborador',tc:'fijo',      sede:'ELEAM Coyhaique', re:'50-59', rut:'10.234.567-4', email:'carmen.sepulveda@alumco.cl', tel:'+56990123456', est:'Servicios generales'},
     ];
 
@@ -184,7 +182,6 @@ async function seed() {
       {u:'carlos.munoz',    c:'c1',obl:1,fl:'2026-06-30'},{u:'carlos.munoz',    c:'c2',obl:1,fl:'2026-06-30'},{u:'carlos.munoz',    c:'c4',obl:1,fl:'2026-07-31'},
       {u:'pedro.soto',      c:'c2',obl:1,fl:'2026-06-30'},{u:'pedro.soto',      c:'c4',obl:1,fl:'2026-07-31'},{u:'pedro.soto',      c:'c5',obl:0,fl:null},
       {u:'valentina.rojas', c:'c1',obl:1,fl:'2026-06-30'},{u:'valentina.rojas', c:'c2',obl:1,fl:'2026-06-30'},
-      {u:'luis.herrera',    c:'c3',obl:0,fl:'2026-08-31'},{u:'luis.herrera',    c:'c4',obl:1,fl:'2026-07-31'},
       {u:'carmen.sepulveda',c:'c2',obl:1,fl:'2026-06-30'},{u:'carmen.sepulveda',c:'c5',obl:1,fl:'2026-05-31'},
       {u:'ana.gonzalez',    c:'c1',obl:0,fl:null},{u:'roberto.fuentes',c:'c4',obl:0,fl:null},
     ]) {
@@ -203,13 +200,12 @@ async function seed() {
       {u:'pedro.soto',      c:'c4',comp:0,pct:0,  ua:null,                 if_:0,bh:null},
       {u:'valentina.rojas', c:'c1',comp:1,pct:100,ua:'2026-04-12 10:00:00',if_:2,bh:null},
       {u:'valentina.rojas', c:'c2',comp:0,pct:45, ua:'2026-04-19 13:20:00',if_:0,bh:null},
-      {u:'luis.herrera',    c:'c3',comp:0,pct:80, ua:'2026-04-21 08:30:00',if_:0,bh:null},
       {u:'carmen.sepulveda',c:'c5',comp:0,pct:20, ua:'2026-04-15 17:00:00',if_:3,bh:'2026-04-22 17:00:00'},
       {u:'ana.gonzalez',    c:'c1',comp:1,pct:100,ua:'2026-03-01 09:00:00',if_:0,bh:null},
     ]) {
       await conn.query(
-        'INSERT IGNORE INTO progreso (usuario_id,curso_id,completado,porcentaje,ultimo_acceso,intentos_fallidos,bloqueado_hasta) VALUES (?,?,?,?,?,?,?)',
-        [uid[p.u],cid[p.c],p.comp,p.pct,p.ua,p.if_,p.bh]
+        'INSERT IGNORE INTO progreso (usuario_id,curso_id,porcentaje,ultimo_acceso,intentos_fallidos,bloqueado_hasta) VALUES (?,?,?,?,?,?)',
+        [uid[p.u],cid[p.c],p.pct,p.ua,p.if_,p.bh]
       );
     }
     console.log('✓ Progreso');
@@ -290,8 +286,10 @@ async function seed() {
       {u:'carlos.munoz',    pr:pr3,t:'Práctica de RCP agendada',          m:'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',l:0},
       {u:'valentina.rojas', pr:pr3,t:'Práctica de RCP agendada',          m:'Práctica de RCP con maniquí programada para el 05/06/2026 a las 08:30 en ELEAM Hualpén.',l:0},
     ]) {
-      await conn.query('INSERT INTO notificaciones (usuario_id,practico_id,titulo,mensaje,leida) VALUES (?,?,?,?,?)',
-        [uid[n.u],n.pr,n.t,n.m,n.l]);
+      await conn.query(
+        'INSERT INTO notificaciones (usuario_id,tipo,entidad,entidad_id,titulo,mensaje,leida) VALUES (?,?,?,?,?,?,?)',
+        [uid[n.u],'practico_asignado','practico',n.pr,n.t,n.m,n.l]
+      );
     }
     console.log('✓ Notificaciones');
 

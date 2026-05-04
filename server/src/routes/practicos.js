@@ -3,6 +3,10 @@ const router = express.Router();
 const { google } = require('googleapis');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { notificar } = require('../utils/notificar');
+const { auditar } = require('../utils/audit');
+const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { parseIdParam } = require('../utils/validate');
 
 async function sincronizarConGoogle(usuarioId, practico) {
   try {
@@ -139,11 +143,13 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
     const mensaje = `Se ha programado un práctico para el curso. Fecha: ${fechaFormateada} a las ${hora_inicio}. Lugar: ${lugar || 'ELEAM sede'}`;
 
     for (const u of asignados.rows) {
-      await pool.query(
-        `INSERT INTO notificaciones (usuario_id, practico_id, titulo, mensaje)
-         VALUES (?, ?, ?, ?)`,
-        [u.id, practicoId, `Práctico programado: ${titulo}`, mensaje]
-      );
+      await notificar(u.id, {
+        tipo: 'practico_asignado',
+        entidad: 'practico',
+        entidad_id: practicoId,
+        titulo: `Práctico programado: ${titulo}`,
+        mensaje
+      });
     }
 
     // Sincronizar con Google Calendar del creador si está conectado
@@ -163,10 +169,120 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
   }
 });
 
+// GET /api/practicos/:id/asistencia — lista colaboradores asignados con estado de asistencia
+router.get('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const practicoId = parseIdParam(req, 'id');
+  if (practicoId === null) return res.status(400).json({ error: 'id inválido' });
+  try {
+    const { rows: practicoRows } = await pool.query(
+      'SELECT curso_id, sede_id FROM practicos WHERE id = ?', [practicoId]
+    );
+    if (!practicoRows.length) return res.status(404).json({ error: 'Práctico no encontrado' });
+    const { curso_id, sede_id } = practicoRows[0];
+
+    const { rows } = await pool.query(`
+      SELECT u.id, u.nombre, u.tipo_contrato,
+        COALESCE(ap.asistio, 0) AS asistio,
+        ap.registrado_en
+      FROM asignaciones a
+      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN asistencia_practicos ap ON ap.practico_id = ? AND ap.usuario_id = u.id
+      WHERE a.curso_id = ? AND u.sede_id = ? AND u.activo = 1
+      ORDER BY u.nombre
+    `, [practicoId, curso_id, sede_id]);
+
+    res.json(rows);
+  } catch (err) {
+    console.error('[asistencia GET]', err.message);
+    res.status(500).json({ error: 'Error al obtener asistencia' });
+  }
+});
+
+// POST /api/practicos/:id/asistencia — upsert masivo de asistencia; auto-crea certs si usuario ya aprobó eval
+router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_sede'), async (req, res) => {
+  const practicoId = parseIdParam(req, 'id');
+  if (practicoId === null) return res.status(400).json({ error: 'id inválido' });
+  const registradoPor = req.usuario.id;
+  const { asistencias } = req.body;
+
+  if (!Array.isArray(asistencias) || !asistencias.length)
+    return res.status(400).json({ error: 'asistencias requerido' });
+
+  try {
+    const { rows: practicoRows } = await pool.query(
+      'SELECT curso_id FROM practicos WHERE id = ?', [practicoId]
+    );
+    if (!practicoRows.length) return res.status(404).json({ error: 'Práctico no encontrado' });
+    const { curso_id } = practicoRows[0];
+
+    let certCreados = 0;
+
+    for (const { usuario_id, asistio } of asistencias) {
+      if (!usuario_id) continue;
+      await pool.query(`
+        INSERT INTO asistencia_practicos (practico_id, usuario_id, asistio, registrado_por, registrado_en)
+        VALUES (?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE asistio = VALUES(asistio), registrado_por = VALUES(registrado_por), registrado_en = NOW()
+      `, [practicoId, usuario_id, asistio ? 1 : 0, registradoPor]);
+
+      if (asistio) {
+        // Check: approved eval but no cert yet → auto-create cert placeholder
+        const { rows: pendiente } = await pool.query(`
+          SELECT it.id AS intento_id, u.nombre AS usuario_nombre, c.nombre AS curso_nombre
+          FROM intentos it
+          JOIN usuarios u ON u.id = it.usuario_id
+          JOIN cursos c ON c.id = it.curso_id
+          WHERE it.usuario_id = ? AND it.curso_id = ? AND it.aprobado = 1
+            AND NOT EXISTS (SELECT 1 FROM certificados cert WHERE cert.intento_id = it.id)
+          LIMIT 1
+        `, [usuario_id, curso_id]);
+
+        if (pendiente.length) {
+          const { intento_id, usuario_nombre, curso_nombre } = pendiente[0];
+          await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intento_id]);
+          const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intento_id]);
+          if (certRow) {
+            certCreados++;
+            const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${certRow.id}`;
+            generarCertificadoPDF({
+              certId: certRow.id,
+              nombre: usuario_nombre,
+              curso: curso_nombre,
+              fecha: new Date(),
+              estado: 'aprobado',
+              qrUrl
+            })
+              .then(async pdfUrl => {
+                await pool.query(
+                  "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
+                  [pdfUrl, certRow.id]
+                );
+              })
+              .catch(e => console.error('[asistencia] PDF error:', e.message));
+          }
+        }
+      }
+    }
+
+    auditar(req, 'practico.asistencia', 'practico', parseInt(practicoId), {
+      asistencias: asistencias.length,
+      presentes: asistencias.filter(a => a.asistio).length,
+      certs_creados: certCreados
+    }).catch(e => console.error('[asistencia] audit error:', e.message));
+
+    res.json({ ok: true, certs_creados: certCreados });
+  } catch (err) {
+    console.error('[asistencia POST]', err.message);
+    res.status(500).json({ error: 'Error al registrar asistencia' });
+  }
+});
+
 // DELETE /api/practicos/:id — eliminar práctico
 router.delete('/:id', verificarToken, PUEDE_CREAR, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
-    await pool.query('DELETE FROM practicos WHERE id = ?', [req.params.id]);
+    await pool.query('DELETE FROM practicos WHERE id = ?', [id]);
     res.json({ message: 'Práctico eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar práctico' });

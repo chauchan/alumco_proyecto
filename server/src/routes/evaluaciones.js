@@ -2,10 +2,16 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
+const { notificar } = require('../utils/notificar');
+const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { auditar } = require('../utils/audit');
+const { enviarBloqueo } = require('../config/mailer');
+const { parseIdParam } = require('../utils/validate');
 
 // GET /api/evaluaciones/:curso_id/estado
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
-  const { curso_id } = req.params;
+  const curso_id = parseIdParam(req, 'curso_id');
+  if (curso_id === null) return res.status(400).json({ error: 'curso_id inválido' });
   const usuario_id = req.usuario.id;
   try {
     const { rows: intentos } = await pool.query(
@@ -30,11 +36,13 @@ router.get('/:curso_id/estado', verificarToken, async (req, res) => {
 // Body: { respuestas: [{ pregunta_id, alternativa_id }] }
 // También acepta alternativa_idx para compatibilidad con el frontend anterior
 router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'), async (req, res) => {
-  const { curso_id } = req.params;
+  const curso_id = parseIdParam(req, 'curso_id');
+  if (curso_id === null) return res.status(400).json({ error: 'curso_id inválido' });
   const usuario_id = req.usuario.id;
   const { respuestas } = req.body;
 
   try {
+    const warnings = [];
     const { rows: [stats] } = await pool.query(
       'SELECT COUNT(*) as total, MAX(aprobado) as aprobado FROM intentos WHERE usuario_id = ? AND curso_id = ?',
       [usuario_id, curso_id]
@@ -95,8 +103,69 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       );
     }
 
+    // Sync blocking state into progreso table so mi-progreso reflects the attempt
+    const DIAS_BLOQUEO = 7;
+    const intentos_fallidos_prog = cursoAprobado ? 0 : numero_intento;
+    const bloqueado_hasta_prog = (!cursoAprobado && numero_intento >= 2)
+      ? new Date(Date.now() + DIAS_BLOQUEO * 86400000)
+      : null;
+    try {
+      await pool.query(
+        `INSERT INTO progreso (usuario_id, curso_id, porcentaje, ultimo_acceso, intentos_fallidos, bloqueado_hasta)
+         VALUES (?, ?, ?, NOW(), ?, ?)
+         ON DUPLICATE KEY UPDATE
+           porcentaje = IF(? = 1, 100, GREATEST(porcentaje, 70)),
+           ultimo_acceso = NOW(), intentos_fallidos = ?, bloqueado_hasta = ?`,
+        [usuario_id, curso_id, cursoAprobado ? 100 : 70, intentos_fallidos_prog, bloqueado_hasta_prog,
+         cursoAprobado ? 1 : 0, intentos_fallidos_prog, bloqueado_hasta_prog]
+      );
+    // progreso sync is non-critical — evaluation is already persisted
+    } catch (e) { console.error('[evaluaciones] progreso sync:', e.message); warnings.push('progreso_no_sincronizado'); }
+
+    let requierePractico = false;
+    let tieneAsistencia = false;
+
     if (cursoAprobado) {
-      await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
+      const { rows: [cursoRow] } = await pool.query('SELECT requiere_practico FROM cursos WHERE id = ?', [curso_id]);
+      requierePractico = parseInt(cursoRow?.requiere_practico || 0) === 1;
+
+      if (requierePractico) {
+        const { rows: asistRows } = await pool.query(`
+          SELECT 1 FROM asistencia_practicos ap
+          JOIN practicos p ON ap.practico_id = p.id
+          WHERE p.curso_id = ? AND ap.usuario_id = ? AND ap.asistio = 1
+          LIMIT 1
+        `, [curso_id, usuario_id]);
+        tieneAsistencia = asistRows.length > 0;
+      }
+
+      if (!requierePractico || tieneAsistencia) {
+        const { rows: [userRow] } = await pool.query('SELECT nombre FROM usuarios WHERE id = ?', [usuario_id]);
+        const { rows: [cursoNombreRow] } = await pool.query('SELECT nombre FROM cursos WHERE id = ?', [curso_id]);
+        await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
+        const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intentoId]);
+        if (certRow) {
+          const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${certRow.id}`;
+          try {
+            const pdfUrl = await generarCertificadoPDF({
+              certId: certRow.id,
+              nombre: userRow?.nombre || '',
+              curso: cursoNombreRow?.nombre || '',
+              fecha: new Date(),
+              estado: 'aprobado',
+              qrUrl
+            });
+            await pool.query(
+              "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
+              [pdfUrl, certRow.id]
+            );
+          } catch (pdfErr) {
+            console.error('[evaluaciones] Error generando PDF:', pdfErr.message);
+            await pool.query("UPDATE certificados SET estado = 'error' WHERE id = ?", [certRow.id]).catch(() => {});
+            return res.status(500).json({ error: 'Error al generar el certificado. La evaluación fue registrada.' });
+          }
+        }
+      }
     }
 
     if (!cursoAprobado && numero_intento === 2) {
@@ -105,23 +174,41 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
           'SELECT sede_id, nombre FROM usuarios WHERE id = ?', [usuario_id]
         );
         const { rows: [cursoInfo] } = await pool.query(
-          'SELECT nombre FROM cursos WHERE id = ?', [curso_id]
+          'SELECT nombre, profesor_id FROM cursos WHERE id = ?', [curso_id]
         );
-        const sede_id = userInfo?.sede_id;
+        const sede_id    = userInfo?.sede_id;
         const nombreColab = userInfo?.nombre;
         const nombreCurso = cursoInfo?.nombre || 'Curso';
+        const profesor_id = cursoInfo?.profesor_id;
+        const bloqueMsg = `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`;
+
         if (sede_id) {
           const { rows: admins } = await pool.query(
-            "SELECT id FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]
+            "SELECT id, email, nombre FROM usuarios WHERE rol = 'admin_sede' AND sede_id = ?", [sede_id]
           );
           for (const admin of admins) {
-            await pool.query(
-              'INSERT INTO notificaciones (usuario_id, titulo, mensaje) VALUES (?, ?, ?)',
-              [admin.id, 'Colaborador bloqueado en curso',
-               `${nombreColab} ha fallado 2 veces el curso "${nombreCurso}" y ha sido bloqueado.`]
-            );
+            await notificar(admin.id, {
+              tipo: 'evaluacion_bloqueo', entidad: 'curso', entidad_id: parseInt(curso_id),
+              titulo: 'Colaborador bloqueado en curso', mensaje: bloqueMsg
+            });
+            if (admin.email) enviarBloqueo(admin.email, admin.nombre, nombreColab, nombreCurso)
+              .catch(e => console.error('[bloqueo] email admin:', e.message));
           }
         }
+
+        if (profesor_id) {
+          await notificar(profesor_id, {
+            tipo: 'evaluacion_bloqueo', entidad: 'curso', entidad_id: parseInt(curso_id),
+            titulo: 'Colaborador bloqueado en tu curso', mensaje: bloqueMsg
+          });
+          const { rows: [profInfo] } = await pool.query(
+            'SELECT email, nombre FROM usuarios WHERE id = ?', [profesor_id]
+          );
+          if (profInfo?.email) enviarBloqueo(profInfo.email, profInfo.nombre, nombreColab, nombreCurso)
+            .catch(e => console.error('[bloqueo] email profesor:', e.message));
+        }
+
+        await auditar(req, 'evaluacion.bloqueo', 'curso', parseInt(curso_id), { usuario_id, nombreColab, nombreCurso });
       } catch (notifErr) {
         console.error('[ALERTA] Error al enviar notificación de doble fallo:', notifErr.message);
       }
@@ -132,11 +219,16 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       aprobado: cursoAprobado,
       numero_intento,
       doble_fallo: !cursoAprobado && numero_intento === 2,
+      bloqueado_hasta: bloqueado_hasta_prog,
+      esperando_practico: cursoAprobado && requierePractico && !tieneAsistencia,
       message: cursoAprobado
-        ? 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.'
+        ? (requierePractico && !tieneAsistencia
+            ? 'Aprobaste la evaluación. Debes asistir al práctico para obtener tu certificado.'
+            : 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.')
         : numero_intento === 2
           ? 'No aprobaste. Has alcanzado el máximo de intentos. Contacta a tu profesor para un refuerzo.'
-          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`
+          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`,
+      ...(warnings.length ? { warnings } : {})
     });
   } catch (err) {
     console.error(err);
@@ -146,13 +238,16 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
 
 // GET /api/evaluaciones/dobles-fallos
 router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
-  const { sede_id, rol } = req.usuario;
+  const { sede_id, rol, id: userId } = req.usuario;
   try {
     const params = [];
     let whereExtra = '';
     if (rol === 'admin_sede') {
       whereExtra = ' AND u.sede_id = ?';
       params.push(sede_id);
+    } else if (rol === 'profesor') {
+      whereExtra = ' AND c.profesor_id = ?';
+      params.push(userId);
     }
     const { rows } = await pool.query(`
       SELECT u.id as usuario_id, u.nombre as usuario_nombre, u.sede_id,
