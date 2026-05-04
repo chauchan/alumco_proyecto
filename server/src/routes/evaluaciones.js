@@ -145,25 +145,26 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
         await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intentoId]);
         const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intentoId]);
         if (certRow) {
+          // Marca aprobado de inmediato; el PDF se genera al vuelo en /descargar.
+          // Intentamos subir copia a S3 en background pero sin bloquear.
+          await pool.query(
+            "UPDATE certificados SET estado = 'aprobado', fecha_emision = NOW() WHERE id = ?",
+            [certRow.id]
+          );
           const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${certRow.id}`;
-          try {
-            const pdfUrl = await generarCertificadoPDF({
-              certId: certRow.id,
-              nombre: userRow?.nombre || '',
-              curso: cursoNombreRow?.nombre || '',
-              fecha: new Date(),
-              estado: 'aprobado',
-              qrUrl
-            });
-            await pool.query(
-              "UPDATE certificados SET estado = 'aprobado', archivo_url = ?, fecha_emision = NOW() WHERE id = ?",
-              [pdfUrl, certRow.id]
-            );
-          } catch (pdfErr) {
-            console.error('[evaluaciones] Error generando PDF:', pdfErr.message);
-            await pool.query("UPDATE certificados SET estado = 'error' WHERE id = ?", [certRow.id]).catch(() => {});
-            return res.status(500).json({ error: 'Error al generar el certificado. La evaluación fue registrada.' });
-          }
+          generarCertificadoPDF({
+            certId: certRow.id,
+            nombre: userRow?.nombre || '',
+            curso: cursoNombreRow?.nombre || '',
+            fecha: new Date(),
+            estado: 'aprobado',
+            qrUrl
+          })
+            .then(pdfUrl => {
+              if (pdfUrl) pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id])
+                .catch(e => console.warn('[evaluaciones] no se pudo guardar archivo_url:', e.message));
+            })
+            .catch(e => console.warn('[evaluaciones] PDF background:', e.message));
         }
       }
     }
