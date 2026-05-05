@@ -143,31 +143,37 @@ export default function Profesor() {
   }
 
   const abrirDetalleCurso = async (c) => {
-    const detalle = await api.get(`/cursos/${c.id}`)
-    setCursoDetalle({ ...c, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
-    // estamento_objetivo puede venir como JSON string array o null
-    const rawEst = detalle.data.estamento_objetivo
-    let parsedEst = null
-    if (rawEst) {
-      try { parsedEst = typeof rawEst === 'string' ? JSON.parse(rawEst) : rawEst }
-      catch { parsedEst = [rawEst] } // compatibilidad con valores legacy string
+    try {
+      const detalle = await api.get(`/cursos/${c.id}`)
+      setCursoDetalle({ ...c, modulos: detalle.data.modulos, preguntas: detalle.data.preguntas, imagenes_protocolo: detalle.data.imagenes_protocolo || [], video_intro_url: detalle.data.video_intro_url || null })
+      // estamento_objetivo puede venir como JSON string array o null
+      const rawEst = detalle.data.estamento_objetivo
+      let parsedEst = null
+      if (rawEst) {
+        try { parsedEst = typeof rawEst === 'string' ? JSON.parse(rawEst) : rawEst }
+        catch { parsedEst = [rawEst] } // compatibilidad con valores legacy string
+      }
+      setTargeting({
+        estamento_objetivo: parsedEst,
+        sede_objetivo: detalle.data.sede_objetivo || null,
+        obligatorio: !!detalle.data.obligatorio
+      })
+      setVideoIntroUrl(detalle.data.video_intro_url || null)
+      const presMap = {}
+      ;(detalle.data.modulos || []).forEach((mod, i) => {
+        if (!mod.contenido_presentacion) return
+        let cp = mod.contenido_presentacion
+        if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { return } }
+        const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
+        if (slides.length > 0) presMap[i] = { diapositivas: slides }
+      })
+      if (Object.keys(presMap).length > 0) setPptPresentaciones(presMap)
+      setTabDetalle('modulos')
+    } catch (err) {
+      console.error('[abrirDetalleCurso]', err)
+      const detalle = err?.response?.data?.error || err?.response?.data?.detalle || err?.message || 'Error desconocido'
+      toast.error(`No se pudo cargar el curso: ${detalle}`)
     }
-    setTargeting({
-      estamento_objetivo: parsedEst,
-      sede_objetivo: detalle.data.sede_objetivo || null,
-      obligatorio: !!detalle.data.obligatorio
-    })
-    setVideoIntroUrl(detalle.data.video_intro_url || null)
-    const presMap = {}
-    ;(detalle.data.modulos || []).forEach((mod, i) => {
-      if (!mod.contenido_presentacion) return
-      let cp = mod.contenido_presentacion
-      if (typeof cp === 'string') { try { cp = JSON.parse(cp) } catch { return } }
-      const slides = Array.isArray(cp) ? cp : Array.isArray(cp?.diapositivas) ? cp.diapositivas : []
-      if (slides.length > 0) presMap[i] = { diapositivas: slides }
-    })
-    if (Object.keys(presMap).length > 0) setPptPresentaciones(presMap)
-    setTabDetalle('modulos')
   }
 
   const subirVideoIntro = async (e) => {

@@ -223,19 +223,30 @@ router.get('/:id', verificarToken, async (req, res) => {
 
     let imagenes_protocolo = [];
     const _rawImagenes = cursoRows[0].imagenes_protocolo;
-    const imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
+    let imagenesDB = null;
+    try {
+      imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
+    } catch (e) {
+      console.warn('[GET /cursos/:id] imagenes_protocolo no es JSON válido:', e.message);
+    }
     if (Array.isArray(imagenesDB) && imagenesDB.length > 0) {
       imagenes_protocolo = await Promise.all(
-        imagenesDB.map(url => {
-          const key = keyFromUrl(url);
-          return key ? generateSignedUrl(key, 3600) : url;
+        imagenesDB.map(async url => {
+          try {
+            const key = keyFromUrl(url);
+            return key ? await generateSignedUrl(key, 3600) : url;
+          } catch (e) {
+            console.warn('[GET /cursos/:id] no se pudo firmar URL:', e.message);
+            return url;
+          }
         })
       );
     }
 
     res.json({ ...cursoRows[0], estamento_objetivo, modulos, preguntas, imagenes_protocolo });
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener curso' });
+    console.error('[GET /cursos/:id]', err);
+    res.status(500).json({ error: 'Error al obtener curso', detalle: err.message });
   }
 });
 
