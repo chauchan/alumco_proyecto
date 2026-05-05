@@ -986,12 +986,10 @@ export default function GeneradorIA() {
                                   </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
                                     {resultado.imagenes_protocolo.map((url, k) => (
-                                      <a key={k} href={url} target="_blank" rel="noreferrer">
-                                        <img src={url} alt={`Imagen ${k + 1}`} style={{
-                                          width: '100%', borderRadius: 6, border: '0.5px solid #E8E8E8',
-                                          objectFit: 'cover', maxHeight: 120, cursor: 'pointer'
-                                        }} />
-                                      </a>
+                                      <SignedImage key={k} src={url} alt={`Imagen ${k + 1}`} style={{
+                                        width: '100%', borderRadius: 6, border: '0.5px solid #E8E8E8',
+                                        objectFit: 'cover', maxHeight: 120, cursor: 'pointer'
+                                      }} />
                                     ))}
                                   </div>
                                 </div>

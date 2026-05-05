@@ -384,8 +384,8 @@ export default function CursoDetalle() {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <iframe
-            key={mod.archivo_url}
-            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(mod.archivo_url)}`}
+            key={downloadSrc}
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(downloadSrc)}`}
             style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
             title={mod.titulo}
           />
