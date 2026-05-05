@@ -10,7 +10,7 @@ const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
-const { uploadBuffer, s3, BUCKET, keyFromUrl } = require('../config/s3');
+const { uploadBuffer, s3, BUCKET, keyFromUrl, generateSignedUrl } = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { auditar } = require('../utils/audit');
 
@@ -785,6 +785,20 @@ Usa lenguaje simple, ejemplos concretos del trabajo diario. Responde SOLO el JSO
   } catch (err) {
     if (err.name === 'AbortError') return res.status(504).json({ error: 'La IA tardó demasiado.' });
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/ia/imagen-signed?url=<s3url> — signed URL para imágenes de protocolo
+router.get('/imagen-signed', verificarToken, async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'URL requerida' });
+  const key = keyFromUrl(url);
+  if (!key) return res.status(400).json({ error: 'URL S3 inválida' });
+  try {
+    const signedUrl = await generateSignedUrl(key, 3600);
+    res.json({ url: signedUrl });
+  } catch (err) {
+    res.status(500).json({ error: 'Error generando URL firmada' });
   }
 });
 

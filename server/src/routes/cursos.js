@@ -732,6 +732,23 @@ router.post('/:id/desbloquear/:usuarioId', verificarToken, verificarRol('profeso
   }
 });
 
+// GET /api/cursos/:id/video-intro/signed-url
+router.get('/:id/video-intro/signed-url', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
+  try {
+    const { rows } = await pool.query('SELECT video_intro_url FROM cursos WHERE id = ?', [id]);
+    if (!rows[0]?.video_intro_url) return res.status(404).json({ error: 'Video no encontrado' });
+    const key = keyFromUrl(rows[0].video_intro_url);
+    if (!key) return res.status(400).json({ error: 'URL de video inválida' });
+    const url = await generateSignedUrl(key, 3600);
+    res.json({ url });
+  } catch (err) {
+    console.error('[video-intro signed-url]', err.message);
+    res.status(500).json({ error: 'Error al generar URL del video' });
+  }
+});
+
 // GET /api/cursos/:id/modulos/:moduloId/signed-url
 router.get('/:id/modulos/:moduloId/signed-url', verificarToken, async (req, res) => {
   const id = parseIdParam(req, 'id');

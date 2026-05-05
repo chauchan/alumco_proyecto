@@ -31,6 +31,7 @@ export default function CursoDetalle() {
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
+  const [videoIntroUrl, setVideoIntroUrl] = useState('')
   const [generandoPPT, setGenerandoPPT] = useState({})
   const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
@@ -41,6 +42,14 @@ export default function CursoDetalle() {
   const [replyingTo, setReplyingTo] = useState({})   // moduloId → comentarioId | null
   const [replyTexto, setReplyTexto] = useState({})   // moduloId → string
   const [enviandoCom, setEnviandoCom] = useState({}) // moduloId → bool
+
+  // Obtener URL firmada para el video intro cuando el curso carga
+  useEffect(() => {
+    if (!curso?.video_intro_url || !cursoId) return
+    api.get(`/cursos/${cursoId}/video-intro/signed-url`)
+      .then(r => setVideoIntroUrl(r.data.url))
+      .catch(err => console.error('[video-intro signed-url] error:', err?.response?.data || err?.message))
+  }, [curso?.video_intro_url, cursoId])
 
   // Obtener URL firmada cuando cambia el módulo activo
   useEffect(() => {
@@ -518,8 +527,8 @@ export default function CursoDetalle() {
                         style={{ width: '100%', borderRadius: 12, background: '#000', maxHeight: 480 }}
                         onEnded={() => setVideoVisto(true)}
                       >
-                        <source src={fileUrl(curso.video_intro_url)} type="video/mp4" />
-                        <source src={fileUrl(curso.video_intro_url)} type="video/webm" />
+                        <source src={videoIntroUrl} type="video/mp4" />
+                        <source src={videoIntroUrl} type="video/webm" />
                       </video>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: '#888' }}>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
@@ -117,7 +117,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
           <label style={lbl}>Imagen del protocolo (opcional)</label>
           {slide.imagen && (
             <div style={{ marginBottom: 8, position: 'relative', display: 'inline-block' }}>
-              <img src={slide.imagen} alt="seleccionada" style={{ height: 80, borderRadius: 6, border: '2px solid #2B4BA0', objectFit: 'cover' }} />
+              <SignedImage src={slide.imagen} alt="seleccionada" style={{ height: 80, borderRadius: 6, border: '2px solid #2B4BA0', objectFit: 'cover' }} />
               <button onClick={() => upd('imagen', null)} style={{
                 position: 'absolute', top: -6, right: -6, width: 18, height: 18,
                 borderRadius: '50%', background: '#E8505B', color: '#fff', border: 'none',
@@ -127,7 +127,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
             {imagenes.map((url, k) => (
-              <img key={k} src={url} alt={`pág ${k + 1}`}
+              <SignedImage key={k} src={url} alt={`pág ${k + 1}`}
                 onClick={() => upd('imagen', url)}
                 style={{
                   width: '100%', height: 60, objectFit: 'cover', borderRadius: 5, cursor: 'pointer',
@@ -140,6 +140,21 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
       )}
     </div>
   )
+}
+
+// ── SignedImage: img que auto-resuelve URLs privadas de S3 vía signed URL ────
+function SignedImage({ src: rawSrc, ...imgProps }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    if (!rawSrc) return
+    // Si no es una URL S3 (ej: path local o vacío) no hace nada
+    if (!rawSrc.startsWith('http')) { setSrc(rawSrc); return }
+    api.get('/ia/imagen-signed', { params: { url: rawSrc } })
+      .then(r => setSrc(r.data.url))
+      .catch(() => setSrc(''))
+  }, [rawSrc])
+  if (!src) return null
+  return <img src={src} {...imgProps} />
 }
 
 // ── Slide: renderiza cada tipo de diapositiva ─────────────────────────────────
@@ -273,7 +288,7 @@ export function Slide({ slide, total, actual }) {
       {/* ── IMAGEN DEL PROTOCOLO (en cualquier slide) ── */}
       {slide.imagen && (
         <div style={{ marginTop: 16, borderRadius: 8, overflow: 'hidden', maxHeight: 180, display: 'flex', justifyContent: 'center' }}>
-          <img src={slide.imagen} alt="Imagen del protocolo" style={{ maxHeight: 180, maxWidth: '100%', objectFit: 'contain', borderRadius: 8 }} />
+          <SignedImage src={slide.imagen} alt="Imagen del protocolo" style={{ maxHeight: 180, maxWidth: '100%', objectFit: 'contain', borderRadius: 8 }} />
         </div>
       )}
 
