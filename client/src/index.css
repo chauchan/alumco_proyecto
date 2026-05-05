@@ -10,6 +10,16 @@
   --texto-sec: #555555;
   --blanco: #FFFFFF;
   --azul-claro: #EEF2FF;
+
+  /* Curso detalle (inline-styled page) */
+  --cd-page-bg: #F6F7FB;
+  --cd-card-bg: #ffffff;
+  --cd-subtle-bg: #F4F5F7;
+  --cd-border: #E8E8E8;
+  --cd-border-light: #F0F0F0;
+  --cd-text: #1a1a1a;
+  --cd-text-sec: #555555;
+  --cd-text-muted: #888888;
 }
 
 /* ── Accesibilidad: texto grande ─────────────────────────────────────────── */
@@ -23,6 +33,16 @@ html.alto-contraste {
   --texto:       #1A1000;
   --texto-sec:   #3A2A00;
   --azul-claro:  #FFF3C4;
+
+  /* Curso detalle alto contraste */
+  --cd-page-bg:     #FFFBEF;
+  --cd-card-bg:     #FFFEF5;
+  --cd-subtle-bg:   #FFF8E1;
+  --cd-border:      #BBA96A;
+  --cd-border-light:#E8DAB0;
+  --cd-text:        #1A1000;
+  --cd-text-sec:    #3A2A00;
+  --cd-text-muted:  #5A4A1A;
 }
 html.alto-contraste body {
   background: #FFFBEF !important;
