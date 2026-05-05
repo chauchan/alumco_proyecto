@@ -158,7 +158,17 @@ export default function Profesor() {
         sede_objetivo: detalle.data.sede_objetivo || null,
         obligatorio: !!detalle.data.obligatorio
       })
-      setVideoIntroUrl(detalle.data.video_intro_url || null)
+      if (detalle.data.video_intro_url) {
+        try {
+          const r = await api.get(`/cursos/${c.id}/video-intro/signed-url`)
+          setVideoIntroUrl(r.data.url)
+        } catch (e) {
+          console.error('[video-intro signed-url]', e?.response?.data || e?.message)
+          setVideoIntroUrl(null)
+        }
+      } else {
+        setVideoIntroUrl(null)
+      }
       const presMap = {}
       ;(detalle.data.modulos || []).forEach((mod, i) => {
         if (!mod.contenido_presentacion) return
@@ -186,8 +196,14 @@ export default function Profesor() {
       const res = await api.post(`/cursos/${cursoDetalle.id}/video-intro`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      setVideoIntroUrl(res.data.video_intro_url)
       setCursoDetalle(prev => ({ ...prev, video_intro_url: res.data.video_intro_url }))
+      try {
+        const signed = await api.get(`/cursos/${cursoDetalle.id}/video-intro/signed-url`)
+        setVideoIntroUrl(signed.data.url)
+      } catch (e) {
+        console.error('[video-intro signed-url]', e?.response?.data || e?.message)
+        setVideoIntroUrl(res.data.video_intro_url)
+      }
     } catch {
       alert('Error al subir el video')
     } finally {
