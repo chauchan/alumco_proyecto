@@ -65,8 +65,16 @@ async function adjuntarSlides(modulos) {
   );
   const byModulo = {};
   for (const s of slides) {
+    let data = s.datos;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); }
+      catch (e) {
+        console.warn(`[adjuntarSlides] slide modulo=${s.modulo_id} numero=${s.numero} con JSON inválido, se omite:`, e.message);
+        continue;
+      }
+    }
     if (!byModulo[s.modulo_id]) byModulo[s.modulo_id] = [];
-    byModulo[s.modulo_id].push(typeof s.datos === 'string' ? JSON.parse(s.datos) : s.datos);
+    byModulo[s.modulo_id].push(data);
   }
   return modulos.map(m => ({
     ...m,
