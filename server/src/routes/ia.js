@@ -123,11 +123,14 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
     }
 
     const utiles = [];
+    const hashesSubidos = new Set();
     for (const archivo of archivos) {
       const fullPath = path.join(tmpDir, archivo);
       try {
         const stat = fs.statSync(fullPath);
-        if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
+        const h = fileHashes[archivo];
+        // Descartar: archivo chico, hash repetido en el PDF (decoración/header), o ya subido
+        if (stat.size < 8 * 1024 || (hashCount[h] || 0) > 1 || hashesSubidos.has(h)) {
           fs.unlinkSync(fullPath); continue;
         }
         let finalPath = fullPath;
@@ -145,6 +148,7 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
         const s3Key = `imagenes-curso/${cursoId}/${path.basename(finalPath)}`;
         const url = await uploadBuffer(buffer, s3Key, 'image/png');
         utiles.push(url);
+        hashesSubidos.add(h);
       } catch (e) {
         console.warn('[IA] Error subiendo imagen a S3:', e.message);
       }

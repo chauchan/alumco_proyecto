@@ -142,19 +142,43 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
   )
 }
 
-// ── SignedImage: img que auto-resuelve URLs privadas de S3 vía signed URL ────
+// ── SignedImage: prueba la URL pública primero, cae a signed URL si falla ───
+// Las imágenes se suben a S3 con ACL public-read; la mayoría carga directo.
+// Solo si el browser no puede descargar la URL pública (bucket policy no
+// aplicada, etc.) pedimos una signed URL al backend como respaldo.
 function SignedImage({ src: rawSrc, ...imgProps }) {
   const [src, setSrc] = useState('')
+  const [intentoSigned, setIntentoSigned] = useState(false)
+  const [failed, setFailed] = useState(false)
+
   useEffect(() => {
-    if (!rawSrc) return
-    // Si no es una URL S3 (ej: path local o vacío) no hace nada
-    if (!rawSrc.startsWith('http')) { setSrc(rawSrc); return }
-    api.get('/ia/imagen-signed', { params: { url: rawSrc } })
-      .then(r => setSrc(r.data.url))
-      .catch(() => setSrc(''))
+    setFailed(false)
+    setIntentoSigned(false)
+    setSrc(rawSrc || '')
   }, [rawSrc])
-  if (!src) return null
-  return <img src={src} {...imgProps} />
+
+  if (failed || !src) return null
+
+  return (
+    <img
+      src={src}
+      onError={() => {
+        // Primer fallo: intentar con signed URL si es una URL S3 http
+        if (!intentoSigned && rawSrc?.startsWith('http')) {
+          setIntentoSigned(true)
+          api.get('/ia/imagen-signed', { params: { url: rawSrc } })
+            .then(r => {
+              if (typeof r.data?.url === 'string' && r.data.url) setSrc(r.data.url)
+              else setFailed(true)
+            })
+            .catch(() => setFailed(true))
+        } else {
+          setFailed(true)
+        }
+      }}
+      {...imgProps}
+    />
+  )
 }
 
 // ── Slide: renderiza cada tipo de diapositiva ─────────────────────────────────
