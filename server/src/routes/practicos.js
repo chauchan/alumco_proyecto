@@ -4,6 +4,7 @@ const { google } = require('googleapis');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificar } = require('../utils/notificar');
+const { enviarPracticoAsignado } = require('../config/mailer');
 const { auditar } = require('../utils/audit');
 const { generarCertificadoPDF } = require('../utils/pdfCertificado');
 const { parseIdParam } = require('../utils/validate');
@@ -36,8 +37,12 @@ async function sincronizarConGoogle(usuarioId, practico) {
     });
 
     const fecha = practico.fecha;
-    const inicio = `${fecha}T${practico.hora_inicio}`;
-    const fin = practico.hora_fin ? `${fecha}T${practico.hora_fin}` : `${fecha}T${practico.hora_inicio.slice(0,2)}:59:00`;
+    const horaInicio = practico.hora_inicio.length === 5 ? `${practico.hora_inicio}:00` : practico.hora_inicio;
+    const horaFin = practico.hora_fin
+      ? (practico.hora_fin.length === 5 ? `${practico.hora_fin}:00` : practico.hora_fin)
+      : `${horaInicio.slice(0,2)}:59:00`;
+    const inicio = `${fecha}T${horaInicio}`;
+    const fin = `${fecha}T${horaFin}`;
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
     await calendar.events.insert({
@@ -131,14 +136,17 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
 
     // Obtener todos los colaboradores asignados a ese curso en esa sede
     const asignados = await pool.query(
-      `SELECT u.id, u.nombre
+      `SELECT u.id, u.nombre, u.email
        FROM asignaciones a
        JOIN usuarios u ON a.usuario_id = u.id
        WHERE a.curso_id = ? AND u.sede_id = ? AND u.activo = 1`,
       [curso_id, sede_id]
     );
 
-    // Crear notificación para cada asignado
+    const cursoResult = await pool.query(`SELECT nombre FROM cursos WHERE id = ?`, [curso_id]);
+    const cursoNombre = cursoResult.rows[0]?.nombre || '';
+
+    // Crear notificación + email para cada asignado
     const fechaFormateada = new Date(fecha).toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' });
     const mensaje = `Se ha programado un práctico para el curso. Fecha: ${fechaFormateada} a las ${hora_inicio}. Lugar: ${lugar || 'ELEAM sede'}`;
 
@@ -150,13 +158,25 @@ router.post('/', verificarToken, PUEDE_CREAR, async (req, res) => {
         titulo: `Práctico programado: ${titulo}`,
         mensaje
       });
+      if (u.email) {
+        enviarPracticoAsignado({
+          email: u.email,
+          nombre: u.nombre,
+          titulo,
+          cursoNombre,
+          fechaFormateada,
+          horaInicio: hora_inicio,
+          horaFin: hora_fin,
+          lugar,
+          descripcion
+        }).catch(err => console.error(`[practico] Email error para ${u.email}:`, err.message));
+      }
     }
 
     // Sincronizar con Google Calendar del creador si está conectado
-    const cursoResult = await pool.query(`SELECT nombre FROM cursos WHERE id = ?`, [curso_id]);
     await sincronizarConGoogle(creado_por, {
       titulo, descripcion, fecha, hora_inicio, hora_fin, lugar,
-      curso_nombre: cursoResult.rows[0]?.nombre || ''
+      curso_nombre: cursoNombre
     });
 
     res.status(201).json({
