@@ -9,7 +9,7 @@ const transporter = nodemailer.createTransport({
   greetingTimeout: 15000,
   socketTimeout: 30000,
   auth: {
-    user: process.env.MAIL_USER || 'omegabarra3236@gmail.com',
+    user: process.env.MAIL_USER || 'alumcomailer@gmail.com',
     pass: process.env.MAIL_PASS
   },
   tls: { rejectUnauthorized: false }
@@ -19,15 +19,15 @@ if (!process.env.MAIL_PASS) {
   console.warn('[mailer] MAIL_PASS no está configurado. Los correos NO se enviarán.');
 } else {
   transporter.verify()
-    .then(() => console.log(`[mailer] SMTP listo (${process.env.MAIL_USER || 'omegabarra3236@gmail.com'})`))
+    .then(() => console.log(`[mailer] SMTP listo (${process.env.MAIL_USER || 'alumcomailer@gmail.com'})`))
     .catch(err => console.error('[mailer] SMTP no responde:', err.message));
 }
 
 async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, cursoId, modulosCount, preguntasCount, nombreArchivo, subidoPor }) {
-  const destinatario = profesorEmail || process.env.MAIL_USER || 'omegabarra3236@gmail.com';
+  const destinatario = profesorEmail || process.env.MAIL_USER || 'alumcomailer@gmail.com';
 
   await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'alumcomailer@gmail.com'}>`,
     to: destinatario,
     subject: `[ALUMCO] Nuevo borrador de curso: ${cursoNombre}`,
     html: `
@@ -74,7 +74,7 @@ async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, c
 
 async function enviarResetPassword(email, link, nombre) {
   await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'alumcomailer@gmail.com'}>`,
     to: email,
     subject: '[ALUMCO] Recuperación de contraseña',
     html: `
@@ -109,7 +109,7 @@ async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
     .map(c => `<li style="padding:4px 0; font-size:13px; color:#333;">${c}</li>`)
     .join('');
   await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'alumcomailer@gmail.com'}>`,
     to: email,
     subject: '[ALUMCO] Recordatorio: tienes cursos obligatorios pendientes',
     html: `
@@ -139,7 +139,7 @@ async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
 
 async function enviarBloqueo(email, nombreDestinatario, nombreColab, nombreCurso) {
   await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'alumcomailer@gmail.com'}>`,
     to: email,
     subject: `[ALUMCO] Colaborador bloqueado en "${nombreCurso}"`,
     html: `
@@ -169,7 +169,7 @@ async function enviarBloqueo(email, nombreDestinatario, nombreColab, nombreCurso
 
 async function enviarDesbloqueo(email, nombreColab, nombreCurso) {
   await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'alumcomailer@gmail.com'}>`,
     to: email,
     subject: `[ALUMCO] Tu acceso al curso "${nombreCurso}" ha sido restaurado`,
     html: `
@@ -195,7 +195,7 @@ async function enviarDesbloqueo(email, nombreColab, nombreCurso) {
 async function enviarPracticoAsignado({ email, nombre, titulo, cursoNombre, fechaFormateada, horaInicio, horaFin, lugar, descripcion }) {
   const horario = horaFin ? `${horaInicio} — ${horaFin}` : horaInicio;
   await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'alumcomailer@gmail.com'}>`,
     to: email,
     subject: `[ALUMCO] Práctico programado: ${titulo}`,
     html: `
