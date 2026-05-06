@@ -111,16 +111,16 @@ async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
   await transporter.sendMail({
     from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
     to: email,
-    subject: '[ALUMCO] Recordatorio: tienes capacitaciones pendientes',
+    subject: '[ALUMCO] Recordatorio: tienes cursos obligatorios pendientes',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
-          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Capacitaciones pendientes</h1>
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Cursos obligatorios pendientes</h1>
         </div>
         <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
           <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
           <p style="color: #555; font-size: 14px; line-height: 1.6;">
-            Te recordamos que tienes los siguientes cursos asignados pendientes de completar:
+            Te recordamos que tienes los siguientes cursos <strong>obligatorios</strong> pendientes de completar:
           </p>
           <ul style="margin: 16px 0; padding-left: 20px; border-left: 3px solid #2B4BA0;">
             ${listaCursos}
