@@ -1,4 +1,12 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Forzar IPv4 a nivel de DNS lookup — Railway no tiene routing IPv6 saliente
+// y nodemailer ignora `family: 4` en algunas versiones, llegando a resolver AAAA igual.
+function ipv4Lookup(hostname, options, callback) {
+  if (typeof options === 'function') { callback = options; options = {}; }
+  return dns.lookup(hostname, { ...options, family: 4 }, callback);
+}
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -12,7 +20,8 @@ const transporter = nodemailer.createTransport({
     user: process.env.MAIL_USER || 'alumcomailer@gmail.com',
     pass: process.env.MAIL_PASS
   },
-  tls: { rejectUnauthorized: false }
+  tls: { rejectUnauthorized: false, servername: 'smtp.gmail.com' },
+  lookup: ipv4Lookup
 });
 
 if (!process.env.MAIL_PASS) {
