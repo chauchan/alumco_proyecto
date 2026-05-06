@@ -375,7 +375,7 @@ Descripción: ${descripcion || titulo}
 Responde SOLO el JSON.`;
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 90000 : 300000);
+      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 180000 : 300000);
       const parsed = parsearJSON(resp);
       if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
       return parsed;
@@ -496,13 +496,12 @@ Reglas:
       }
     }));
 
-    console.log('[IA] Paso 3c: generando presentaciones PPT...');
-    const modulosConPPT = [];
-    for (const mod of modulos) {
+    console.log('[IA] Paso 3c: generando presentaciones PPT en paralelo...');
+    const modulosConPPT = await Promise.all(modulos.map(async (mod) => {
       console.log(`[IA] Generando PPT: "${mod.titulo}"`);
       const presentacion = await generarPPTModulo(mod.titulo, mod.descripcion);
-      modulosConPPT.push({ ...mod, presentacion });
-    }
+      return { ...mod, presentacion };
+    }));
 
     const borrador = { modulos: modulosConPPT };
     const modulosGenerados = borrador.modulos.length;
