@@ -11,6 +11,14 @@ const transporter = nodemailer.createTransport({
   tls: { rejectUnauthorized: false }
 });
 
+if (!process.env.MAIL_PASS) {
+  console.warn('[mailer] MAIL_PASS no está configurado. Los correos NO se enviarán.');
+} else {
+  transporter.verify()
+    .then(() => console.log(`[mailer] SMTP listo (${process.env.MAIL_USER || 'omegabarra3236@gmail.com'})`))
+    .catch(err => console.error('[mailer] SMTP no responde:', err.message));
+}
+
 async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, cursoId, modulosCount, preguntasCount, nombreArchivo, subidoPor }) {
   const destinatario = profesorEmail || process.env.MAIL_USER || 'omegabarra3236@gmail.com';
 
