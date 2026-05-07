@@ -93,7 +93,9 @@ export default function Colaborador() {
               </div>
             ) : pendientes.map(curso => (
               <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
-                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0 }} />
+                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon="lucide:book-open" width={18} style={{ color:'#E8505B' }} />
+                </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {curso.nombre}
@@ -124,7 +126,9 @@ export default function Colaborador() {
             </div>
             {certAprobados.slice(0,3).map(cert => (
               <div key={cert.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
-                <div style={{ width:32, height:32, background:'#EEF2FF', borderRadius:8, flexShrink:0 }} />
+                <div style={{ width:32, height:32, background:'#EEF2FF', borderRadius:8, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon="lucide:award" width={16} style={{ color:'#2B4BA0' }} />
+                </div>
                 <span style={{ flex:1, fontSize:13 }}>{cert.curso_nombre}</span>
                 <span style={{ fontSize:11, color:'#888' }}>
                   {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
