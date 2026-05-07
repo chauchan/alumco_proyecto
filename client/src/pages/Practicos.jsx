@@ -5,6 +5,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 import api from '../services/api'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -15,6 +16,7 @@ const FORM_INICIAL = { curso_id:'', titulo:'', descripcion:'', fecha:'', hora_in
 export default function Practicos() {
   const { usuario } = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const puedeCrear = ['profesor','admin_sede'].includes(usuario?.rol)
@@ -191,7 +193,13 @@ export default function Practicos() {
   }
 
   const handleEliminar = async (id) => {
-    if (!confirm('¿Eliminar este práctico?')) return
+    const ok = await confirm({
+      title: 'Eliminar práctico',
+      message: 'Se eliminará el práctico junto con la lista de asistencia registrada. Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.delete(`/practicos/${id}`)
       cargar()
