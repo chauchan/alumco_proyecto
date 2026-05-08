@@ -130,10 +130,7 @@ export default function Topbar({ seccion }) {
             style={{ cursor: 'pointer', position: 'relative', padding: 4 }}
             title="Notificaciones"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
+            <Icon icon="lucide:bell" width={20} style={{ color: 'rgba(255,255,255,0.85)', display: 'block' }} />
             {noLeidas > 0 && (
               <div style={{
                 position: 'absolute', top: 0, right: 0,
@@ -291,10 +288,7 @@ export default function Topbar({ seccion }) {
                   onMouseEnter={e => e.currentTarget.style.background = '#FFF0F0'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8505B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
+                  <Icon icon="lucide:log-out" width={14} style={{ color: '#E8505B' }} />
                   Cerrar sesión
                 </div>
               </div>
