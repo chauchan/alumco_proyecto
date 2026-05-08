@@ -200,7 +200,8 @@ export default function Topbar({ seccion }) {
           )}
         </div>
 
-        {/* Switcher de vista rápida */}
+        {/* Switcher de vista rápida (solo en desarrollo) */}
+        {import.meta.env.DEV && (
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => { setVistaAbierto(!vistaAbierto); setMenuAbierto(false); setNotifAbierto(false) }}
@@ -246,6 +247,7 @@ export default function Topbar({ seccion }) {
             </>
           )}
         </div>
+        )}
 
         {/* Avatar con menú */}
         <div style={{ position: 'relative' }}>
