@@ -56,7 +56,9 @@ export default function Colaborador() {
               <div className="greeting-name" style={{ fontSize:17, fontWeight:500, color:'#fff' }}>
                 Hola, {usuario?.nombre?.split(' ')[0]}
               </div>
-              
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:4, textTransform:'capitalize' }}>
+                {new Date().toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' })}
+              </div>
             </div>
             <div className="greeting-badge">
               <div style={{ fontSize:22, fontWeight:500, color:'#F5A623' }}>{pendientes.length}</div>
