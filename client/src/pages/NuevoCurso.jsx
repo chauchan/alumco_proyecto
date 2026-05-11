@@ -5,6 +5,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -19,6 +20,7 @@ const ESTAMENTOS = [
 export default function NuevoCurso() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
+  const toast = useToast()
   const [paso, setPaso] = useState(1) // 1: info, 2: módulos, 3: evaluación, 4: audiencia
   const [cursoId, setCursoId] = useState(null)
   const [form, setForm] = useState({ nombre:'', descripcion:'', area:'', requiere_practico: false })
@@ -97,7 +99,7 @@ export default function NuevoCurso() {
       })
       // Publicar
       await api.patch(`/cursos/${cursoId}/publicar`, { publicado: true })
-      alert('¡Curso publicado exitosamente!')
+      toast.success('¡Curso publicado exitosamente!')
       navigate('/profesor')
     } catch (err) {
       setError('Error al publicar el curso')
@@ -113,7 +115,7 @@ export default function NuevoCurso() {
   }
 
   const handleGuardarBorrador = async () => {
-    alert('Curso guardado como borrador. Puedes publicarlo más tarde desde tu panel.')
+    toast.info('Curso guardado como borrador. Puedes publicarlo más tarde desde tu panel.')
     navigate('/profesor')
   }
 

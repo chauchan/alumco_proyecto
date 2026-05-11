@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('dns').setDefaultResultOrder('ipv4first');
 
 // --- Validaciones de startup (fail-fast antes de cualquier inicialización) ---
 const JWT_SECRET = process.env.JWT_SECRET;

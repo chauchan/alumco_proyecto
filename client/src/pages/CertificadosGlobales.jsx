@@ -4,7 +4,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import Paginacion from '../components/Paginacion'
 import { useAuth } from '../context/AuthContext'
-import api from '../services/api'
+import api, { descargarCertificado } from '../services/api'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -185,15 +185,14 @@ export default function CertificadosGlobales() {
                         </span>
                       </td>
                       <td style={{ padding: '10px 14px' }}>
-                        {cert.estado === 'aprobado' && cert.archivo_url ? (
-                          <a
-                            href={cert.archivo_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                        {cert.estado === 'aprobado' ? (
+                          <button
+                            type="button"
+                            onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`)}
+                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer' }}
                           >
                             <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
-                          </a>
+                          </button>
                         ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
                           <button
                             className="btn-aprobar"

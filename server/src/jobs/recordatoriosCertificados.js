@@ -22,6 +22,7 @@ async function enviarRecordatorios(sedeId = null, req = null) {
     WHERE u.rol = 'colaborador' AND u.activo = 1
       AND it.id IS NULL
       AND c.publicado = 1
+      AND c.obligatorio = 1
       ${filtro}
     GROUP BY u.id, u.nombre, u.email
   `, params);

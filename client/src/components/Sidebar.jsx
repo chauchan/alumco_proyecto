@@ -1,6 +1,25 @@
 import { useState, useEffect } from 'react'
+import { Icon } from '@iconify/react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+
+const ICON_BY_PATH = {
+  '/colaborador':            'lucide:home',
+  '/profesor':               'lucide:book-marked',
+  '/profesor/nuevo-curso':   'lucide:plus-circle',
+  '/admin':                  'lucide:layout-dashboard',
+  '/jefatura':               'lucide:layout-dashboard',
+  '/jefatura/usuarios':      'lucide:users',
+  '/jefatura/sedes':         'lucide:building-2',
+  '/jefatura/ia':            'lucide:sparkles',
+  '/jefatura/protocolos':    'lucide:file-text',
+  '/capacitaciones':         'lucide:graduation-cap',
+  '/mis-certificados':       'lucide:award',
+  '/certificados-globales':  'lucide:medal',
+  '/practicos':              'lucide:calendar-check',
+  '/mis-datos':              'lucide:user',
+  '/cambiar-password':       'lucide:lock',
+}
 
 // Ítems del sidebar por rol — siempre los mismos sin importar en qué página esté
 const NAV_ITEMS = {
@@ -84,6 +103,7 @@ export default function Sidebar() {
               className={`nav-item ${isActive ? 'active' : ''}`}
               onClick={() => navigate(item.path)}
             >
+              <Icon icon={ICON_BY_PATH[item.path] || 'lucide:circle'} className="nav-icon" />
               <span style={{ flex: 1 }}>{item.label}</span>
             </div>
           )
@@ -99,6 +119,7 @@ export default function Sidebar() {
                 className={`nav-item ${isActive ? 'active' : ''}`}
                 onClick={() => navigate(item.path)}
               >
+                <Icon icon={ICON_BY_PATH[item.path] || 'lucide:circle'} className="nav-icon" />
                 <span style={{ flex: 1 }}>{item.label}</span>
               </div>
             )

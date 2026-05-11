@@ -26,4 +26,39 @@ api.interceptors.response.use(
   }
 )
 
+export async function descargarCertificado(certId, nombreArchivo) {
+  try {
+    const res = await api.get(`/certificados/${certId}/descargar`, { responseType: 'blob' })
+    const ct = res.headers?.['content-type'] || ''
+    // Si el servidor devolvió JSON/HTML en vez de PDF, leerlo como texto y mostrar el error
+    if (!ct.includes('pdf')) {
+      const text = await res.data.text()
+      throw new Error(text || 'Respuesta inesperada del servidor')
+    }
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nombreArchivo || `certificado_${certId}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (err) {
+    let msg = 'No se pudo descargar el certificado.'
+    if (err.response?.data) {
+      try {
+        const text = err.response.data instanceof Blob
+          ? await err.response.data.text()
+          : JSON.stringify(err.response.data)
+        const parsed = (() => { try { return JSON.parse(text) } catch { return null } })()
+        msg = parsed?.error || text || msg
+      } catch {}
+    } else if (err.message) {
+      msg = err.message
+    }
+    console.error('[descargarCertificado]', err)
+    alert(`Error al descargar certificado: ${msg}`)
+  }
+}
+
 export default api

@@ -164,7 +164,7 @@ export default function Jefatura() {
               <span className="card-title" style={{ fontSize:14 }}>Comparativa por sede</span>
               <span className="card-link" style={{ color:'#1E3A6E' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
-            <div className="two-col">
+            <div className="two-col sedes-grid">
               {sedes.map((s, i) => (
                 <div key={s.id} className="card">
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>

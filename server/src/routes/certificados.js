@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { generarCertificadoPDF, buildCertificadoPDF } = require('../utils/pdfCertificado');
 const { parseIdParam } = require('../utils/validate');
 
 // GET /api/certificados — listar certificados del usuario o pendientes para profesor
@@ -172,17 +172,19 @@ router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'pro
   }
 });
 
-// GET /api/certificados/:id/descargar — descargar PDF
+// GET /api/certificados/:id/descargar — genera y sirve el PDF al vuelo
 router.get('/:id/descargar', verificarToken, async (req, res) => {
   const id = parseIdParam(req, 'id');
   if (id === null) return res.status(400).json({ error: 'id inválido' });
   try {
     const { rows } = await pool.query(
-      `SELECT cert.id, cert.estado, cert.archivo_url,
-              it.usuario_id, u.nombre as usuario_nombre
+      `SELECT cert.id, cert.estado, cert.fecha_emision, cert.created_at,
+              it.usuario_id, u.nombre as usuario_nombre,
+              c.nombre as curso_nombre
        FROM certificados cert
        JOIN intentos it ON cert.intento_id = it.id
        JOIN usuarios u ON it.usuario_id = u.id
+       JOIN cursos c ON it.curso_id = c.id
        WHERE cert.id = ?`,
       [id]
     );
@@ -190,10 +192,27 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
     const cert = rows[0];
     if (req.usuario.rol === 'colaborador' && cert.usuario_id !== req.usuario.id)
       return res.status(403).json({ error: 'No tienes acceso a este certificado' });
-    if (cert.estado !== 'aprobado' || !cert.archivo_url)
+    if (cert.estado !== 'aprobado')
       return res.status(400).json({ error: 'El certificado aún no está disponible' });
-    res.redirect(cert.archivo_url);
+
+    const qrUrl = `${process.env.CLIENT_URL || 'https://alumcoproyecto-production.up.railway.app'}/verificar/${cert.id}`;
+    const buffer = await buildCertificadoPDF({
+      nombre: cert.usuario_nombre,
+      curso: cert.curso_nombre,
+      fecha: cert.fecha_emision || cert.created_at,
+      estado: 'aprobado',
+      qrUrl
+    });
+
+    const safeName = (cert.usuario_nombre || 'certificado')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .slice(0, 60);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="certificado_${safeName}_${cert.id}.pdf"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   } catch (err) {
+    console.error('Error al generar certificado:', err);
     res.status(500).json({ error: 'Error al descargar certificado' });
   }
 });

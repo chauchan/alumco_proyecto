@@ -3,8 +3,12 @@ import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
+import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 
 export default function Protocolos() {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [protocolos, setProtocolos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [subiendo, setSubiendo] = useState(false)
@@ -43,13 +47,19 @@ export default function Protocolos() {
     try {
       await api.put(`/protocolos/${editando.id}`, { nombre: editando.nombre, descripcion: editando.descripcion })
       setEditando(null); cargar()
-    } catch { alert('Error al guardar') }
+    } catch { toast.error('Error al guardar') }
   }
 
   const eliminar = async (id, nombre) => {
-    if (!confirm(`¿Eliminar el protocolo "${nombre}"? Esta acción no se puede deshacer.`)) return
+    const ok = await confirm({
+      title: `Eliminar "${nombre}"`,
+      message: 'El protocolo se eliminará permanentemente. Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
     try { await api.delete(`/protocolos/${id}`); cargar() }
-    catch { alert('Error al eliminar') }
+    catch { toast.error('Error al eliminar') }
   }
 
   return (

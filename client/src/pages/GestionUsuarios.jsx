@@ -7,6 +7,7 @@ import Sidebar from '../components/Sidebar'
 import Paginacion from '../components/Paginacion'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -51,6 +52,7 @@ const BTN_GHOST = {
 export default function GestionUsuarios() {
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const selectAllRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -155,7 +157,13 @@ export default function GestionUsuarios() {
   }
 
   const handleDesactivar = async (id, nombre) => {
-    if (!confirm(`¿Desactivar a ${nombre}? El usuario no podrá ingresar pero su historial se conservará.`)) return
+    const ok = await confirm({
+      title: `Desactivar a ${nombre}`,
+      message: 'El usuario no podrá ingresar pero su historial se conservará. Puedes reactivarlo más tarde.',
+      confirmText: 'Desactivar',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.patch(`/usuarios/${id}`, { activo: false })
       toast.success(`Usuario "${nombre}" desactivado`)
@@ -166,7 +174,12 @@ export default function GestionUsuarios() {
   }
 
   const handleReactivar = async (id, nombre) => {
-    if (!confirm(`¿Reactivar a ${nombre}?`)) return
+    const ok = await confirm({
+      title: `Reactivar a ${nombre}`,
+      message: 'El usuario podrá volver a ingresar a la plataforma.',
+      confirmText: 'Reactivar',
+    })
+    if (!ok) return
     try {
       await api.patch(`/usuarios/${id}`, { activo: true })
       toast.success(`Usuario "${nombre}" reactivado`)
