@@ -10,7 +10,7 @@ const os = require('os');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { notificarProfesor } = require('../config/mailer');
-const { uploadBuffer, s3, BUCKET, keyFromUrl } = require('../config/s3');
+const { uploadBuffer, s3, BUCKET, keyFromUrl, generateSignedUrl } = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { auditar } = require('../utils/audit');
 
@@ -123,11 +123,14 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
     }
 
     const utiles = [];
+    const hashesSubidos = new Set();
     for (const archivo of archivos) {
       const fullPath = path.join(tmpDir, archivo);
       try {
         const stat = fs.statSync(fullPath);
-        if (stat.size < 8 * 1024 || (hashCount[fileHashes[archivo]] || 0) > 2) {
+        const h = fileHashes[archivo];
+        // Descartar: archivo chico, hash repetido en el PDF (decoración/header), o ya subido
+        if (stat.size < 8 * 1024 || (hashCount[h] || 0) > 1 || hashesSubidos.has(h)) {
           fs.unlinkSync(fullPath); continue;
         }
         let finalPath = fullPath;
@@ -145,6 +148,7 @@ async function extraerImagenesPDF(pdfPath, cursoId) {
         const s3Key = `imagenes-curso/${cursoId}/${path.basename(finalPath)}`;
         const url = await uploadBuffer(buffer, s3Key, 'image/png');
         utiles.push(url);
+        hashesSubidos.add(h);
       } catch (e) {
         console.warn('[IA] Error subiendo imagen a S3:', e.message);
       }
@@ -371,7 +375,7 @@ Descripción: ${descripcion || titulo}
 Responde SOLO el JSON.`;
   for (let intento = 1; intento <= 2; intento++) {
     try {
-      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 90000 : 300000);
+      const resp = await llamarIA(prompt, OPENROUTER_KEY ? 180000 : 300000);
       const parsed = parsearJSON(resp);
       if (!Array.isArray(parsed.diapositivas) || parsed.diapositivas.length === 0) continue;
       return parsed;
@@ -492,13 +496,12 @@ Reglas:
       }
     }));
 
-    console.log('[IA] Paso 3c: generando presentaciones PPT...');
-    const modulosConPPT = [];
-    for (const mod of modulos) {
+    console.log('[IA] Paso 3c: generando presentaciones PPT en paralelo...');
+    const modulosConPPT = await Promise.all(modulos.map(async (mod) => {
       console.log(`[IA] Generando PPT: "${mod.titulo}"`);
       const presentacion = await generarPPTModulo(mod.titulo, mod.descripcion);
-      modulosConPPT.push({ ...mod, presentacion });
-    }
+      return { ...mod, presentacion };
+    }));
 
     const borrador = { modulos: modulosConPPT };
     const modulosGenerados = borrador.modulos.length;
@@ -785,6 +788,20 @@ Usa lenguaje simple, ejemplos concretos del trabajo diario. Responde SOLO el JSO
   } catch (err) {
     if (err.name === 'AbortError') return res.status(504).json({ error: 'La IA tardó demasiado.' });
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/ia/imagen-signed?url=<s3url> — signed URL para imágenes de protocolo
+router.get('/imagen-signed', verificarToken, async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'URL requerida' });
+  const key = keyFromUrl(url);
+  if (!key) return res.status(400).json({ error: 'URL S3 inválida' });
+  try {
+    const signedUrl = await generateSignedUrl(key, 3600);
+    res.json({ url: signedUrl });
+  } catch (err) {
+    res.status(500).json({ error: 'Error generando URL firmada' });
   }
 });
 

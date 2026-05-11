@@ -65,8 +65,16 @@ async function adjuntarSlides(modulos) {
   );
   const byModulo = {};
   for (const s of slides) {
+    let data = s.datos;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); }
+      catch (e) {
+        console.warn(`[adjuntarSlides] slide modulo=${s.modulo_id} numero=${s.numero} con JSON inválido, se omite:`, e.message);
+        continue;
+      }
+    }
     if (!byModulo[s.modulo_id]) byModulo[s.modulo_id] = [];
-    byModulo[s.modulo_id].push(typeof s.datos === 'string' ? JSON.parse(s.datos) : s.datos);
+    byModulo[s.modulo_id].push(data);
   }
   return modulos.map(m => ({
     ...m,
@@ -223,19 +231,30 @@ router.get('/:id', verificarToken, async (req, res) => {
 
     let imagenes_protocolo = [];
     const _rawImagenes = cursoRows[0].imagenes_protocolo;
-    const imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
+    let imagenesDB = null;
+    try {
+      imagenesDB = typeof _rawImagenes === 'string' ? JSON.parse(_rawImagenes) : _rawImagenes;
+    } catch (e) {
+      console.warn('[GET /cursos/:id] imagenes_protocolo no es JSON válido:', e.message);
+    }
     if (Array.isArray(imagenesDB) && imagenesDB.length > 0) {
       imagenes_protocolo = await Promise.all(
-        imagenesDB.map(url => {
-          const key = keyFromUrl(url);
-          return key ? generateSignedUrl(key, 3600) : url;
+        imagenesDB.map(async url => {
+          try {
+            const key = keyFromUrl(url);
+            return key ? await generateSignedUrl(key, 3600) : url;
+          } catch (e) {
+            console.warn('[GET /cursos/:id] no se pudo firmar URL:', e.message);
+            return url;
+          }
         })
       );
     }
 
     res.json({ ...cursoRows[0], estamento_objetivo, modulos, preguntas, imagenes_protocolo });
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener curso' });
+    console.error('[GET /cursos/:id]', err);
+    res.status(500).json({ error: 'Error al obtener curso', detalle: err.message });
   }
 });
 
@@ -729,6 +748,23 @@ router.post('/:id/desbloquear/:usuarioId', verificarToken, verificarRol('profeso
   } catch (err) {
     console.error('[desbloquear]', err.message);
     res.status(500).json({ error: 'Error al desbloquear colaborador' });
+  }
+});
+
+// GET /api/cursos/:id/video-intro/signed-url
+router.get('/:id/video-intro/signed-url', verificarToken, async (req, res) => {
+  const id = parseIdParam(req, 'id');
+  if (id === null) return res.status(400).json({ error: 'id inválido' });
+  try {
+    const { rows } = await pool.query('SELECT video_intro_url FROM cursos WHERE id = ?', [id]);
+    if (!rows[0]?.video_intro_url) return res.status(404).json({ error: 'Video no encontrado' });
+    const key = keyFromUrl(rows[0].video_intro_url);
+    if (!key) return res.status(400).json({ error: 'URL de video inválida' });
+    const url = await generateSignedUrl(key, 3600);
+    res.json({ url });
+  } catch (err) {
+    console.error('[video-intro signed-url]', err.message);
+    res.status(500).json({ error: 'Error al generar URL del video' });
   }
 });
 

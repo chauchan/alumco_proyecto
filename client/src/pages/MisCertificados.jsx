@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
-import api from '../services/api'
+import api, { descargarCertificado } from '../services/api'
 
 
 export default function MisCertificados() {
@@ -119,20 +119,20 @@ export default function MisCertificados() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 14px' }}>
-                        {cert.estado === 'aprobado' && cert.archivo_url ? (
-                          <a
-                            href={cert.archivo_url}
-                            target="_blank"
-                            rel="noreferrer"
+                        {cert.estado === 'aprobado' ? (
+                          <button
+                            type="button"
+                            onClick={() => descargarCertificado(cert.id, `certificado_${(cert.curso_nombre || 'curso').replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`)}
                             style={{
                               fontSize: 11, color: '#2B4BA0',
                               border: '0.5px solid #E8E8E8', borderRadius: 8,
                               padding: '5px 10px', display: 'inline-flex',
-                              alignItems: 'center', gap: 4, textDecoration: 'none'
+                              alignItems: 'center', gap: 4, background: 'none',
+                              cursor: 'pointer'
                             }}
                           >
                             <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
-                          </a>
+                          </button>
                         ) : (
                           <span style={{ fontSize: 11, color: '#AAA' }}>—</span>
                         )}

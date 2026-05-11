@@ -4,6 +4,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 
 const FORM_INICIAL = { nombre: '', ciudad: '' }
 
@@ -14,6 +15,7 @@ const BTN_GHOST = {
 
 export default function GestionSedes() {
   const toast = useToast()
+  const confirm = useConfirm()
   const [sedes, setSedes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [modal, setModal] = useState(null) // null | { modo: 'crear' | 'editar', sede?: {} }
@@ -64,7 +66,13 @@ export default function GestionSedes() {
   }
 
   const handleDesactivar = async (sede) => {
-    if (!confirm(`¿Desactivar la sede "${sede.nombre}"? Esta acción se puede revertir.`)) return
+    const ok = await confirm({
+      title: `Desactivar "${sede.nombre}"`,
+      message: 'La sede dejará de aparecer en los selectores. Puedes reactivarla en cualquier momento.',
+      confirmText: 'Desactivar',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.delete(`/sedes/${sede.id}`)
       toast.success(`Sede "${sede.nombre}" desactivada`)
@@ -75,7 +83,12 @@ export default function GestionSedes() {
   }
 
   const handleReactivar = async (sede) => {
-    if (!confirm(`¿Reactivar la sede "${sede.nombre}"?`)) return
+    const ok = await confirm({
+      title: `Reactivar "${sede.nombre}"`,
+      message: 'La sede volverá a estar disponible en los selectores.',
+      confirmText: 'Reactivar',
+    })
+    if (!ok) return
     try {
       await api.patch(`/sedes/${sede.id}`, { activa: true })
       toast.success(`Sede "${sede.nombre}" reactivada`)

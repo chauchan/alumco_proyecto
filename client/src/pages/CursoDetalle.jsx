@@ -31,6 +31,7 @@ export default function CursoDetalle() {
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
   const [signedUrls, setSignedUrls] = useState({})
+  const [videoIntroUrl, setVideoIntroUrl] = useState('')
   const [generandoPPT, setGenerandoPPT] = useState({})
   const [esperandoPractico, setEsperandoPractico] = useState(false)
   const videoRef = useRef(null)
@@ -41,6 +42,14 @@ export default function CursoDetalle() {
   const [replyingTo, setReplyingTo] = useState({})   // moduloId → comentarioId | null
   const [replyTexto, setReplyTexto] = useState({})   // moduloId → string
   const [enviandoCom, setEnviandoCom] = useState({}) // moduloId → bool
+
+  // Obtener URL firmada para el video intro cuando el curso carga
+  useEffect(() => {
+    if (!curso?.video_intro_url || !cursoId) return
+    api.get(`/cursos/${cursoId}/video-intro/signed-url`)
+      .then(r => setVideoIntroUrl(r.data.url))
+      .catch(err => console.error('[video-intro signed-url] error:', err?.response?.data || err?.message))
+  }, [curso?.video_intro_url, cursoId])
 
   // Obtener URL firmada cuando cambia el módulo activo
   useEffect(() => {
@@ -287,7 +296,7 @@ export default function CursoDetalle() {
     // PPT sin slides y sin archivo subido: mostrar spinner mientras se genera con IA
     if (mod.tipo === 'ppt' && !esPPT && !mod.archivo_url) {
       return (
-        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#888' }}>
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--cd-text-muted)' }}>
           <Icon icon="lucide:loader" width={32} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
           <div style={{ fontSize: 14, fontWeight: 500 }}>Generando presentación...</div>
           <div style={{ fontSize: 12, marginTop: 6 }}>Esto puede tomar unos segundos</div>
@@ -307,10 +316,10 @@ export default function CursoDetalle() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <button onClick={() => setSlideActual(s => Math.max(0, s - 1))}
               disabled={slideActual === 0}
-              style={{ background: '#F4F5F7', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: slideActual === 0 ? 'not-allowed' : 'pointer', color: slideActual === 0 ? '#ccc' : '#333' }}>
+              style={{ background: 'var(--cd-subtle-bg)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: slideActual === 0 ? 'not-allowed' : 'pointer', color: slideActual === 0 ? '#ccc' : 'var(--cd-text)' }}>
               <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Anterior</>
             </button>
-            <span style={{ fontSize: 12, color: '#888' }}>{slideActual + 1} / {total}</span>
+            <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>{slideActual + 1} / {total}</span>
             {esUltimo ? (
               <button onClick={() => marcarCompleto(mod.id)}
                 style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -341,7 +350,7 @@ export default function CursoDetalle() {
             {videoSrc && <source src={videoSrc} type="video/webm" />}
           </video>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#888' }}>El módulo se marcará como completo al terminar el video.</span>
+            <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>El módulo se marcará como completo al terminar el video.</span>
             <button onClick={() => marcarCompleto(mod.id)}
               style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
@@ -375,14 +384,14 @@ export default function CursoDetalle() {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <iframe
-            key={mod.archivo_url}
-            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(mod.archivo_url)}`}
+            key={downloadSrc}
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(downloadSrc)}`}
             style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
             title={mod.titulo}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <a href={downloadSrc} download target="_blank" rel="noreferrer"
-              style={{ background: '#F4F5F7', color: '#333', borderRadius: 8, padding: '8px 14px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              style={{ background: 'var(--cd-subtle-bg)', color: 'var(--cd-text)', borderRadius: 8, padding: '8px 14px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <Icon icon="lucide:download" width={12} /> Descargar PPT
             </a>
             <button onClick={() => marcarCompleto(mod.id)}
@@ -396,9 +405,9 @@ export default function CursoDetalle() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ background: '#F4F5F7', borderRadius: 10, padding: '18px 20px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Contenido del módulo</div>
-          <div style={{ fontSize: 14, color: '#333', lineHeight: 1.7 }}>{mod.descripcion || mod.titulo}</div>
+        <div style={{ background: 'var(--cd-subtle-bg)', borderRadius: 10, padding: '18px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--cd-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Contenido del módulo</div>
+          <div style={{ fontSize: 14, color: 'var(--cd-text)', lineHeight: 1.7 }}>{mod.descripcion || mod.titulo}</div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={() => marcarCompleto(mod.id)}
@@ -419,33 +428,33 @@ export default function CursoDetalle() {
   const pasoIdx = pasos.findIndex(p => p.key === paso)
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar />
-        <main style={{ flex: 1, overflowY: 'auto', background: '#F6F7FB', padding: '24px 32px' }}>
+    <div className="app-shell">
+      <Topbar seccion="Capacitación" />
+      <div className="app-body">
+        <Sidebar />
+        <main className="main-content" style={{ background: 'var(--cd-page-bg)', padding: '24px 32px' }}>
 
           {/* Encabezado con botón volver */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <button onClick={() => navigate(-1)}
-              style={{ background: '#fff', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#555' }}>
+              style={{ background: 'var(--cd-card-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--cd-text-sec)' }}>
               <Icon icon="lucide:arrow-left" width={14} /> Volver
             </button>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>{curso?.nombre || '...'}</div>
-              {curso?.area && <div style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{curso.area}</div>}
+              <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--cd-text)' }}>{curso?.nombre || '...'}</div>
+              {curso?.area && <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginTop: 1 }}>{curso.area}</div>}
             </div>
           </div>
 
           {cargando ? (
-            <div style={{ textAlign: 'center', color: '#888', padding: 60 }}>Cargando curso...</div>
+            <div style={{ textAlign: 'center', color: 'var(--cd-text-muted)', padding: 60 }}>Cargando curso...</div>
           ) : bloqueadoHasta ? (
             /* ── CURSO BLOQUEADO ── */
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <div style={{ background: '#fff', borderRadius: 16, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ background: 'var(--cd-card-bg)', borderRadius: 16, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <Icon icon="lucide:lock" width={56} style={{color:'#E8505B'}} />
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>Curso temporalmente bloqueado</div>
-                <div style={{ fontSize: 14, color: '#555', lineHeight: 1.6 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--cd-text)' }}>Curso temporalmente bloqueado</div>
+                <div style={{ fontSize: 14, color: 'var(--cd-text-sec)', lineHeight: 1.6 }}>
                   Has fallado este curso 2 veces. Podrás intentarlo nuevamente el{' '}
                   <strong>{bloqueadoHasta.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
                 </div>
@@ -465,17 +474,17 @@ export default function CursoDetalle() {
               <div style={{ flex: 1, minWidth: 0 }}>
 
                 {/* Tabs de pasos */}
-                <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px 0', marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ background: 'var(--cd-card-bg)', borderRadius: 12, padding: '16px 20px 0', marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                   {/* Barra de progreso */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                    <div style={{ flex: 1, height: 6, background: '#F0F0F0', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ flex: 1, height: 6, background: 'var(--cd-border-light)', borderRadius: 3, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
                     </div>
-                    <span style={{ fontSize: 12, color: '#888', flexShrink: 0 }}>{progreso}%</span>
+                    <span style={{ fontSize: 12, color: 'var(--cd-text-muted)', flexShrink: 0 }}>{progreso}%</span>
                   </div>
 
                   {/* Pasos */}
-                  <div style={{ display: 'flex', gap: 0, borderTop: '0.5px solid #F0F0F0', marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 0, borderTop: '0.5px solid var(--cd-border-light)', marginTop: 4 }}>
                     {pasos.map((p, i) => {
                       const activo = p.key === paso
                       const hecho = i < pasoIdx
@@ -491,7 +500,7 @@ export default function CursoDetalle() {
                             background: 'none', border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer',
                             padding: '10px 18px', fontSize: 13,
                             fontWeight: activo ? 600 : 400,
-                            color: bloqueado ? '#ccc' : activo ? '#2B4BA0' : hecho ? '#22C55E' : '#888',
+                            color: bloqueado ? '#ccc' : activo ? '#2B4BA0' : hecho ? '#22C55E' : 'var(--cd-text-muted)',
                             borderBottom: activo ? '2px solid #2B4BA0' : hecho ? '2px solid #22C55E' : '2px solid transparent',
                             display: 'flex', alignItems: 'center', gap: 5
                           }}>
@@ -505,24 +514,25 @@ export default function CursoDetalle() {
                 </div>
 
                 {/* Contenido del paso */}
-                <div style={{ background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ background: 'var(--cd-card-bg)', borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
 
                   {paso === 'video' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                      <div style={{ fontSize: 13, color: '#555', fontWeight: 500 }}>
+                      <div style={{ fontSize: 13, color: 'var(--cd-text-sec)', fontWeight: 500 }}>
                         Mira el video introductorio antes de comenzar los módulos.
                       </div>
                       <video
+                        key={videoIntroUrl}
                         ref={videoRef}
                         controls
                         style={{ width: '100%', borderRadius: 12, background: '#000', maxHeight: 480 }}
                         onEnded={() => setVideoVisto(true)}
                       >
-                        <source src={fileUrl(curso.video_intro_url)} type="video/mp4" />
-                        <source src={fileUrl(curso.video_intro_url)} type="video/webm" />
+                        {videoIntroUrl && <source src={videoIntroUrl} type="video/mp4" />}
+                        {videoIntroUrl && <source src={videoIntroUrl} type="video/webm" />}
                       </video>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 12, color: '#888' }}>
+                        <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>
                           {videoVisto
                             ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:3,color:'#16A34A'}} /> Video completado</>
                             : 'El video debe terminar para continuar.'}
@@ -549,13 +559,13 @@ export default function CursoDetalle() {
                   {paso === 'modulos' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                       {!curso?.modulos?.length ? (
-                        <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>No hay módulos en este curso.</div>
+                        <div style={{ textAlign: 'center', color: 'var(--cd-text-muted)', padding: 32 }}>No hay módulos en este curso.</div>
                       ) : (
                         <>
                           {/* ── Pestañas de módulos ── */}
                           <div style={{
                             display: 'flex', overflowX: 'auto', gap: 0,
-                            borderBottom: '1.5px solid #F0F0F0', marginBottom: 20,
+                            borderBottom: '1.5px solid var(--cd-border-light)', marginBottom: 20,
                             scrollbarWidth: 'none'
                           }}>
                             {curso.modulos.map((mod, i) => {
@@ -569,15 +579,15 @@ export default function CursoDetalle() {
                                     padding: '10px 16px', cursor: 'pointer',
                                     borderBottom: activo ? '2px solid #2B4BA0' : completo ? '2px solid #22C55E' : '2px solid transparent',
                                     display: 'flex', alignItems: 'center', gap: 7,
-                                    color: activo ? '#2B4BA0' : completo ? '#16A34A' : '#666',
+                                    color: activo ? '#2B4BA0' : completo ? '#16A34A' : 'var(--cd-text-sec)',
                                     fontWeight: activo ? 600 : 400, fontSize: 13,
                                     maxWidth: 200, marginBottom: -1.5,
                                     whiteSpace: 'nowrap'
                                   }}>
                                   <span style={{
                                     width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                                    background: activo ? '#2B4BA0' : completo ? '#22C55E' : '#E8E8E8',
-                                    color: activo || completo ? '#fff' : '#888',
+                                    background: activo ? '#2B4BA0' : completo ? '#22C55E' : 'var(--cd-border)',
+                                    color: activo || completo ? '#fff' : 'var(--cd-text-muted)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     fontSize: 10, fontWeight: 700
                                   }}>
@@ -612,13 +622,13 @@ export default function CursoDetalle() {
                                         ? <Icon icon="lucide:video" width={16} style={{color:'#2B4BA0'}} />
                                         : mod.tipo === 'pdf'
                                           ? <Icon icon="lucide:file-text" width={16} style={{color:'#E8505B'}} />
-                                          : <Icon icon="lucide:presentation" width={16} style={{color:'#888'}} />}
+                                          : <Icon icon="lucide:presentation" width={16} style={{color:'var(--cd-text-muted)'}} />}
                                   </div>
                                   <div>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: completo ? '#15803D' : '#1a1a1a' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: completo ? '#15803D' : 'var(--cd-text)' }}>
                                       {i + 1}. {mod.titulo}
                                     </div>
-                                    {mod.descripcion && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{mod.descripcion}</div>}
+                                    {mod.descripcion && <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginTop: 2 }}>{mod.descripcion}</div>}
                                   </div>
                                   {completo && (
                                     <span style={{ marginLeft: 'auto', fontSize: 12, color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '4px 10px' }}>
@@ -660,8 +670,8 @@ export default function CursoDetalle() {
                                   }
 
                                   return (
-                                    <div style={{ marginTop: 28, borderTop: '0.5px solid #F0F0F0', paddingTop: 20 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 600, color: '#444', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ marginTop: 28, borderTop: '0.5px solid var(--cd-border-light)', paddingTop: 20 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--cd-text)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <Icon icon="lucide:message-circle" width={15} style={{color:'#2B4BA0'}} />
                                         Preguntas y comentarios
                                         {coms.length > 0 && (
@@ -673,19 +683,19 @@ export default function CursoDetalle() {
 
                                       {/* Lista de comentarios raíz */}
                                       {raices.length === 0 && (
-                                        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 14 }}>
+                                        <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginBottom: 14 }}>
                                           Sé el primero en preguntar o comentar sobre este módulo.
                                         </div>
                                       )}
                                       {raices.map(com => (
                                         <div key={com.id} style={{ marginBottom: 14 }}>
                                           {/* Comentario raíz */}
-                                          <div style={{ background: '#F9FAFB', border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '10px 14px' }}>
+                                          <div style={{ background: 'var(--cd-subtle-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 10, padding: '10px 14px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                              <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{com.autor_nombre}</span>
-                                              <span style={{ fontSize: 11, color: '#aaa' }}>{fmtFecha(com.creado_en)}</span>
+                                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text)' }}>{com.autor_nombre}</span>
+                                              <span style={{ fontSize: 11, color: 'var(--cd-text-muted)' }}>{fmtFecha(com.creado_en)}</span>
                                             </div>
-                                            <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, wordBreak: 'break-word' }}>{com.texto}</div>
+                                            <div style={{ fontSize: 13, color: 'var(--cd-text)', lineHeight: 1.6, wordBreak: 'break-word' }}>{com.texto}</div>
                                             <button
                                               onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: prev[mod.id] === com.id ? null : com.id }))}
                                               style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: '#2B4BA0', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -695,12 +705,12 @@ export default function CursoDetalle() {
 
                                           {/* Respuestas hijas */}
                                           {respuestasDe(com.id).map(rep => (
-                                            <div key={rep.id} style={{ marginLeft: 24, marginTop: 6, background: '#fff', border: '0.5px solid #E8E8E8', borderRadius: 10, padding: '8px 12px' }}>
+                                            <div key={rep.id} style={{ marginLeft: 24, marginTop: 6, background: 'var(--cd-card-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 10, padding: '8px 12px' }}>
                                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>{rep.autor_nombre}</span>
-                                                <span style={{ fontSize: 11, color: '#aaa' }}>{fmtFecha(rep.creado_en)}</span>
+                                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text)' }}>{rep.autor_nombre}</span>
+                                                <span style={{ fontSize: 11, color: 'var(--cd-text-muted)' }}>{fmtFecha(rep.creado_en)}</span>
                                               </div>
-                                              <div style={{ fontSize: 13, color: '#444', lineHeight: 1.6, wordBreak: 'break-word' }}>{rep.texto}</div>
+                                              <div style={{ fontSize: 13, color: 'var(--cd-text)', lineHeight: 1.6, wordBreak: 'break-word' }}>{rep.texto}</div>
                                             </div>
                                           ))}
 
@@ -712,7 +722,7 @@ export default function CursoDetalle() {
                                                 onChange={e => setReplyTexto(prev => ({ ...prev, [mod.id]: e.target.value }))}
                                                 placeholder="Escribe una respuesta..."
                                                 rows={2}
-                                                style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid #D0D5DD', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                                                style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid var(--cd-border)', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                                               />
                                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                                 <button
@@ -723,7 +733,7 @@ export default function CursoDetalle() {
                                                 </button>
                                                 <button
                                                   onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: null }))}
-                                                  style={{ background: '#F4F5F7', color: '#555', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                                                  style={{ background: 'var(--cd-subtle-bg)', color: 'var(--cd-text-sec)', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
                                                   Cancelar
                                                 </button>
                                               </div>
@@ -739,7 +749,7 @@ export default function CursoDetalle() {
                                           onChange={e => setTextoPorModulo(prev => ({ ...prev, [mod.id]: e.target.value }))}
                                           placeholder="Escribe una pregunta o comentario sobre este módulo..."
                                           rows={2}
-                                          style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid #D0D5DD', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                                          style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid var(--cd-border)', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                                         />
                                         <button
                                           onClick={() => enviarComentario(mod.id, textoInput, null)}
@@ -758,7 +768,7 @@ export default function CursoDetalle() {
 
                           {/* Botón ir a evaluación */}
                           {curso?.preguntas?.length > 0 && (
-                            <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 20, borderTop: '0.5px solid #F0F0F0' }}>
+                            <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 20, borderTop: '0.5px solid var(--cd-border-light)' }}>
                               {todosModulosCompletos ? (
                                 <button onClick={() => setPaso('evaluacion')} style={{
                                   background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10,
@@ -767,7 +777,7 @@ export default function CursoDetalle() {
                                   <>Ir a la evaluación <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
                                 </button>
                               ) : (
-                                <div style={{ fontSize: 12, color: '#888', background: '#F9F9F9', borderRadius: 10, padding: '10px 20px', display: 'inline-block' }}>
+                                <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', background: 'var(--cd-subtle-bg)', borderRadius: 10, padding: '10px 20px', display: 'inline-block' }}>
                                   <><Icon icon="lucide:lock" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Completa todos los módulos para acceder a la evaluación</>
                                   {' '}({completados.size}/{curso.modulos.length} completados)
                                 </div>
@@ -787,7 +797,7 @@ export default function CursoDetalle() {
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
                               <Icon icon="lucide:trophy" width={64} style={{color:'#F5A623'}} />
                               <div style={{ fontSize: 22, fontWeight: 700, color: '#15803D' }}>¡Curso finalizado!</div>
-                              <div style={{ fontSize: 14, color: '#555' }}>{curso?.nombre}</div>
+                              <div style={{ fontSize: 14, color: 'var(--cd-text-sec)' }}>{curso?.nombre}</div>
                               <div style={{
                                 background: 'linear-gradient(135deg, #1E3A6E 0%, #2B4BA0 100%)',
                                 borderRadius: 16, padding: '24px 40px', color: '#fff', width: '100%', maxWidth: 340
@@ -801,16 +811,16 @@ export default function CursoDetalle() {
                                 </div>
                               </div>
                               <div style={{ width: '100%', maxWidth: 340 }}>
-                                <div style={{ height: 8, background: '#E8E8E8', borderRadius: 4, overflow: 'hidden' }}>
+                                <div style={{ height: 8, background: 'var(--cd-border)', borderRadius: 4, overflow: 'hidden' }}>
                                   <div style={{
                                     height: '100%', borderRadius: 4, transition: 'width 0.8s ease',
                                     width: `${resultado.score}%`,
                                     background: resultado.score >= 80 ? '#22C55E' : resultado.score >= 60 ? '#F5A623' : '#E8505B'
                                   }} />
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#aaa', marginTop: 4 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--cd-text-muted)', marginTop: 4 }}>
                                   <span>0%</span>
-                                  <span style={{ color: '#888' }}>Mínimo aprobación: 60%</span>
+                                  <span style={{ color: 'var(--cd-text-muted)' }}>Mínimo aprobación: 60%</span>
                                   <span>100%</span>
                                 </div>
                               </div>
@@ -835,18 +845,18 @@ export default function CursoDetalle() {
                               <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 14, padding: '20px 32px', width: '100%', maxWidth: 320 }}>
                                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#E8505B', letterSpacing: '0.08em', marginBottom: 6 }}>Tu puntaje</div>
                                 <div style={{ fontSize: 44, fontWeight: 800, color: '#E8505B', lineHeight: 1 }}>{resultado.score}%</div>
-                                <div style={{ fontSize: 13, color: '#888', marginTop: 6 }}>
+                                <div style={{ fontSize: 13, color: 'var(--cd-text-muted)', marginTop: 6 }}>
                                   {resultado.correctas} de {resultado.total} correctas · Necesitas 60% para aprobar
                                 </div>
                               </div>
                               <div style={{
                                 display: 'flex', alignItems: 'center', gap: 8,
-                                background: intentosRestantes <= 0 ? '#FFF5F5' : '#F9F9F9',
-                                border: `1px solid ${intentosRestantes <= 0 ? '#FECACA' : '#E8E8E8'}`,
+                                background: intentosRestantes <= 0 ? '#FFF5F5' : 'var(--cd-subtle-bg)',
+                                border: `1px solid ${intentosRestantes <= 0 ? '#FECACA' : 'var(--cd-border)'}`,
                                 borderRadius: 10, padding: '10px 20px', fontSize: 13
                               }}>
-                                <Icon icon="lucide:refresh-cw" width={14} style={{color: intentosRestantes <= 0 ? '#E8505B' : '#888'}} />
-                                <span style={{ color: intentosRestantes <= 0 ? '#E8505B' : '#555', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
+                                <Icon icon="lucide:refresh-cw" width={14} style={{color: intentosRestantes <= 0 ? '#E8505B' : 'var(--cd-text-muted)'}} />
+                                <span style={{ color: intentosRestantes <= 0 ? '#E8505B' : 'var(--cd-text-sec)', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
                                   Intentos restantes: <strong>{intentosRestantes}/2</strong>
                                 </span>
                               </div>
@@ -865,11 +875,11 @@ export default function CursoDetalle() {
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                          <div style={{ fontSize: 13, color: '#666' }}>
+                          <div style={{ fontSize: 13, color: 'var(--cd-text-sec)' }}>
                             Responde todas las preguntas. Necesitas al menos 60% para aprobar.
                           </div>
                           {curso.preguntas.map((preg, pi) => (
-                            <div key={preg.id} style={{ border: '0.5px solid #E8E8E8', borderRadius: 10, padding: 16 }}>
+                            <div key={preg.id} style={{ border: '0.5px solid var(--cd-border)', borderRadius: 10, padding: 16 }}>
                               <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{pi + 1}. {preg.texto}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {(preg.alternativas || []).filter(alt => alt?.texto?.trim()).slice(0, 4).map((alt, ai) => {
@@ -878,8 +888,8 @@ export default function CursoDetalle() {
                                     <label key={ai} style={{
                                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
                                       borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                                      background: sel ? '#EEF2FF' : '#F9F9F9',
-                                      border: `1px solid ${sel ? '#2B4BA0' : '#E8E8E8'}`
+                                      background: sel ? '#EEF2FF' : 'var(--cd-subtle-bg)',
+                                      border: `1px solid ${sel ? '#2B4BA0' : 'var(--cd-border)'}`
                                     }}>
                                       <input type="radio" name={`preg-${preg.id}`} checked={sel}
                                         onChange={() => setRespuestas(prev => ({ ...prev, [preg.id]: ai }))}
@@ -909,40 +919,40 @@ export default function CursoDetalle() {
 
               {/* Panel lateral: info del curso */}
               <div style={{ width: 260, flexShrink: 0 }}>
-                <div style={{ background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>Información del curso</div>
+                <div style={{ background: 'var(--cd-card-bg)', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>Información del curso</div>
                   {curso?.profesor_nombre && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <Icon icon="lucide:user" width={14} style={{color:'#888',flexShrink:0}} />
-                      <span style={{ fontSize: 12, color: '#555' }}>Prof. {curso.profesor_nombre}</span>
+                      <Icon icon="lucide:user" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
+                      <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>Prof. {curso.profesor_nombre}</span>
                     </div>
                   )}
                   {curso?.area && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <Icon icon="lucide:tag" width={14} style={{color:'#888',flexShrink:0}} />
-                      <span style={{ fontSize: 12, color: '#555' }}>{curso.area}</span>
+                      <Icon icon="lucide:tag" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
+                      <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>{curso.area}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                    <Icon icon="lucide:layers" width={14} style={{color:'#888',flexShrink:0}} />
-                    <span style={{ fontSize: 12, color: '#555' }}>{curso?.modulos?.length || 0} módulo{curso?.modulos?.length !== 1 ? 's' : ''}</span>
+                    <Icon icon="lucide:layers" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
+                    <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>{curso?.modulos?.length || 0} módulo{curso?.modulos?.length !== 1 ? 's' : ''}</span>
                   </div>
                   {curso?.preguntas?.length > 0 && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <Icon icon="lucide:help-circle" width={14} style={{color:'#888',flexShrink:0}} />
-                      <span style={{ fontSize: 12, color: '#555' }}>{curso.preguntas.length} preguntas de evaluación</span>
+                      <Icon icon="lucide:help-circle" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
+                      <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>{curso.preguntas.length} preguntas de evaluación</span>
                     </div>
                   )}
 
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '0.5px solid #F0F0F0' }}>
-                    <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Tu progreso</div>
-                    <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '0.5px solid var(--cd-border-light)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--cd-text-muted)', marginBottom: 6 }}>Tu progreso</div>
+                    <div style={{ height: 6, background: 'var(--cd-border-light)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
                       <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
                     </div>
-                    <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : '#555', fontWeight: 500 }}>{progreso}% completado</div>
+                    <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : 'var(--cd-text-sec)', fontWeight: 500 }}>{progreso}% completado</div>
                   </div>
                   {esperandoPractico && !resultado && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #F0F0F0', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--cd-border-light)', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
                       <Icon icon="lucide:clock" width={14} style={{flexShrink:0, marginTop:1}} />
                       <span>Has aprobado la evaluación. Falta asistir al práctico para certificarte.</span>
                     </div>

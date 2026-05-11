@@ -1,21 +1,32 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.MAIL_USER || 'omegabarra3236@gmail.com',
-    pass: process.env.MAIL_PASS
-  },
-  tls: { rejectUnauthorized: false }
-});
+// Resend usa HTTPS — no le afecta el bloqueo de SMTP saliente de Railway
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// Remitente: requiere dominio verificado en Resend para enviar a cualquier email.
+// En modo test (sin dominio verificado), usar 'onboarding@resend.dev' — solo entrega
+// al email de la cuenta Resend del usuario.
+const FROM_NAME  = process.env.MAIL_FROM_NAME || 'ALUMCO';
+const FROM_EMAIL = process.env.MAIL_FROM      || 'onboarding@resend.dev';
+const FROM       = `${FROM_NAME} <${FROM_EMAIL}>`;
+
+if (!process.env.RESEND_API_KEY) {
+  console.warn('[mailer] RESEND_API_KEY no está configurado. Los correos NO se enviarán.');
+} else {
+  console.log(`[mailer] Resend listo (from: ${FROM_EMAIL})`);
+}
+
+async function sendMail({ to, subject, html }) {
+  if (!resend) throw new Error('RESEND_API_KEY no configurado');
+  const { data, error } = await resend.emails.send({ from: FROM, to, subject, html });
+  if (error) throw new Error(error.message || JSON.stringify(error));
+  return data;
+}
 
 async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, cursoId, modulosCount, preguntasCount, nombreArchivo, subidoPor }) {
-  const destinatario = profesorEmail || process.env.MAIL_USER || 'omegabarra3236@gmail.com';
+  const destinatario = profesorEmail || FROM_EMAIL;
 
-  await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+  await sendMail({
     to: destinatario,
     subject: `[ALUMCO] Nuevo borrador de curso: ${cursoNombre}`,
     html: `
@@ -61,8 +72,7 @@ async function notificarProfesor({ profesorEmail, profesorNombre, cursoNombre, c
 }
 
 async function enviarResetPassword(email, link, nombre) {
-  await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+  await sendMail({
     to: email,
     subject: '[ALUMCO] Recuperación de contraseña',
     html: `
@@ -96,19 +106,18 @@ async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
   const listaCursos = cursosPendientes
     .map(c => `<li style="padding:4px 0; font-size:13px; color:#333;">${c}</li>`)
     .join('');
-  await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+  await sendMail({
     to: email,
-    subject: '[ALUMCO] Recordatorio: tienes capacitaciones pendientes',
+    subject: '[ALUMCO] Recordatorio: tienes cursos obligatorios pendientes',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
-          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Capacitaciones pendientes</h1>
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Cursos obligatorios pendientes</h1>
         </div>
         <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
           <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
           <p style="color: #555; font-size: 14px; line-height: 1.6;">
-            Te recordamos que tienes los siguientes cursos asignados pendientes de completar:
+            Te recordamos que tienes los siguientes cursos <strong>obligatorios</strong> pendientes de completar:
           </p>
           <ul style="margin: 16px 0; padding-left: 20px; border-left: 3px solid #2B4BA0;">
             ${listaCursos}
@@ -126,8 +135,7 @@ async function enviarRecordatorioCertificados(email, nombre, cursosPendientes) {
 }
 
 async function enviarBloqueo(email, nombreDestinatario, nombreColab, nombreCurso) {
-  await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+  await sendMail({
     to: email,
     subject: `[ALUMCO] Colaborador bloqueado en "${nombreCurso}"`,
     html: `
@@ -156,8 +164,7 @@ async function enviarBloqueo(email, nombreDestinatario, nombreColab, nombreCurso
 }
 
 async function enviarDesbloqueo(email, nombreColab, nombreCurso) {
-  await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME || 'ALUMCO'}" <${process.env.MAIL_USER || 'omegabarra3236@gmail.com'}>`,
+  await sendMail({
     to: email,
     subject: `[ALUMCO] Tu acceso al curso "${nombreCurso}" ha sido restaurado`,
     html: `
@@ -180,4 +187,60 @@ async function enviarDesbloqueo(email, nombreColab, nombreCurso) {
   });
 }
 
-module.exports = { notificarProfesor, enviarResetPassword, enviarRecordatorioCertificados, enviarBloqueo, enviarDesbloqueo };
+async function enviarPracticoAsignado({ email, nombre, titulo, cursoNombre, fechaFormateada, horaInicio, horaFin, lugar, descripcion }) {
+  const horario = horaFin ? `${horaInicio} — ${horaFin}` : horaInicio;
+  await sendMail({
+    to: email,
+    subject: `[ALUMCO] Práctico programado: ${titulo}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1E3A6E; padding: 24px 32px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: #fff; margin: 0; font-size: 20px;">ALUMCO — Práctico programado</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 28px 32px; border-radius: 0 0 10px 10px; border: 1px solid #e8e8e8;">
+          <p style="color: #333; font-size: 15px;">Hola <strong>${nombre}</strong>,</p>
+          <p style="color: #555; font-size: 14px; line-height: 1.6;">
+            Se ha programado un práctico al que estás asignado(a). Te dejamos los detalles a continuación:
+          </p>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr style="background: #fff; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px 14px; font-size: 13px; color: #888; width: 35%;">Práctico</td>
+              <td style="padding: 10px 14px; font-size: 13px; color: #222; font-weight: bold;">${titulo}</td>
+            </tr>
+            ${cursoNombre ? `
+            <tr style="background: #f4f5f7; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px 14px; font-size: 13px; color: #888;">Curso</td>
+              <td style="padding: 10px 14px; font-size: 13px; color: #222;">${cursoNombre}</td>
+            </tr>` : ''}
+            <tr style="background: #fff; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px 14px; font-size: 13px; color: #888;">Fecha</td>
+              <td style="padding: 10px 14px; font-size: 13px; color: #222;">${fechaFormateada}</td>
+            </tr>
+            <tr style="background: #f4f5f7; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px 14px; font-size: 13px; color: #888;">Horario</td>
+              <td style="padding: 10px 14px; font-size: 13px; color: #222;">${horario}</td>
+            </tr>
+            ${lugar ? `
+            <tr style="background: #fff; border-bottom: 1px solid #eee;">
+              <td style="padding: 10px 14px; font-size: 13px; color: #888;">Lugar</td>
+              <td style="padding: 10px 14px; font-size: 13px; color: #222;">${lugar}</td>
+            </tr>` : ''}
+            ${descripcion ? `
+            <tr style="background: #f4f5f7;">
+              <td style="padding: 10px 14px; font-size: 13px; color: #888;">Detalles</td>
+              <td style="padding: 10px 14px; font-size: 13px; color: #222;">${descripcion}</td>
+            </tr>` : ''}
+          </table>
+          <p style="color: #555; font-size: 13px; margin-top: 20px;">
+            Ingresa al sistema ALUMCO para más información.
+          </p>
+          <p style="color: #aaa; font-size: 12px; margin-top: 20px;">
+            Este es un aviso automático del sistema de capacitación ALUMCO.
+          </p>
+        </div>
+      </div>
+    `
+  });
+}
+
+module.exports = { notificarProfesor, enviarResetPassword, enviarRecordatorioCertificados, enviarBloqueo, enviarDesbloqueo, enviarPracticoAsignado };

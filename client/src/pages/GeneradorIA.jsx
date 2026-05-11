@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 import MascotaFoye from '../components/MascotaFoye'
 
 // ── buildSlides: usa diapositivas IA si existen ──────────────────────────────
@@ -117,7 +119,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
           <label style={lbl}>Imagen del protocolo (opcional)</label>
           {slide.imagen && (
             <div style={{ marginBottom: 8, position: 'relative', display: 'inline-block' }}>
-              <img src={slide.imagen} alt="seleccionada" style={{ height: 80, borderRadius: 6, border: '2px solid #2B4BA0', objectFit: 'cover' }} />
+              <SignedImage src={slide.imagen} alt="seleccionada" style={{ height: 80, borderRadius: 6, border: '2px solid #2B4BA0', objectFit: 'cover' }} />
               <button onClick={() => upd('imagen', null)} style={{
                 position: 'absolute', top: -6, right: -6, width: 18, height: 18,
                 borderRadius: '50%', background: '#E8505B', color: '#fff', border: 'none',
@@ -127,7 +129,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
             {imagenes.map((url, k) => (
-              <img key={k} src={url} alt={`pág ${k + 1}`}
+              <SignedImage key={k} src={url} alt={`pág ${k + 1}`}
                 onClick={() => upd('imagen', url)}
                 style={{
                   width: '100%', height: 60, objectFit: 'cover', borderRadius: 5, cursor: 'pointer',
@@ -139,6 +141,45 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ── SignedImage: prueba la URL pública primero, cae a signed URL si falla ───
+// Las imágenes se suben a S3 con ACL public-read; la mayoría carga directo.
+// Solo si el browser no puede descargar la URL pública (bucket policy no
+// aplicada, etc.) pedimos una signed URL al backend como respaldo.
+function SignedImage({ src: rawSrc, ...imgProps }) {
+  const [src, setSrc] = useState('')
+  const [intentoSigned, setIntentoSigned] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setFailed(false)
+    setIntentoSigned(false)
+    setSrc(rawSrc || '')
+  }, [rawSrc])
+
+  if (failed || !src) return null
+
+  return (
+    <img
+      src={src}
+      onError={() => {
+        // Primer fallo: intentar con signed URL si es una URL S3 http
+        if (!intentoSigned && rawSrc?.startsWith('http')) {
+          setIntentoSigned(true)
+          api.get('/ia/imagen-signed', { params: { url: rawSrc } })
+            .then(r => {
+              if (typeof r.data?.url === 'string' && r.data.url) setSrc(r.data.url)
+              else setFailed(true)
+            })
+            .catch(() => setFailed(true))
+        } else {
+          setFailed(true)
+        }
+      }}
+      {...imgProps}
+    />
   )
 }
 
@@ -273,7 +314,7 @@ export function Slide({ slide, total, actual }) {
       {/* ── IMAGEN DEL PROTOCOLO (en cualquier slide) ── */}
       {slide.imagen && (
         <div style={{ marginTop: 16, borderRadius: 8, overflow: 'hidden', maxHeight: 180, display: 'flex', justifyContent: 'center' }}>
-          <img src={slide.imagen} alt="Imagen del protocolo" style={{ maxHeight: 180, maxWidth: '100%', objectFit: 'contain', borderRadius: 8 }} />
+          <SignedImage src={slide.imagen} alt="Imagen del protocolo" style={{ maxHeight: 180, maxWidth: '100%', objectFit: 'contain', borderRadius: 8 }} />
         </div>
       )}
 
@@ -315,6 +356,8 @@ function guardarFormStorage(data) {
 export default function GeneradorIA() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
+  const toast = useToast()
+  const confirm = useConfirm()
   const [archivo, setArchivo] = useState(null)
   const [form, setForm] = useState(() => {
     const s = leerFormStorage()
@@ -515,12 +558,18 @@ export default function GeneradorIA() {
       setResultado(prev => ({ ...prev, nombre: borradorEdit.nombre, descripcion: borradorEdit.descripcion, modulos: borradorEdit.modulos }))
       setModoEdicion(false)
     } catch {
-      alert('Error al guardar los cambios')
+      toast.error('Error al guardar los cambios')
     } finally { setGuardando(false) }
   }
 
   const descartarBorrador = async () => {
-    if (!confirm('¿Seguro que deseas descartar este borrador? Se eliminará permanentemente.')) return
+    const ok = await confirm({
+      title: 'Descartar borrador',
+      message: 'El borrador generado por IA se eliminará permanentemente. Esta acción no se puede deshacer.',
+      confirmText: 'Descartar',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.delete(`/cursos/${resultado.curso_id}`)
       setResultado(null)
@@ -529,7 +578,7 @@ export default function GeneradorIA() {
       setModoEdicion(false)
       setEnviado(false)
     } catch {
-      alert('Error al descartar el borrador')
+      toast.error('Error al descartar el borrador')
     }
   }
 
@@ -947,12 +996,10 @@ export default function GeneradorIA() {
                                   </div>
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
                                     {resultado.imagenes_protocolo.map((url, k) => (
-                                      <a key={k} href={url} target="_blank" rel="noreferrer">
-                                        <img src={url} alt={`Imagen ${k + 1}`} style={{
-                                          width: '100%', borderRadius: 6, border: '0.5px solid #E8E8E8',
-                                          objectFit: 'cover', maxHeight: 120, cursor: 'pointer'
-                                        }} />
-                                      </a>
+                                      <SignedImage key={k} src={url} alt={`Imagen ${k + 1}`} style={{
+                                        width: '100%', borderRadius: 6, border: '0.5px solid #E8E8E8',
+                                        objectFit: 'cover', maxHeight: 120, cursor: 'pointer'
+                                      }} />
                                     ))}
                                   </div>
                                 </div>
@@ -1217,7 +1264,7 @@ export default function GeneradorIA() {
                             guardarFormStorage(null)
                             setTimeout(() => navigate('/jefatura'), 1500)
                           } catch {
-                            alert('No se pudo enviar la notificación. Verifica la configuración de email.')
+                            toast.error('No se pudo enviar la notificación. Verifica la configuración de email.')
                           } finally { setEnviando(false) }
                         }}>
                         {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}
