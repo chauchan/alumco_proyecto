@@ -5,6 +5,8 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 import MascotaFoye from '../components/MascotaFoye'
 
 // ── buildSlides: usa diapositivas IA si existen ──────────────────────────────
@@ -354,6 +356,8 @@ function guardarFormStorage(data) {
 export default function GeneradorIA() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
+  const toast = useToast()
+  const confirm = useConfirm()
   const [archivo, setArchivo] = useState(null)
   const [form, setForm] = useState(() => {
     const s = leerFormStorage()
@@ -554,12 +558,18 @@ export default function GeneradorIA() {
       setResultado(prev => ({ ...prev, nombre: borradorEdit.nombre, descripcion: borradorEdit.descripcion, modulos: borradorEdit.modulos }))
       setModoEdicion(false)
     } catch {
-      alert('Error al guardar los cambios')
+      toast.error('Error al guardar los cambios')
     } finally { setGuardando(false) }
   }
 
   const descartarBorrador = async () => {
-    if (!confirm('¿Seguro que deseas descartar este borrador? Se eliminará permanentemente.')) return
+    const ok = await confirm({
+      title: 'Descartar borrador',
+      message: 'El borrador generado por IA se eliminará permanentemente. Esta acción no se puede deshacer.',
+      confirmText: 'Descartar',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.delete(`/cursos/${resultado.curso_id}`)
       setResultado(null)
@@ -568,7 +578,7 @@ export default function GeneradorIA() {
       setModoEdicion(false)
       setEnviado(false)
     } catch {
-      alert('Error al descartar el borrador')
+      toast.error('Error al descartar el borrador')
     }
   }
 
@@ -1254,7 +1264,7 @@ export default function GeneradorIA() {
                             guardarFormStorage(null)
                             setTimeout(() => navigate('/jefatura'), 1500)
                           } catch {
-                            alert('No se pudo enviar la notificación. Verifica la configuración de email.')
+                            toast.error('No se pudo enviar la notificación. Verifica la configuración de email.')
                           } finally { setEnviando(false) }
                         }}>
                         {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}

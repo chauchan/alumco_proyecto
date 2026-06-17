@@ -56,7 +56,9 @@ export default function Colaborador() {
               <div className="greeting-name" style={{ fontSize:17, fontWeight:500, color:'#fff' }}>
                 Hola, {usuario?.nombre?.split(' ')[0]}
               </div>
-              
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:4, textTransform:'capitalize' }}>
+                {new Date().toLocaleDateString('es-CL', { weekday:'long', day:'numeric', month:'long' })}
+              </div>
             </div>
             <div className="greeting-badge">
               <div style={{ fontSize:22, fontWeight:500, color:'#F5A623' }}>{pendientes.length}</div>
@@ -93,7 +95,9 @@ export default function Colaborador() {
               </div>
             ) : pendientes.map(curso => (
               <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
-                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0 }} />
+                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon="lucide:book-open" width={18} style={{ color:'#E8505B' }} />
+                </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {curso.nombre}
@@ -120,11 +124,13 @@ export default function Colaborador() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Certificados recientes</span>
-              <span className="card-link">Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span className="card-link" onClick={() => navigate('/mis-certificados')} style={{ cursor:'pointer' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {certAprobados.slice(0,3).map(cert => (
               <div key={cert.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
-                <div style={{ width:32, height:32, background:'#EEF2FF', borderRadius:8, flexShrink:0 }} />
+                <div style={{ width:32, height:32, background:'#EEF2FF', borderRadius:8, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon="lucide:award" width={16} style={{ color:'#2B4BA0' }} />
+                </div>
                 <span style={{ flex:1, fontSize:13 }}>{cert.curso_nombre}</span>
                 <span style={{ fontSize:11, color:'#888' }}>
                   {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}

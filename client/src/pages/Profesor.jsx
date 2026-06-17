@@ -7,6 +7,7 @@ import api from '../services/api'
 import { Slide, SlideEditor } from './GeneradorIA'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { useConfirm } from '../context/ConfirmContext'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -37,6 +38,7 @@ export default function Profesor() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
+  const confirm = useConfirm()
   const [cursos, setCursos] = useState([])
   const [bloqueados, setBloqueados] = useState([])
   const [desbloqueando, setDesbloqueando] = useState(new Set())
@@ -205,21 +207,28 @@ export default function Profesor() {
         setVideoIntroUrl(res.data.video_intro_url)
       }
     } catch {
-      alert('Error al subir el video')
+      toast.error('Error al subir el video')
     } finally {
       setSubiendoVideo(false)
     }
   }
 
   const eliminarVideoIntro = async () => {
-    if (!cursoDetalle || !confirm('¿Eliminar el video introductorio?')) return
+    if (!cursoDetalle) return
+    const ok = await confirm({
+      title: 'Eliminar video introductorio',
+      message: 'El video se borrará del curso. Podrás subir otro más adelante.',
+      confirmText: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setEliminandoVideo(true)
     try {
       await api.delete(`/cursos/${cursoDetalle.id}/video-intro`)
       setVideoIntroUrl(null)
       setCursoDetalle(prev => ({ ...prev, video_intro_url: null }))
     } catch {
-      alert('Error al eliminar el video')
+      toast.error('Error al eliminar el video')
     } finally {
       setEliminandoVideo(false)
     }
@@ -236,7 +245,7 @@ export default function Profesor() {
     try {
       await api.patch(`/cursos/${cursoDetalle.id}/targeting`, payload)
       setCursoDetalle(prev => ({ ...prev, ...payload }))
-    } catch (err) { alert('Error al guardar la configuración: ' + (err?.response?.data?.detalle || err?.message || 'sin detalle')) }
+    } catch (err) { toast.error('Error al guardar la configuración: ' + (err?.response?.data?.detalle || err?.message || 'sin detalle')) }
     finally { setGuardandoTargeting(false) }
   }
 
@@ -246,7 +255,7 @@ export default function Profesor() {
       await api.put(`/cursos/${cursoDetalle.id}`, { modulos: modulosEdit.map(m => ({ id: m.id, titulo: m.titulo, descripcion: m.descripcion })) })
       setCursoDetalle(prev => ({ ...prev, modulos: modulosEdit }))
       setEditandoModulos(false)
-    } catch { alert('Error al guardar módulos') }
+    } catch { toast.error('Error al guardar módulos') }
     finally { setGuardandoModulos(false) }
   }
 
@@ -261,14 +270,14 @@ export default function Profesor() {
         await api.delete(`/cursos/${cursoDetalle.id}/preguntas/${pid}`)
           .catch(e => {
             const msg = e?.response?.data?.error || ''
-            if (msg) alert(msg)
+            if (msg) toast.error(msg)
           })
       }
       const { data } = await api.get(`/cursos/${cursoDetalle.id}`)
       setCursoDetalle(prev => ({ ...prev, preguntas: data.preguntas }))
       setDeletedPregIds([])
       setEditandoPreguntas(false)
-    } catch { alert('Error al guardar preguntas') }
+    } catch { toast.error('Error al guardar preguntas') }
     finally { setGuardandoPreguntas(false) }
   }
 
@@ -302,7 +311,7 @@ export default function Profesor() {
       }))
       setPptEditando(false)
     } catch {
-      alert('Error al guardar los cambios')
+      toast.error('Error al guardar los cambios')
     } finally {
       setPptGuardando(false)
     }
@@ -310,7 +319,13 @@ export default function Profesor() {
 
   const eliminarMasivo = async () => {
     if (!seleccionados.size) return
-    if (!confirm(`¿Eliminar ${seleccionados.size} curso(s)? Esta acción no se puede deshacer.`)) return
+    const ok = await confirm({
+      title: `Eliminar ${seleccionados.size} curso${seleccionados.size === 1 ? '' : 's'}`,
+      message: 'Se eliminarán permanentemente junto con sus módulos, evaluaciones y certificados emitidos. Esta acción no se puede deshacer.',
+      confirmText: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
     setEliminandoMasivo(true)
     try {
       await Promise.all([...seleccionados].map(id => api.delete(`/cursos/${id}`)))
@@ -318,7 +333,7 @@ export default function Profesor() {
       setModoSeleccion(false)
       recargar()
     } catch {
-      alert('Error al eliminar algunos cursos')
+      toast.error('Error al eliminar algunos cursos')
     } finally {
       setEliminandoMasivo(false)
     }
@@ -811,17 +826,29 @@ export default function Profesor() {
                     <>
                       <button style={{ flex:1, height:40, background:'none', color:'#555', border:'1px solid #CCC', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
-                          if (!confirm('¿Despublicar este curso? Los colaboradores ya no podrán acceder a él.')) return
+                          const ok = await confirm({
+                            title: 'Despublicar curso',
+                            message: 'Los colaboradores ya no podrán acceder al curso. Podrás volver a publicarlo más adelante.',
+                            confirmText: 'Despublicar',
+                            danger: true,
+                          })
+                          if (!ok) return
                           try { await api.patch(`/cursos/${cursoDetalle.id}/publicar`, { publicado: false }); cerrarDetalle(); recargar() }
-                          catch { alert('Error al despublicar el curso') }
+                          catch { toast.error('Error al despublicar el curso') }
                         }}>
                         <><Icon icon="lucide:eye-off" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Despublicar</>
                       </button>
                       <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
-                          if (!confirm('¿Eliminar este curso permanentemente? Esta acción no se puede deshacer.')) return
+                          const ok = await confirm({
+                            title: 'Eliminar curso',
+                            message: 'Se eliminará el curso, sus módulos, evaluaciones y certificados emitidos. Esta acción no se puede deshacer.',
+                            confirmText: 'Eliminar',
+                            danger: true,
+                          })
+                          if (!ok) return
                           try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                          catch { alert('Error al eliminar el curso') }
+                          catch { toast.error('Error al eliminar el curso') }
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar</>
                       </button>
@@ -835,15 +862,21 @@ export default function Profesor() {
                       <button style={{ flex:1, height:40, background:'#1A7A45', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
-                          catch { alert('Error al aprobar el curso') }
+                          catch { toast.error('Error al aprobar el curso') }
                         }}>
                         <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
                       </button>
                       <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
-                          if (!confirm('¿Eliminar este borrador permanentemente?')) return
+                          const ok = await confirm({
+                            title: 'Eliminar borrador',
+                            message: 'El borrador se eliminará permanentemente.',
+                            confirmText: 'Eliminar',
+                            danger: true,
+                          })
+                          if (!ok) return
                           try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                          catch { alert('Error al eliminar el curso') }
+                          catch { toast.error('Error al eliminar el curso') }
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar borrador</>
                       </button>

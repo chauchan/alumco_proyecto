@@ -428,11 +428,11 @@ export default function CursoDetalle() {
   const pasoIdx = pasos.findIndex(p => p.key === paso)
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar />
-        <main style={{ flex: 1, overflowY: 'auto', background: 'var(--cd-page-bg)', padding: '24px 32px' }}>
+    <div className="app-shell">
+      <Topbar seccion="Capacitación" />
+      <div className="app-body">
+        <Sidebar />
+        <main className="main-content" style={{ background: 'var(--cd-page-bg)', padding: '24px 32px' }}>
 
           {/* Encabezado con botón volver */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
