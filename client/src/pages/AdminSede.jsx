@@ -85,15 +85,6 @@ export default function AdminSede() {
     }
   }
 
-  const navItems = [
-    { label:'Resumen', active:true, badge:null },
-    { label:'Colaboradores', active:false, badge:'3' },
-    { label:'Certificados', active:false, badge:null },
-    { label:'Métricas', active:false, badge:null },
-    { label:'Reportes', active:false, badge:null },
-    { label:'Configuración', active:false, badge:null },
-  ]
-
   const statusClass = (u) => {
     if (u.status === 'fallo') return 'status-fallo'
     if (u.tipo_contrato === 'reemplazo') return 'status-pend'

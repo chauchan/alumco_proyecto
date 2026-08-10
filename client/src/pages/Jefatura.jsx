@@ -64,15 +64,6 @@ export default function Jefatura() {
       .finally(() => setCargandoGraficos(false))
   }, [desde, hasta])
 
-  const navItems = [
-    { label:'Resumen global', active:true },
-    { label:'Sedes', active:false },
-    { label:'Métricas y reportes', active:false },
-    { label:'Cursos', active:false },
-    { label:'Generador IA', active:false, new:true },
-    { label:'Configuración', active:false },
-  ]
-
   const sedeColors = ['var(--azul)','var(--verde)','var(--amarillo)']
 
   const enviarRecordatoriosAhora = async () => {
