@@ -1,15 +1,24 @@
 const { S3Client, PutObjectCommand, PutBucketPolicyCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-const s3 = new S3Client({
+// Si no hay AWS_ACCESS_KEY_ID/SECRET en el entorno, el SDK usa el default
+// credential provider chain (p.ej. el instance profile de la EC2), que en
+// AWS Academy Learner Lab se renueva solo y evita el problema de las
+// credenciales temporales de sesión que expiran.
+const s3Config = {
   region: process.env.AWS_DEFAULT_REGION || 'auto',
-  endpoint: process.env.AWS_ENDPOINT_URL,
-  credentials: {
+  forcePathStyle: true,
+};
+if (process.env.AWS_ENDPOINT_URL) {
+  s3Config.endpoint = process.env.AWS_ENDPOINT_URL;
+}
+if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+  s3Config.credentials = {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-  forcePathStyle: true,
-});
+  };
+}
+const s3 = new S3Client(s3Config);
 
 const BUCKET = process.env.AWS_S3_BUCKET_NAME;
 // URL pública: endpoint + nombre del bucket
