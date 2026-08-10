@@ -393,6 +393,36 @@ textarea:focus-visible,
 svg { vertical-align: middle; }
 .iconify, svg.iconify { vertical-align: middle; flex-shrink: 0; }
 
+/* ── Tooltip de ayuda (§4 del plan) ──────────────────────────────────────────
+   Mismo componente en las 5 vistas: ícono de 14px junto al término y burbuja
+   oscura encima. La burbuja se dibuja sobre .card, que tiene overflow visible,
+   por eso basta con position:absolute y un z-index alto. */
+.tooltip-wrap { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
+.tooltip-trigger {
+  background: none; border: none; padding: 0; cursor: help;
+  color: var(--texto-muted); display: flex; align-items: center;
+  border-radius: 50%; transition: color 0.15s ease;
+}
+.tooltip-trigger:hover { color: var(--azul); }
+.tooltip-burbuja {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--azul-profundo); color: #fff; font-size: 12px; font-weight: 400;
+  line-height: 1.5; letter-spacing: normal; text-transform: none;
+  padding: 8px 11px; border-radius: var(--radius-md); width: max-content; max-width: 240px;
+  box-shadow: 0 6px 18px rgba(13,43,94,0.22); z-index: 300; pointer-events: none;
+  text-align: left; white-space: normal;
+}
+/* flecha */
+.tooltip-burbuja::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--azul-profundo);
+}
+@media (max-width: 767px) {
+  /* en móvil la burbuja centrada se sale por los bordes de la tarjeta */
+  .tooltip-burbuja { left: auto; right: -8px; transform: none; max-width: 200px; }
+  .tooltip-burbuja::after { left: auto; right: 12px; transform: none; }
+}
+
 /* Toast notifications */
 .toast-container {
   position: fixed; top: 1rem; right: 1rem; z-index: 9999;

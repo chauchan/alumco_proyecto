@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
-import api from '../services/api'
+import api, { descargarCertificado } from '../services/api'
 import { Slide } from './GeneradorIA'
 
 const fileUrl = (url) => url || ''
@@ -27,6 +27,10 @@ export default function CursoDetalle() {
 
   const [respuestas, setRespuestas] = useState({})
   const [resultado, setResultado] = useState(null)
+  // Certificado de este curso, para cerrarle el ciclo al colaborador en la
+  // misma pantalla en vez de mandarlo a buscarlo a "Mis certificados".
+  const [certificado, setCertificado] = useState(null)
+  const [buscandoCert, setBuscandoCert] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
@@ -157,6 +161,24 @@ export default function CursoDetalle() {
       .catch(() => {})
       .finally(() => setCargando(false))
   }, [cursoId])
+
+  // Al aprobar, buscar el certificado de este curso. El backend lo crea en
+  // estado 'pendiente' hasta que un profesor lo valida, así que la pantalla de
+  // cierre tiene que distinguir "ya descargable" de "en revisión": decir solo
+  // "curso finalizado" dejaba al colaborador sin saber si le faltaba algo.
+  useEffect(() => {
+    if (!resultado?.aprobado || !cursoId) return
+    setBuscandoCert(true)
+    api.get('/certificados')
+      .then(r => {
+        // Se compara por curso_id y no por nombre: dos cursos pueden llamarse
+        // igual y el colaborador se descargaría el certificado equivocado.
+        const propio = (r.data || []).find(c => String(c.curso_id) === String(cursoId))
+        setCertificado(propio || null)
+      })
+      .catch(() => setCertificado(null))
+      .finally(() => setBuscandoCert(false))
+  }, [resultado?.aprobado, cursoId])
 
   // Inicializar módulo activo al entrar al paso de módulos
   useEffect(() => {
@@ -434,6 +456,23 @@ export default function CursoDetalle() {
         <Sidebar />
         <main className="main-content" style={{ background: 'var(--cd-page-bg)', padding: '24px 32px' }}>
 
+          {/* Breadcrumb (Fase 2 del plan). El botón "Volver" usa el historial,
+              que se rompe si se llega por enlace directo o tras recargar; el
+              breadcrumb siempre apunta a la ruta real del listado. */}
+          <nav aria-label="Ruta de navegación" style={{ marginBottom: 10 }}>
+            <ol style={{ listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6, margin: 0, padding: 0, fontSize: 12, flexWrap: 'wrap' }}>
+              <li>
+                <Link to="/capacitaciones" style={{ color: 'var(--azul)' }}>Capacitaciones</Link>
+              </li>
+              <li aria-hidden="true" style={{ color: 'var(--cd-text-muted)', display: 'flex' }}>
+                <Icon icon="lucide:chevron-right" width={13} />
+              </li>
+              <li aria-current="page" style={{ color: 'var(--cd-text-sec)' }}>
+                {curso?.nombre || 'Curso'}
+              </li>
+            </ol>
+          </nav>
+
           {/* Encabezado con botón volver */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <button onClick={() => navigate(-1)}
@@ -562,6 +601,27 @@ export default function CursoDetalle() {
                         <div style={{ textAlign: 'center', color: 'var(--cd-text-muted)', padding: 32 }}>No hay módulos en este curso.</div>
                       ) : (
                         <>
+                          {/* ── Indicador "Módulo X de Y" (Fase 2 del plan) ──
+                             Las pestañas ya numeran cada módulo, pero con scroll
+                             horizontal no se ve cuántos faltan ni dónde estás. */}
+                          {(() => {
+                            const idx = curso.modulos.findIndex(m => m.id === moduloActivo)
+                            if (idx < 0) return null
+                            return (
+                              <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                gap: 12, marginBottom: 12, flexWrap: 'wrap',
+                              }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--cd-text-sec)' }}>
+                                  Módulo {idx + 1} de {curso.modulos.length}
+                                </span>
+                                <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>
+                                  {completados.size} de {curso.modulos.length} completados
+                                </span>
+                              </div>
+                            )
+                          })()}
+
                           {/* ── Pestañas de módulos ── */}
                           <div style={{
                             display: 'flex', overflowX: 'auto', gap: 0,
@@ -824,16 +884,55 @@ export default function CursoDetalle() {
                                   <span>100%</span>
                                 </div>
                               </div>
-                              <div style={{ fontSize: 12, color: 'var(--success)', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
+                              <div style={{ fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--verde)', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
+
+                              {/* Estado del certificado: cierra el ciclo aquí mismo */}
+                              {!esperandoPractico && !buscandoCert && certificado?.estado === 'aprobado' && (
+                                <div style={{
+                                  width: '100%', maxWidth: 340, background: 'var(--cd-card-bg)',
+                                  border: '1px solid var(--verde)', borderRadius: 12, padding: '16px 20px',
+                                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                                }}>
+                                  <Icon icon="lucide:award" width={28} style={{ color: 'var(--success)' }} />
+                                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--cd-text)' }}>
+                                    Tu certificado está listo
+                                  </div>
+                                  <button
+                                    onClick={() => descargarCertificado(
+                                      certificado.id,
+                                      `certificado_${(curso?.nombre || 'curso').replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`
+                                    )}
+                                    style={{
+                                      background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 10,
+                                      padding: '10px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                      display: 'flex', alignItems: 'center', gap: 7,
+                                    }}>
+                                    <Icon icon="lucide:download" width={15} />
+                                    Descargar certificado
+                                  </button>
+                                </div>
+                              )}
+                              {!esperandoPractico && !buscandoCert && certificado?.estado === 'pendiente' && (
+                                <div style={{
+                                  width: '100%', maxWidth: 340, background: 'var(--warning-bg)',
+                                  border: '1px solid var(--warning-graphic)', borderRadius: 12, padding: '12px 18px',
+                                  fontSize: 13, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 9,
+                                }}>
+                                  <Icon icon="lucide:clock" width={16} style={{ flexShrink: 0 }} />
+                                  <span>Tu certificado quedó <b>en revisión del profesor</b>. Te avisaremos cuando esté disponible en “Mis certificados”.</span>
+                                </div>
+                              )}
                               {esperandoPractico && (
                                 <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
                                   <Icon icon="lucide:clock" width={16} style={{flexShrink:0}} />
                                   Has aprobado la evaluación. Falta asistir al práctico para certificarte.
                                 </div>
                               )}
-                              <button onClick={() => navigate(-1)}
+                              {/* navigate(-1) llevaba al paso anterior del propio
+                                  curso, no al listado que promete la etiqueta. */}
+                              <button onClick={() => navigate('/capacitaciones')}
                                 style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
                                 Volver a capacitaciones
                               </button>

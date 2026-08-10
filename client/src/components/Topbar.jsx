@@ -24,6 +24,34 @@ function rutaPorTipo(n, rol) {
   return rutaInicio[rol] || '/';
 }
 
+/* Ayuda contextual por rol (Fase 2 del plan). El análisis heurístico marcó
+   "no hay ningún punto de ayuda en la plataforma" como una de las cuatro
+   brechas que atraviesan las 5 pantallas, así que vive en el topbar y no
+   dentro de una vista concreta. */
+const AYUDA_POR_ROL = {
+  colaborador: [
+    'Tus cursos pendientes aparecen en el panel de inicio, con la fecha en que vencen.',
+    'Para obtener el certificado tienes que revisar todo el contenido y aprobar la evaluación.',
+    'Si repruebas dos veces seguidas, el curso queda bloqueado y tu administrador de sede coordina un refuerzo presencial.',
+    'Tus certificados quedan guardados en “Mis certificados” y se descargan en PDF.',
+  ],
+  profesor: [
+    'En “Certificados por validar” ves la nota y el número de intento de cada evaluación antes de aprobar o rechazar.',
+    'Un curso solo es visible para los colaboradores una vez que lo publicas; mientras tanto queda como borrador.',
+    'Doble fallo significa que el colaborador reprobó dos veces seguidas la evaluación de un curso.',
+  ],
+  admin_sede: [
+    '“Alertas y acciones requeridas” agrupa a los colaboradores con doble fallo o con certificación vencida.',
+    '“Capacitados al día” son quienes tienen aprobadas todas sus capacitaciones obligatorias, sin ninguna vencida.',
+    'Puedes buscar y filtrar la lista de colaboradores, y seleccionar varios para gestionarlos de una vez.',
+  ],
+  jefatura: [
+    'La cobertura es el porcentaje de colaboradores con todas sus capacitaciones obligatorias al día.',
+    'Doble fallo significa que el colaborador reprobó dos veces seguidas la evaluación de un curso.',
+    'Puedes exportar el resumen, las sedes y los cursos a Excel desde el botón “Exportar a Excel”.',
+  ],
+}
+
 const ROLES_VISTA = [
   { rol: 'colaborador', label: 'Colaborador', color: 'var(--amarillo)', ruta: '/colaborador' },
   { rol: 'profesor',    label: 'Profesor',    color: 'var(--rojo)', ruta: '/profesor' },
@@ -37,6 +65,7 @@ export default function Topbar({ seccion }) {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [notifAbierto, setNotifAbierto] = useState(false)
   const [vistaAbierto, setVistaAbierto] = useState(false)
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const [notificaciones, setNotificaciones] = useState([])
   const [noLeidas, setNoLeidas] = useState(0)
   const { acc, toggle } = useAccesibilidad()
@@ -92,6 +121,53 @@ export default function Topbar({ seccion }) {
       <div className="topbar-right" style={{ position: 'relative' }}>
         {rolesLabel[usuario?.rol] && <span className="role-badge">{rolesLabel[usuario?.rol]}</span>}
         <span className="topbar-name">{usuario?.nombre}</span>
+
+        {/* Ayuda contextual */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setAyudaAbierta(v => !v); setMenuAbierto(false); setNotifAbierto(false); setVistaAbierto(false) }}
+            aria-label="Ayuda"
+            aria-expanded={ayudaAbierta}
+            style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: ayudaAbierta ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.15)',
+              border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+            <Icon icon="lucide:help-circle" width={16} />
+          </button>
+          {ayudaAbierta && (
+            <>
+              <div style={{ position:'fixed', inset:0, zIndex:1 }} onClick={() => setAyudaAbierta(false)} />
+              <div style={{
+                position:'absolute', top:40, right:0, width:320, zIndex:2,
+                background:'white', borderRadius:10, border:'0.5px solid var(--gris-borde)',
+                boxShadow:'0 8px 28px rgba(20,30,60,0.18)', overflow:'hidden',
+              }}>
+                <div style={{ padding:'12px 16px', borderBottom:'0.5px solid var(--gris-borde)', background:'var(--gris-fondo)' }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--texto)' }}>Ayuda de esta sección</div>
+                </div>
+                <ul style={{ listStyle:'none', margin:0, padding:'6px 0' }}>
+                  {(AYUDA_POR_ROL[usuario?.rol] || []).map((linea, i) => (
+                    <li key={i} style={{
+                      display:'flex', gap:9, padding:'9px 16px',
+                      fontSize:13, color:'var(--texto-sec)', lineHeight:1.55,
+                    }}>
+                      <Icon icon="lucide:dot" width={16} style={{ flexShrink:0, marginTop:2, color:'var(--azul)' }} />
+                      <span>{linea}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div style={{
+                  padding:'10px 16px', borderTop:'0.5px solid var(--gris-borde)',
+                  background:'var(--gris-fondo)', fontSize:12, color:'var(--texto-muted)', lineHeight:1.5,
+                }}>
+                  Los botones <b>A+</b> y <b>contraste</b>, aquí arriba, agrandan el texto y activan un modo de alto contraste.
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Botones accesibilidad */}
         <div style={{ display:'flex', gap:4, marginRight:2 }}>

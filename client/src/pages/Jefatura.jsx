@@ -9,6 +9,8 @@ import {
 } from 'recharts'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+// Se importa como Ayuda y no como Tooltip para no chocar con el Tooltip de recharts
+import Ayuda from '../components/Ayuda'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 
@@ -146,12 +148,17 @@ export default function Jefatura() {
           <div className="stats-grid-4">
             {[
               { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores totales', sub:'ambas sedes', color:'var(--azul)' },
-              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'var(--success)' },
+              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'var(--success)',
+                ayuda:'Colaboradores que tienen aprobadas todas sus capacitaciones obligatorias y ninguna vencida. Es la cobertura de capacitación de la organización.' },
               { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este período', color:'var(--warning)' },
-              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'var(--danger)' },
+              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'var(--danger)',
+                ayuda:'Suma de dos casos: quienes reprobaron dos veces seguidas la evaluación de un curso (doble fallo) y quienes tienen una certificación vencida.' },
             ].map(s => (
               <div key={s.label} className="stat-card">
-                <div className="stat-label">{s.label}</div>
+                <div className="stat-label">
+                  {s.label}
+                  {s.ayuda && <Ayuda texto={s.ayuda} etiqueta={`Qué significa: ${s.label}`} />}
+                </div>
                 <div className="stat-value" style={{ color:s.color }}>{s.val}</div>
                 <div className="stat-sub">{s.sub}</div>
               </div>
@@ -259,7 +266,13 @@ export default function Jefatura() {
 
               {/* Barra: cobertura por sede */}
               <div className="card">
-                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Cobertura por sede (%)</div>
+                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>
+                  Cobertura por sede (%)
+                  <Ayuda
+                    texto="Porcentaje de colaboradores de la sede que tienen al día todas sus capacitaciones obligatorias. No incluye los cursos optativos."
+                    etiqueta="Qué significa: cobertura por sede"
+                  />
+                </div>
                 {coberturaData.length === 0 && !cargandoGraficos
                   ? <div style={{ fontSize:11, color:'var(--texto-muted)', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
                   : (

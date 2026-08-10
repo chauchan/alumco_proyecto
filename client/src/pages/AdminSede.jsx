@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Ayuda from '../components/Ayuda'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
@@ -133,12 +134,17 @@ export default function AdminSede() {
           <div className="stats-grid-4">
             {[
               { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores activos', sub:'en esta sede', color:'var(--success)' },
-              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'con todos sus cursos', color:'var(--warning)' },
+              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'con todos sus cursos', color:'var(--warning)',
+                ayuda:'Colaboradores de tu sede que tienen aprobadas todas sus capacitaciones obligatorias y ninguna vencida.' },
               { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este trimestre', color:'var(--azul)' },
-              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o vencidos', color:'var(--danger)' },
+              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o vencidos', color:'var(--danger)',
+                ayuda:'Suma de dos casos: quienes reprobaron dos veces seguidas la evaluación de un curso (doble fallo) y quienes tienen una certificación vencida. Ambos necesitan refuerzo presencial.' },
             ].map(s => (
               <div key={s.label} className="stat-card">
-                <div className="stat-label">{s.label}</div>
+                <div className="stat-label">
+                  {s.label}
+                  {s.ayuda && <Ayuda texto={s.ayuda} etiqueta={`Qué significa: ${s.label}`} />}
+                </div>
                 <div className="stat-value" style={{ color:s.color }}>{s.val}</div>
                 <div className="stat-sub">{s.sub}</div>
               </div>

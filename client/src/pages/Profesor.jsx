@@ -74,6 +74,7 @@ export default function Profesor() {
   const [videoIntroUrl, setVideoIntroUrl] = useState(null)
   const [subiendoVideo, setSubiendoVideo] = useState(false)
   const [eliminandoVideo, setEliminandoVideo] = useState(false)
+  const [busquedaCert, setBusquedaCert] = useState('')
 
   useEffect(() => {
     Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
@@ -348,6 +349,38 @@ export default function Profesor() {
   }
 
   const pendientes = certificados.filter(c => c.estado === 'pendiente')
+
+  // Buscador de certificados por validar (Fase 2 del plan). Filtra por
+  // colaborador o por curso, que son los dos criterios con que el profesor
+  // llega a esta lista.
+  const pendientesFiltrados = busquedaCert.trim()
+    ? pendientes.filter(c => {
+        const q = busquedaCert.trim().toLowerCase()
+        return (c.usuario_nombre || '').toLowerCase().includes(q)
+            || (c.curso_nombre || '').toLowerCase().includes(q)
+      })
+    : pendientes
+
+  const validarCertificado = async (cert, estado) => {
+    if (estado === 'rechazado') {
+      const ok = await confirm({
+        title: `Rechazar el certificado de ${cert.usuario_nombre}`,
+        message: `El colaborador no obtendrá el certificado de "${cert.curso_nombre}" y deberá volver a rendir la evaluación.`,
+        confirmText: 'Rechazar',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    try {
+      await api.patch(`/certificados/${cert.id}/validar`, { estado })
+      toast.success(estado === 'aprobado'
+        ? `Certificado de ${cert.usuario_nombre} aprobado`
+        : `Certificado de ${cert.usuario_nombre} rechazado`)
+      recargar()
+    } catch {
+      toast.error('No se pudo actualizar el certificado')
+    }
+  }
 
   const tagClass = (tipo) => ({ pdf:'tag-pdf', video:'tag-video', ppt:'tag-ppt' }[tipo] || 'tag-pdf')
 
@@ -1002,23 +1035,52 @@ export default function Profesor() {
                   </span>
                 )}
               </div>
+              {/* Buscador: aparece solo cuando la lista es larga, para no
+                  agregar ruido a un panel que casi siempre tiene 2 o 3 filas. */}
+              {pendientes.length > 5 && (
+                <div style={{ position:'relative', marginBottom:10 }}>
+                  <Icon icon="lucide:search" width={14}
+                    style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--texto-muted)' }} />
+                  <input
+                    type="search"
+                    value={busquedaCert}
+                    onChange={e => setBusquedaCert(e.target.value)}
+                    placeholder="Buscar por colaborador o curso"
+                    aria-label="Buscar entre los certificados por validar"
+                    style={{
+                      width:'100%', height:34, paddingLeft:32, paddingRight:10,
+                      border:'0.5px solid var(--gris-borde)', borderRadius:'var(--radius-md)',
+                      fontSize:13, background:'var(--gris-fondo)', color:'var(--texto)',
+                    }}
+                  />
+                </div>
+              )}
               {pendientes.length === 0 ? (
                 <div style={{ textAlign:'center', color:'var(--texto-muted)', padding:24, fontSize:13 }}>No hay certificados pendientes</div>
-              ) : pendientes.slice(0,4).map(cert => (
+              ) : pendientesFiltrados.length === 0 ? (
+                <div style={{ textAlign:'center', color:'var(--texto-muted)', padding:24, fontSize:13 }}>
+                  Ningún certificado coincide con “{busquedaCert}”
+                </div>
+              ) : pendientesFiltrados.slice(0,6).map(cert => (
                 <div key={cert.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
-                  <div className="avatar" style={{ width:30, height:30, fontSize:11, background:'var(--azul)', flexShrink:0 }}>
+                  <div className="avatar" style={{ width:30, height:30, fontSize:12, background:'var(--azul)', flexShrink:0 }}>
                     {cert.usuario_nombre?.split(' ').map(n=>n[0]).slice(0,2).join('')}
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:12, fontWeight:500 }}>{cert.usuario_nombre}</div>
-                    <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:2 }}>{cert.curso_nombre}</div>
+                    <div style={{ fontSize:13, fontWeight:500 }}>{cert.usuario_nombre}</div>
+                    <div style={{ fontSize:12, color:'var(--texto-muted)', marginTop:2 }}>{cert.curso_nombre}</div>
                   </div>
                   <div style={{ display:'flex', gap:6 }}>
-                    <button className="btn-aprobar" onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado:'aprobado' }).then(() => window.location.reload())}>Aprobar</button>
-                    <button className="btn-rechazar" onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado:'rechazado' }).then(() => window.location.reload())}>Rechazar</button>
+                    <button className="btn-aprobar" onClick={() => validarCertificado(cert, 'aprobado')}>Aprobar</button>
+                    <button className="btn-rechazar" onClick={() => validarCertificado(cert, 'rechazado')}>Rechazar</button>
                   </div>
                 </div>
               ))}
+              {pendientesFiltrados.length > 6 && (
+                <div style={{ fontSize:12, color:'var(--texto-muted)', textAlign:'center', paddingTop:10 }}>
+                  Mostrando 6 de {pendientesFiltrados.length}. Usa el buscador para acotar la lista.
+                </div>
+              )}
             </div>
           </div>
 
