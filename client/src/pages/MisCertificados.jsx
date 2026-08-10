@@ -84,63 +84,65 @@ export default function MisCertificados() {
                 </div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--gris-fondo)' }}>
-                    {['Curso', 'Fecha de emisión', 'Validado por', 'Estado', 'Acciones'].map(h => (
-                      <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtrados.map(cert => (
-                    <tr key={cert.id} style={{ borderBottom: '0.5px solid var(--gris-borde)' }}>
-                      <td style={{ padding: '12px 14px', fontWeight: 500 }}>
-                        <div>{cert.curso_nombre}</div>
-                        {cert.area && <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>{cert.area}</div>}
-                      </td>
-                      <td style={{ padding: '12px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
-                        {cert.fecha_emision
-                          ? new Date(cert.fecha_emision).toLocaleDateString('es-CL')
-                          : '—'}
-                      </td>
-                      <td style={{ padding: '12px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
-                        {cert.validado_por_nombre || '—'}
-                      </td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <span className={`status-pill ${
-                          cert.estado === 'aprobado' ? 'status-ok' :
-                          cert.estado === 'rechazado' ? 'status-fallo' : 'status-pend'
-                        }`}>
-                          {cert.estado === 'aprobado' ? 'Aprobado' :
-                           cert.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 14px' }}>
-                        {cert.estado === 'aprobado' ? (
-                          <button
-                            type="button"
-                            onClick={() => descargarCertificado(cert.id, `certificado_${(cert.curso_nombre || 'curso').replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`)}
-                            style={{
-                              fontSize: 11, color: 'var(--azul)',
-                              border: '0.5px solid var(--gris-borde)', borderRadius: 8,
-                              padding: '5px 10px', display: 'inline-flex',
-                              alignItems: 'center', gap: 4, background: 'none',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>—</span>
-                        )}
-                      </td>
+              <div className="tabla-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--gris-fondo)' }}>
+                      {['Curso', 'Fecha de emisión', 'Validado por', 'Estado', 'Acciones'].map(h => (
+                        <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtrados.map(cert => (
+                      <tr key={cert.id} style={{ borderBottom: '0.5px solid var(--gris-borde)' }}>
+                        <td style={{ padding: '12px 14px', fontWeight: 500 }}>
+                          <div>{cert.curso_nombre}</div>
+                          {cert.area && <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>{cert.area}</div>}
+                        </td>
+                        <td style={{ padding: '12px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
+                          {cert.fecha_emision
+                            ? new Date(cert.fecha_emision).toLocaleDateString('es-CL')
+                            : '—'}
+                        </td>
+                        <td style={{ padding: '12px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
+                          {cert.validado_por_nombre || '—'}
+                        </td>
+                        <td style={{ padding: '12px 14px' }}>
+                          <span className={`status-pill ${
+                            cert.estado === 'aprobado' ? 'status-ok' :
+                            cert.estado === 'rechazado' ? 'status-fallo' : 'status-pend'
+                          }`}>
+                            {cert.estado === 'aprobado' ? 'Aprobado' :
+                             cert.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 14px' }}>
+                          {cert.estado === 'aprobado' ? (
+                            <button
+                              type="button"
+                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.curso_nombre || 'curso').replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`)}
+                              style={{
+                                fontSize: 11, color: 'var(--azul)',
+                                border: '0.5px solid var(--gris-borde)', borderRadius: 8,
+                                padding: '5px 10px', display: 'inline-flex',
+                                alignItems: 'center', gap: 4, background: 'none',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </main>

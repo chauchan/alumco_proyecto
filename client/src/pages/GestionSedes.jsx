@@ -128,59 +128,61 @@ export default function GestionSedes() {
                 No hay sedes registradas. Creá la primera con el botón de arriba.
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--gris-fondo)' }}>
-                    {['Nombre', 'Ciudad', 'Estado', 'Usuarios activos', 'Acciones'].map(h => (
-                      <th key={h} style={{
-                        fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left',
-                        padding: '10px 16px', borderBottom: '0.5px solid var(--gris-borde)'
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sedes.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: s.activa ? 1 : 0.55 }}>
-                      <td style={{ padding: '11px 16px', fontWeight: 500 }}>{s.nombre}</td>
-                      <td style={{ padding: '11px 16px', color: '#666' }}>{s.ciudad || '—'}</td>
-                      <td style={{ padding: '11px 16px' }}>
-                        <span className={`status-pill ${s.activa ? 'status-ok' : 'status-fallo'}`}>
-                          {s.activa ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '11px 16px', color: 'var(--texto-sec)' }}>
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          fontSize: 12, color: parseInt(s.usuarios_activos) > 0 ? 'var(--azul)' : 'var(--texto-muted)'
-                        }}>
-                          <Icon icon="lucide:users" width={12} />
-                          {s.usuarios_activos}
-                        </span>
-                      </td>
-                      <td style={{ padding: '11px 16px' }}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => abrirEditar(s)}
-                            style={{ ...BTN_GHOST, height: 30, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <Icon icon="lucide:pencil" width={11} /> Editar
-                          </button>
-                          {s.activa ? (
-                            <button className="btn-rechazar" onClick={() => handleDesactivar(s)}>
-                              Desactivar
-                            </button>
-                          ) : (
-                            <button className="btn-aprobar" onClick={() => handleReactivar(s)}>
-                              Reactivar
-                            </button>
-                          )}
-                        </div>
-                      </td>
+              <div className="tabla-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--gris-fondo)' }}>
+                      {['Nombre', 'Ciudad', 'Estado', 'Usuarios activos', 'Acciones'].map(h => (
+                        <th key={h} style={{
+                          fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left',
+                          padding: '10px 16px', borderBottom: '0.5px solid var(--gris-borde)'
+                        }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sedes.map(s => (
+                      <tr key={s.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: s.activa ? 1 : 0.55 }}>
+                        <td style={{ padding: '11px 16px', fontWeight: 500 }}>{s.nombre}</td>
+                        <td style={{ padding: '11px 16px', color: '#666' }}>{s.ciudad || '—'}</td>
+                        <td style={{ padding: '11px 16px' }}>
+                          <span className={`status-pill ${s.activa ? 'status-ok' : 'status-fallo'}`}>
+                            {s.activa ? 'Activa' : 'Inactiva'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '11px 16px', color: 'var(--texto-sec)' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            fontSize: 12, color: parseInt(s.usuarios_activos) > 0 ? 'var(--azul)' : 'var(--texto-muted)'
+                          }}>
+                            <Icon icon="lucide:users" width={12} />
+                            {s.usuarios_activos}
+                          </span>
+                        </td>
+                        <td style={{ padding: '11px 16px' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => abrirEditar(s)}
+                              style={{ ...BTN_GHOST, height: 30, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <Icon icon="lucide:pencil" width={11} /> Editar
+                            </button>
+                            {s.activa ? (
+                              <button className="btn-rechazar" onClick={() => handleDesactivar(s)}>
+                                Desactivar
+                              </button>
+                            ) : (
+                              <button className="btn-aprobar" onClick={() => handleReactivar(s)}>
+                                Reactivar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </main>

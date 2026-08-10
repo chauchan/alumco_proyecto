@@ -150,66 +150,68 @@ export default function CertificadosGlobales() {
                 <div style={{ fontSize: 14, fontWeight: 500 }}>No se encontraron certificados</div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'var(--gris-fondo)' }}>
-                    {['Colaborador', 'RUT', 'Estamento', 'Sede', 'Curso', 'Fecha', 'Estado', 'Acción'].map(h => (
-                      <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {certificados.map(cert => (
-                    <tr key={cert.id} style={{ borderBottom: '0.5px solid var(--gris-borde)' }}>
-                      <td style={{ padding: '10px 14px', fontWeight: 500 }}>{cert.usuario_nombre}</td>
-                      <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{cert.usuario_rut || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{cert.estamento || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--texto-muted)' }}>{cert.sede_nombre || '—'}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontSize: 13 }}>{cert.curso_nombre}</div>
-                      </td>
-                      <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
-                        {cert.fecha_emision
-                          ? new Date(cert.fecha_emision).toLocaleDateString('es-CL')
-                          : '—'}
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className={`status-pill ${
-                          cert.estado === 'aprobado' ? 'status-ok' :
-                          cert.estado === 'rechazado' ? 'status-fallo' : 'status-pend'
-                        }`}>
-                          {cert.estado === 'aprobado' ? 'Aprobado' :
-                           cert.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        {cert.estado === 'aprobado' ? (
-                          <button
-                            type="button"
-                            onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`)}
-                            style={{ fontSize: 11, color: 'var(--azul)', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer' }}
-                          >
-                            <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
-                          </button>
-                        ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
-                          <button
-                            className="btn-aprobar"
-                            onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado: 'aprobado' })
-                              .then(() => cargar(pagina))
-                            }
-                          >
-                            Validar
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>—</span>
-                        )}
-                      </td>
+              <div className="tabla-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--gris-fondo)' }}>
+                      {['Colaborador', 'RUT', 'Estamento', 'Sede', 'Curso', 'Fecha', 'Estado', 'Acción'].map(h => (
+                        <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {certificados.map(cert => (
+                      <tr key={cert.id} style={{ borderBottom: '0.5px solid var(--gris-borde)' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 500 }}>{cert.usuario_nombre}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{cert.usuario_rut || '—'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{cert.estamento || '—'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--texto-muted)' }}>{cert.sede_nombre || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ fontSize: 13 }}>{cert.curso_nombre}</div>
+                        </td>
+                        <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
+                          {cert.fecha_emision
+                            ? new Date(cert.fecha_emision).toLocaleDateString('es-CL')
+                            : '—'}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span className={`status-pill ${
+                            cert.estado === 'aprobado' ? 'status-ok' :
+                            cert.estado === 'rechazado' ? 'status-fallo' : 'status-pend'
+                          }`}>
+                            {cert.estado === 'aprobado' ? 'Aprobado' :
+                             cert.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          {cert.estado === 'aprobado' ? (
+                            <button
+                              type="button"
+                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`)}
+                              style={{ fontSize: 11, color: 'var(--azul)', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer' }}
+                            >
+                              <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
+                            </button>
+                          ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
+                            <button
+                              className="btn-aprobar"
+                              onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado: 'aprobado' })
+                                .then(() => cargar(pagina))
+                              }
+                            >
+                              Validar
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

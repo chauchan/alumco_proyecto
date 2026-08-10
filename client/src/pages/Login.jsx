@@ -42,43 +42,22 @@ export default function Login() {
     : { height:42 }
 
   return (
-    <div style={{ display:'flex', minHeight:'100vh' }}>
+    <div className="login-split">
 
       {/* Panel izquierdo */}
-      <div style={{
-        width:'44%',
-        background: 'var(--gradiente-login)',
-        display:'flex', flexDirection:'column',
-        justifyContent:'center', alignItems:'center',
-        padding:'3rem 2.5rem', position:'relative', overflow:'hidden',
-        gap: 0,
-      }}>
+      <div className="login-brand">
 
-        {/* Decoración superior derecha */}
-        <div style={{
-          position:'absolute', top:-60, right:-60,
-          width:220, height:220, borderRadius:'50%',
-          background:'rgba(255,255,255,0.06)'
-        }} />
-        <div style={{
-          position:'absolute', top:30, right:30,
-          width:90, height:90, borderRadius:'50%',
-          background:'rgba(255,255,255,0.06)'
-        }} />
-
-        {/* Decoración inferior izquierda */}
-        <div style={{
-          position:'absolute', bottom:-80, left:-50,
-          width:260, height:260, borderRadius:'50%',
-          background:'rgba(255,255,255,0.05)'
-        }} />
-        <svg style={{ position:'absolute', bottom:32, right:32, opacity:0.08 }} width="140" height="140" viewBox="0 0 100 100">
+        {/* Decoración: puramente ornamental, se oculta en móvil (.login-deco) */}
+        <div className="login-deco" style={{ position:'absolute', top:-60, right:-60, width:220, height:220, borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+        <div className="login-deco" style={{ position:'absolute', top:30, right:30, width:90, height:90, borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+        <div className="login-deco" style={{ position:'absolute', bottom:-80, left:-50, width:260, height:260, borderRadius:'50%', background:'rgba(255,255,255,0.05)' }} />
+        <svg className="login-deco" style={{ position:'absolute', bottom:32, right:32, opacity:0.08 }} width="140" height="140" viewBox="0 0 100 100">
           <polygon points="50,5 95,50 50,95 5,50" fill="white"/>
         </svg>
 
         {/* Logo centrado */}
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:20, zIndex:1 }}>
-          <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 100 }} />
+        <div className="login-logo-block">
+          <img className="login-simbolo" src={LOGO_SIMBOLO} alt="ALUMCO" />
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -94,26 +73,15 @@ export default function Login() {
           </div>
 
           {/* Slogan */}
-          <div style={{
-            marginTop: 28,
-            maxWidth: 300,
-            textAlign: 'center',
-            fontSize: 15,
-            fontWeight: 400,
-            color: 'rgba(255,255,255,0.75)',
-            lineHeight: 1.65,
-            fontStyle: 'italic',
-            borderTop: '1px solid rgba(255,255,255,0.18)',
-            paddingTop: 24,
-          }}>
+          <div className="login-slogan">
             "Nuestros Cuidados son el reflejo de la Empatía."
           </div>
         </div>
       </div>
 
       {/* Panel derecho */}
-      <div style={{ flex:1, background:'white', display:'flex', flexDirection:'column' }}>
-        <div style={{ flex:1, padding:'2.5rem', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+      <div className="login-panel">
+        <div className="login-form-area">
           <div style={{ fontSize:20, fontWeight:500, marginBottom:4 }}>Bienvenida/o</div>
           <div style={{ fontSize:13, color:'var(--texto-muted)', marginBottom:32, lineHeight:1.6 }}>
             Ingresa con las credenciales entregadas<br/>por tu organización
@@ -150,14 +118,14 @@ export default function Login() {
                   style={{ ...estiloCampo('password'), width:'100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setVerPassword(v => !v)}
-                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:0, display:'flex', alignItems:'center' }}>
+                  style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:4, display:'flex', alignItems:'center', borderRadius:'var(--radius-md)' }}>
                   <Icon icon={verPassword ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
                 </button>
               </div>
             </div>
 
             <div style={{ textAlign:'right', marginBottom:18 }}>
-              <Link to="/forgot-password" style={{ fontSize:12, color:'var(--azul)' }}>
+              <Link to="/forgot-password" style={{ fontSize:12, color:'var(--azul)', display:'inline-block', padding:'5px 0' }}>
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>

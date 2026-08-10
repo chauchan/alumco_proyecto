@@ -205,32 +205,34 @@ export default function Jefatura() {
               <span className="card-title">Cobertura por curso</span>
               <span className="card-link" style={{ color:'var(--azul-oscuro)' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead>
-                <tr>
-                  {['Curso','Inscritos','Completaron','Cobertura'].map(h => (
-                    <th key={h} style={{ fontSize:11, fontWeight:500, color:'var(--texto-muted)', textAlign:'left', padding:'6px 8px', borderBottom:'0.5px solid var(--gris-borde)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {cursos.slice(0,5).map(c => (
-                  <tr key={c.id} style={{ borderBottom:'0.5px solid var(--gris-borde)' }}>
-                    <td style={{ padding:'8px 8px' }}>{c.nombre}</td>
-                    <td style={{ padding:'8px 8px' }}>{c.inscritos}</td>
-                    <td style={{ padding:'8px 8px' }}>{c.completaron}</td>
-                    <td style={{ padding:'8px 8px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <div style={{ width:60, height:4, background:'#EEE', borderRadius:2, overflow:'hidden' }}>
-                          <div style={{ height:'100%', width:`${c.pct_completado||0}%`, background:'var(--azul)', borderRadius:2 }} />
-                        </div>
-                        <span>{c.pct_completado||0}%</span>
-                      </div>
-                    </td>
+            <div className="tabla-scroll">
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr>
+                    {['Curso','Inscritos','Completaron','Cobertura'].map(h => (
+                      <th key={h} style={{ fontSize:11, fontWeight:500, color:'var(--texto-muted)', textAlign:'left', padding:'6px 8px', borderBottom:'0.5px solid var(--gris-borde)' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {cursos.slice(0,5).map(c => (
+                    <tr key={c.id} style={{ borderBottom:'0.5px solid var(--gris-borde)' }}>
+                      <td style={{ padding:'8px 8px' }}>{c.nombre}</td>
+                      <td style={{ padding:'8px 8px' }}>{c.inscritos}</td>
+                      <td style={{ padding:'8px 8px' }}>{c.completaron}</td>
+                      <td style={{ padding:'8px 8px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <div style={{ width:60, height:4, background:'#EEE', borderRadius:2, overflow:'hidden' }}>
+                            <div style={{ height:'100%', width:`${c.pct_completado||0}%`, background:'var(--azul)', borderRadius:2 }} />
+                          </div>
+                          <span>{c.pct_completado||0}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* ── Gráficos analíticos ── */}

@@ -425,66 +425,68 @@ export default function GestionUsuarios() {
             {cargando ? (
               <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando...</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} aria-live="polite">
-                <thead>
-                  <tr style={{ background: 'var(--gris-fondo)' }}>
-                    <th style={{ padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)', width: 36 }}>
-                      <input
-                        ref={selectAllRef}
-                        type="checkbox"
-                        checked={todosVisiblesSeleccionados}
-                        onChange={toggleTodosVisibles}
-                        style={{ cursor: 'pointer' }}
-                      />
-                    </th>
-                    {['Nombre', 'Identificador', 'Rol', 'Estamento', 'Sede', 'Contrato', 'Estado', 'Acciones'].map(h => (
-                      <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {usuarios.length === 0 ? (
-                    <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>No se encontraron usuarios</td></tr>
-                  ) : usuarios.map(u => (
-                    <tr key={u.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: u.activo ? 1 : 0.5, background: seleccionados.has(u.id) ? '#F0F4FF' : 'transparent' }}>
-                      <td style={{ padding: '10px 14px' }}>
+              <div className="tabla-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} aria-live="polite">
+                  <thead>
+                    <tr style={{ background: 'var(--gris-fondo)' }}>
+                      <th style={{ padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)', width: 36 }}>
                         <input
+                          ref={selectAllRef}
                           type="checkbox"
-                          checked={seleccionados.has(u.id)}
-                          onChange={() => toggleSeleccion(u.id)}
+                          checked={todosVisiblesSeleccionados}
+                          onChange={toggleTodosVisibles}
                           style={{ cursor: 'pointer' }}
                         />
-                      </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 500 }}>{u.nombre}</td>
-                      <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.identificador}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: 12, background: ROL_COLOR[u.rol]?.fondo, color: ROL_COLOR[u.rol]?.texto, borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>
-                          {ROL_LABEL[u.rol]}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{u.estamento || '—'}</td>
-                      <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.sede_nombre || '—'}</td>
-                      <td style={{ padding: '10px 14px' }}><ContratoPill tipo={u.tipo_contrato} /></td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className={`status-pill ${u.activo ? 'status-ok' : 'status-fallo'}`}>
-                          {u.activo ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        {u.activo ? (
-                          <button className="btn-rechazar" onClick={() => handleDesactivar(u.id, u.nombre)}>
-                            Desactivar
-                          </button>
-                        ) : (
-                          <button className="btn-aprobar" onClick={() => handleReactivar(u.id, u.nombre)}>
-                            Reactivar
-                          </button>
-                        )}
-                      </td>
+                      </th>
+                      {['Nombre', 'Identificador', 'Rol', 'Estamento', 'Sede', 'Contrato', 'Estado', 'Acciones'].map(h => (
+                        <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {usuarios.length === 0 ? (
+                      <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>No se encontraron usuarios</td></tr>
+                    ) : usuarios.map(u => (
+                      <tr key={u.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: u.activo ? 1 : 0.5, background: seleccionados.has(u.id) ? '#F0F4FF' : 'transparent' }}>
+                        <td style={{ padding: '10px 14px' }}>
+                          <input
+                            type="checkbox"
+                            checked={seleccionados.has(u.id)}
+                            onChange={() => toggleSeleccion(u.id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 500 }}>{u.nombre}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.identificador}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span style={{ fontSize: 12, background: ROL_COLOR[u.rol]?.fondo, color: ROL_COLOR[u.rol]?.texto, borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>
+                            {ROL_LABEL[u.rol]}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{u.estamento || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.sede_nombre || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}><ContratoPill tipo={u.tipo_contrato} /></td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span className={`status-pill ${u.activo ? 'status-ok' : 'status-fallo'}`}>
+                            {u.activo ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          {u.activo ? (
+                            <button className="btn-rechazar" onClick={() => handleDesactivar(u.id, u.nombre)}>
+                              Desactivar
+                            </button>
+                          ) : (
+                            <button className="btn-aprobar" onClick={() => handleReactivar(u.id, u.nombre)}>
+                              Reactivar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

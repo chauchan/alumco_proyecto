@@ -294,7 +294,7 @@ export default function Practicos() {
             </div>
           )}
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:16 }}>
+          <div className="split-contenido">
 
             {/* Calendario */}
             <div className="card">

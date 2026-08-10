@@ -507,7 +507,7 @@ export default function CursoDetalle() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+            <div className="curso-layout">
 
               {/* Panel principal */}
               <div style={{ flex: 1, minWidth: 0 }}>

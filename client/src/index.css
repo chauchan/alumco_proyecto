@@ -393,6 +393,58 @@ textarea:focus-visible,
 svg { vertical-align: middle; }
 .iconify, svg.iconify { vertical-align: middle; flex-shrink: 0; }
 
+/* ── Tablas: scroll propio ───────────────────────────────────────────────────
+   Una tabla de 6 columnas no cabe en 375px. En vez de encogerla hasta que sea
+   ilegible, scrollea dentro de su tarjeta: la página nunca scrollea en
+   horizontal, la tabla sí. */
+.tabla-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabla-scroll > table { min-width: 560px; }
+
+/* ── Layouts de dos columnas que se apilan ───────────────────────────────── */
+.split-contenido { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+.curso-layout { display: flex; gap: 24px; align-items: flex-start; }
+
+@media (max-width: 767px) {
+  .split-contenido { grid-template-columns: 1fr; }
+  .curso-layout { flex-direction: column; gap: 16px; }
+  .curso-layout > * { width: 100%; min-width: 0; }
+  /* el aside de un curso no tiene por qué ir primero al apilarse */
+  .tabla-scroll > table { min-width: 520px; }
+}
+
+/* ── Login: panel partido ────────────────────────────────────────────────────
+   El layout vive aquí y no en estilos inline porque en móvil tiene que
+   apilarse, y un media query no puede sobreescribir un style inline. */
+.login-split { display: flex; min-height: 100vh; }
+.login-brand {
+  width: 44%;
+  background: var(--gradiente-login);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  padding: 3rem 2.5rem; position: relative; overflow: hidden;
+}
+.login-logo-block { display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 1; }
+.login-simbolo { height: 100px; }
+.login-slogan {
+  margin-top: 28px; max-width: 300px; text-align: center;
+  font-size: 15px; color: rgba(255,255,255,0.75); line-height: 1.65;
+  font-style: italic; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 24px;
+}
+.login-panel { flex: 1; background: #fff; display: flex; flex-direction: column; }
+.login-form-area { flex: 1; padding: 2.5rem; display: flex; flex-direction: column; justify-content: center; }
+
+@media (max-width: 767px) {
+  /* A 375px el panel de marca quedaba en 88px y el logo se salía por los
+     bordes. Apilado: cabecera compacta arriba, formulario a ancho completo. */
+  .login-split { flex-direction: column; min-height: 100dvh; }
+  .login-brand { width: 100%; padding: 1.75rem 1.25rem; }
+  .login-deco { display: none; }
+  .login-logo-block { gap: 12px; }
+  .login-simbolo { height: 64px; }
+  .login-slogan { margin-top: 16px; padding-top: 14px; font-size: 13px; }
+  .login-form-area { padding: 1.75rem 1.25rem; }
+}
+
 /* ── Tooltip de ayuda (§4 del plan) ──────────────────────────────────────────
    Mismo componente en las 5 vistas: ícono de 14px junto al término y burbuja
    oscura encima. La burbuja se dibuja sobre .card, que tiene overflow visible,
