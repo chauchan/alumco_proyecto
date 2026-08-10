@@ -86,7 +86,7 @@ export default function Practicos() {
   }, [searchParams])
 
   const conectarGoogle = () => {
-    const base = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+    const base = import.meta.env.VITE_API_URL || ''
     window.location.href = `${base}/api/google/auth?token=` + localStorage.getItem('token')
   }
 
