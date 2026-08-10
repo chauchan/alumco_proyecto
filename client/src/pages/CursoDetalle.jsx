@@ -171,14 +171,18 @@ export default function CursoDetalle() {
     setBuscandoCert(true)
     api.get('/certificados')
       .then(r => {
-        // Se compara por curso_id y no por nombre: dos cursos pueden llamarse
-        // igual y el colaborador se descargaría el certificado equivocado.
-        const propio = (r.data || []).find(c => String(c.curso_id) === String(cursoId))
+        const lista = r.data || []
+        // Preferimos curso_id: dos cursos pueden llamarse igual y el
+        // colaborador se descargaría el certificado equivocado. Pero el
+        // servidor solo lo devuelve desde el cambio de esta rama, así que
+        // contra un backend anterior se cae al nombre en vez de no mostrar nada.
+        const porId = lista.find(c => c.curso_id != null && String(c.curso_id) === String(cursoId))
+        const propio = porId || lista.find(c => c.curso_nombre === curso?.nombre)
         setCertificado(propio || null)
       })
       .catch(() => setCertificado(null))
       .finally(() => setBuscandoCert(false))
-  }, [resultado?.aprobado, cursoId])
+  }, [resultado?.aprobado, cursoId, curso?.nombre])
 
   // Inicializar módulo activo al entrar al paso de módulos
   useEffect(() => {

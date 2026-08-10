@@ -169,7 +169,7 @@ export default function Jefatura() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Comparativa por sede</span>
-              <span className="card-link" style={{ color:'var(--azul-oscuro)' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span className="card-link" onClick={() => navigate('/jefatura/sedes')} style={{ color:'var(--azul-oscuro)', cursor:'pointer' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             <div className="two-col sedes-grid">
               {sedes.map((s, i) => (
@@ -203,7 +203,7 @@ export default function Jefatura() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Cobertura por curso</span>
-              <span className="card-link" style={{ color:'var(--azul-oscuro)' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span className="card-link" onClick={() => navigate('/capacitaciones')} style={{ color:'var(--azul-oscuro)', cursor:'pointer' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             <div className="tabla-scroll">
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>

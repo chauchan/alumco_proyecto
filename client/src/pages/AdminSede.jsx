@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
@@ -9,6 +10,7 @@ import { useToast } from '../context/ToastContext'
 
 export default function AdminSede() {
   const { usuario } = useAuth()
+  const navigate = useNavigate()
   const toast = useToast()
   const [resumen, setResumen] = useState(null)
   const [enviandoRecordatorios, setEnviandoRecordatorios] = useState(false)
@@ -124,9 +126,6 @@ export default function AdminSede() {
               <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
                 <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>
               </button>
-              <button className="btn-primary">
-                <span>+</span> Agregar colaborador
-              </button>
             </div>
           </div>
 
@@ -157,7 +156,6 @@ export default function AdminSede() {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Colaboradores — estado</span>
-                <span className="card-link">Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
               </div>
               {usuarios.slice(0,5).map((u, i) => (
                 <div key={u.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
@@ -177,7 +175,7 @@ export default function AdminSede() {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Progreso por curso</span>
-                <span className="card-link">Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
+                <span className="card-link" onClick={() => navigate('/capacitaciones')} style={{ cursor:'pointer' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></span>
               </div>
               {cursos.slice(0,5).map(c => (
                 <div key={c.id} style={{ marginBottom:14 }}>
