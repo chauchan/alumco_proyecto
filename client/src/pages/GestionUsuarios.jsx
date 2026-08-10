@@ -24,9 +24,14 @@ const ROL_LABEL = {
   colaborador: 'Colaborador', profesor: 'Profesor',
   admin_sede: 'Admin sede', jefatura: 'Jefatura'
 }
+// Cada rol necesita dos valores: el texto usa el token semántico (4.5:1) y el
+// fondo su versión tintada. Antes el fondo se derivaba concatenando "22" al
+// hex para darle 13% de opacidad, algo que ya no es posible con variables CSS.
 const ROL_COLOR = {
-  colaborador: '#2B4BA0', profesor: '#E8505B',
-  admin_sede: '#7BC67A', jefatura: '#F5A623'
+  colaborador: { texto: 'var(--azul)',    fondo: 'var(--azul-claro)'  },
+  profesor:    { texto: 'var(--danger)',  fondo: 'var(--danger-bg)'   },
+  admin_sede:  { texto: 'var(--success)', fondo: 'var(--success-bg)'  },
+  jefatura:    { texto: 'var(--warning)', fondo: 'var(--warning-bg)'  },
 }
 
 const FORM_INICIAL = {
@@ -38,15 +43,15 @@ const limpiarRut = (rut) => rut.replace(/\./g, '').replace(/-/g, '')
 
 function ContratoPill({ tipo }) {
   if (tipo === 'fijo')
-    return <span style={{ fontSize: 10, background: '#EDFAF3', color: '#1A7A45', borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>Fijo</span>
+    return <span style={{ fontSize: 10, background: 'var(--success-bg)', color: 'var(--success)', borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>Fijo</span>
   if (tipo === 'reemplazo')
     return <span style={{ fontSize: 10, background: '#FFF4E5', color: '#C06000', borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>Reemplazo</span>
-  return <span style={{ color: '#AAA', fontSize: 12 }}>—</span>
+  return <span style={{ color: 'var(--texto-muted)', fontSize: 12 }}>—</span>
 }
 
 const BTN_GHOST = {
-  background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8,
-  padding: '0 12px', height: 36, fontSize: 12, color: '#555', cursor: 'pointer'
+  background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8,
+  padding: '0 12px', height: 36, fontSize: 12, color: 'var(--texto-sec)', cursor: 'pointer'
 }
 
 export default function GestionUsuarios() {
@@ -166,7 +171,17 @@ export default function GestionUsuarios() {
     if (!ok) return
     try {
       await api.patch(`/usuarios/${id}`, { activo: false })
-      toast.success(`Usuario "${nombre}" desactivado`)
+      // Desactivar es reversible con el mismo endpoint, así que el toast ofrece
+      // "Deshacer" durante 5s en vez de obligar a buscar al usuario y reactivarlo.
+      toast.undo(`Usuario "${nombre}" desactivado`, async () => {
+        try {
+          await api.patch(`/usuarios/${id}`, { activo: true })
+          toast.success(`Se restauró a "${nombre}"`)
+        } catch {
+          toast.error(`No se pudo restaurar a "${nombre}"`)
+        }
+        cargar(pagina)
+      })
       cargar(pagina)
     } catch {
       toast.error('Error al desactivar usuario')
@@ -271,8 +286,8 @@ export default function GestionUsuarios() {
   const hayFiltros = busqueda || filtroRol || filtroSede || filtroContrato
 
   const SELECT_STYLE = {
-    height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8,
-    padding: '0 10px', fontSize: 13, background: '#F4F5F7'
+    height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8,
+    padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)'
   }
 
   return (
@@ -318,7 +333,7 @@ export default function GestionUsuarios() {
                     <input type="text" placeholder="Ej: 12.345.678-9"
                       value={form.rut} onChange={e => setForm({ ...form, rut: e.target.value })} />
                     {form.rut && (
-                      <span style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'block' }}>
+                      <span style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
                         Usuario de ingreso: <strong>{limpiarRut(form.rut)}</strong>
                       </span>
                     )}
@@ -371,7 +386,7 @@ export default function GestionUsuarios() {
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Buscar por nombre o RUT..."
                 value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 13, background: '#F4F5F7' }}
+                style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 13, background: 'var(--gris-fondo)' }}
               />
               <select value={filtroRol} onChange={e => setFiltroRol(e.target.value)} style={SELECT_STYLE}>
                 <option value="">Todos los roles</option>
@@ -394,12 +409,12 @@ export default function GestionUsuarios() {
               {filtroContrato === 'reemplazo' && activosVisibles.length > 0 && (
                 <button
                   onClick={() => setConfirmarBulk({ tipo: 'desactivar', ids: activosVisibles.map(u => u.id) })}
-                  style={{ ...BTN_GHOST, color: '#C0392B', borderColor: '#E8505B' }}
+                  style={{ ...BTN_GHOST, color: 'var(--danger)', borderColor: '#E8505B' }}
                 >
                   Desactivar todos los reemplazos visibles ({activosVisibles.length})
                 </button>
               )}
-              <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginLeft: 'auto' }}>
                 {total} resultado{total !== 1 ? 's' : ''}
               </span>
             </div>
@@ -408,12 +423,12 @@ export default function GestionUsuarios() {
           {/* Tabla usuarios */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {cargando ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
+              <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando...</div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} aria-live="polite">
                 <thead>
-                  <tr style={{ background: '#F4F5F7' }}>
-                    <th style={{ padding: '10px 14px', borderBottom: '0.5px solid #E8E8E8', width: 36 }}>
+                  <tr style={{ background: 'var(--gris-fondo)' }}>
+                    <th style={{ padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)', width: 36 }}>
                       <input
                         ref={selectAllRef}
                         type="checkbox"
@@ -423,15 +438,15 @@ export default function GestionUsuarios() {
                       />
                     </th>
                     {['Nombre', 'Identificador', 'Rol', 'Estamento', 'Sede', 'Contrato', 'Estado', 'Acciones'].map(h => (
-                      <th key={h} style={{ fontSize: 11, fontWeight: 500, color: '#888', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid #E8E8E8' }}>{h}</th>
+                      <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {usuarios.length === 0 ? (
-                    <tr><td colSpan={9} style={{ textAlign: 'center', color: '#888', padding: 32 }}>No se encontraron usuarios</td></tr>
+                    <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>No se encontraron usuarios</td></tr>
                   ) : usuarios.map(u => (
-                    <tr key={u.id} style={{ borderBottom: '0.5px solid #E8E8E8', opacity: u.activo ? 1 : 0.5, background: seleccionados.has(u.id) ? '#F0F4FF' : 'transparent' }}>
+                    <tr key={u.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: u.activo ? 1 : 0.5, background: seleccionados.has(u.id) ? '#F0F4FF' : 'transparent' }}>
                       <td style={{ padding: '10px 14px' }}>
                         <input
                           type="checkbox"
@@ -441,14 +456,14 @@ export default function GestionUsuarios() {
                         />
                       </td>
                       <td style={{ padding: '10px 14px', fontWeight: 500 }}>{u.nombre}</td>
-                      <td style={{ padding: '10px 14px', color: '#888', fontSize: 12 }}>{u.identificador}</td>
+                      <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.identificador}</td>
                       <td style={{ padding: '10px 14px' }}>
-                        <span style={{ fontSize: 10, background: `${ROL_COLOR[u.rol]}22`, color: ROL_COLOR[u.rol], borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>
+                        <span style={{ fontSize: 12, background: ROL_COLOR[u.rol]?.fondo, color: ROL_COLOR[u.rol]?.texto, borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>
                           {ROL_LABEL[u.rol]}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: '#555' }}>{u.estamento || '—'}</td>
-                      <td style={{ padding: '10px 14px', color: '#888', fontSize: 12 }}>{u.sede_nombre || '—'}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{u.estamento || '—'}</td>
+                      <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.sede_nombre || '—'}</td>
                       <td style={{ padding: '10px 14px' }}><ContratoPill tipo={u.tipo_contrato} /></td>
                       <td style={{ padding: '10px 14px' }}>
                         <span className={`status-pill ${u.activo ? 'status-ok' : 'status-fallo'}`}>
@@ -481,7 +496,7 @@ export default function GestionUsuarios() {
       {seleccionados.size > 0 && (
         <div style={{
           position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-          background: '#1E3A6E', borderRadius: 10, padding: '10px 18px',
+          background: 'var(--azul-oscuro)', borderRadius: 10, padding: '10px 18px',
           display: 'flex', alignItems: 'center', gap: 12,
           boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 200
         }}>
@@ -490,13 +505,13 @@ export default function GestionUsuarios() {
           </span>
           <button
             onClick={() => setConfirmarBulk({ tipo: 'desactivar', ids: [...seleccionados] })}
-            style={{ background: '#E8505B', border: 'none', borderRadius: 7, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+            style={{ background: 'var(--rojo)', border: 'none', borderRadius: 7, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
           >
             Desactivar ({seleccionados.size})
           </button>
           <button
             onClick={() => setConfirmarBulk({ tipo: 'reactivar', ids: [...seleccionados] })}
-            style={{ background: '#7BC67A', border: 'none', borderRadius: 7, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+            style={{ background: 'var(--verde)', border: 'none', borderRadius: 7, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
           >
             Reactivar ({seleccionados.size})
           </button>
@@ -521,7 +536,7 @@ export default function GestionUsuarios() {
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
               {confirmarBulk.tipo === 'desactivar' ? 'Desactivar usuarios' : 'Reactivar usuarios'}
             </div>
-            <div style={{ fontSize: 13, color: '#555', marginBottom: 24, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, color: 'var(--texto-sec)', marginBottom: 24, lineHeight: 1.6 }}>
               Vas a <strong>{confirmarBulk.tipo}</strong> {confirmarBulk.ids.length} usuario{confirmarBulk.ids.length !== 1 ? 's' : ''}.
               {confirmarBulk.tipo === 'desactivar' && ' Esta acción se puede revertir reactivándolos.'}
             </div>
@@ -550,14 +565,14 @@ export default function GestionUsuarios() {
             zIndex: 301, boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
           }}>
             {/* Modal header */}
-            <div style={{ padding: '16px 20px', borderBottom: '0.5px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '0.5px solid var(--gris-borde)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>Importar usuarios</div>
-                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>
                   Paso {importStep} de 3 · {importStep === 1 ? 'Plantilla' : importStep === 2 ? 'Cargar archivo' : 'Resultado'}
                 </div>
               </div>
-              <button onClick={cerrarImport} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888' }}>
+              <button onClick={cerrarImport} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--texto-muted)' }}>
                 <Icon icon="lucide:x" width={18} />
               </button>
             </div>
@@ -568,17 +583,17 @@ export default function GestionUsuarios() {
               {/* Step 1: Descargar plantilla */}
               {importStep === 1 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div style={{ fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+                  <div style={{ fontSize: 13, color: 'var(--texto-sec)', lineHeight: 1.7 }}>
                     Descargá la plantilla Excel con el formato requerido. Completá las columnas y subí el archivo en el siguiente paso.
                   </div>
-                  <div style={{ background: '#F4F5F7', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#555' }}>
+                  <div style={{ background: 'var(--gris-fondo)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'var(--texto-sec)' }}>
                     <div style={{ fontWeight: 600, marginBottom: 6 }}>Columnas del archivo:</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                       {['nombre *', 'rut *', 'correo', 'rol', 'tipo_contrato', 'sede', 'estamento'].map(c => (
-                        <span key={c} style={{ fontFamily: 'monospace', background: '#E8E8E8', borderRadius: 4, padding: '1px 6px' }}>{c}</span>
+                        <span key={c} style={{ fontFamily: 'monospace', background: 'var(--gris-borde)', borderRadius: 4, padding: '1px 6px' }}>{c}</span>
                       ))}
                     </div>
-                    <div style={{ marginTop: 8, color: '#888' }}>
+                    <div style={{ marginTop: 8, color: 'var(--texto-muted)' }}>
                       Roles válidos: colaborador, profesor, admin_sede, jefatura · Contratos: fijo, reemplazo
                     </div>
                   </div>
@@ -597,7 +612,7 @@ export default function GestionUsuarios() {
               {importStep === 2 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
-                    <label style={{ fontSize: 12, fontWeight: 500, color: '#555', display: 'block', marginBottom: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--texto-sec)', display: 'block', marginBottom: 6 }}>
                       Seleccionar archivo (.xlsx / .xls)
                     </label>
                     <input
@@ -611,15 +626,15 @@ export default function GestionUsuarios() {
 
                   {xlsxRows.length > 0 && (
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6, color: '#555' }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 6, color: 'var(--texto-sec)' }}>
                         Vista previa — {xlsxRows.length} fila{xlsxRows.length !== 1 ? 's' : ''} detectada{xlsxRows.length !== 1 ? 's' : ''}
                       </div>
-                      <div style={{ overflowX: 'auto', border: '0.5px solid #E8E8E8', borderRadius: 8, maxHeight: 260, overflowY: 'auto' }}>
+                      <div style={{ overflowX: 'auto', border: '0.5px solid var(--gris-borde)', borderRadius: 8, maxHeight: 260, overflowY: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                           <thead>
-                            <tr style={{ background: '#F4F5F7' }}>
+                            <tr style={{ background: 'var(--gris-fondo)' }}>
                               {['', 'nombre', 'rut', 'rol', 'contrato', 'sede'].map(h => (
-                                <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 500, color: '#888', borderBottom: '0.5px solid #E8E8E8', whiteSpace: 'nowrap' }}>{h}</th>
+                                <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 500, color: 'var(--texto-muted)', borderBottom: '0.5px solid var(--gris-borde)', whiteSpace: 'nowrap' }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -629,22 +644,22 @@ export default function GestionUsuarios() {
                               return (
                                 <tr key={i} style={{ borderBottom: '0.5px solid #F0F0F0', background: valida ? 'transparent' : '#FFF5F5' }}>
                                   <td style={{ padding: '5px 10px' }}>
-                                    <span style={{ fontSize: 10, color: valida ? '#1A7A45' : '#C0392B' }}>
+                                    <span style={{ fontSize: 10, color: valida ? 'var(--success)' : 'var(--danger)' }}>
                                       {valida ? '✓' : '✗'}
                                     </span>
                                   </td>
-                                  <td style={{ padding: '5px 10px', color: '#1a1a1a' }}>{row.nombre?.toString() || '—'}</td>
-                                  <td style={{ padding: '5px 10px', color: '#555' }}>{row.rut?.toString() || '—'}</td>
-                                  <td style={{ padding: '5px 10px', color: '#555' }}>{row.rol?.toString() || 'colaborador'}</td>
-                                  <td style={{ padding: '5px 10px', color: '#555' }}>{row.tipo_contrato?.toString() || '—'}</td>
-                                  <td style={{ padding: '5px 10px', color: '#555' }}>{row.sede?.toString() || '—'}</td>
+                                  <td style={{ padding: '5px 10px', color: 'var(--texto)' }}>{row.nombre?.toString() || '—'}</td>
+                                  <td style={{ padding: '5px 10px', color: 'var(--texto-sec)' }}>{row.rut?.toString() || '—'}</td>
+                                  <td style={{ padding: '5px 10px', color: 'var(--texto-sec)' }}>{row.rol?.toString() || 'colaborador'}</td>
+                                  <td style={{ padding: '5px 10px', color: 'var(--texto-sec)' }}>{row.tipo_contrato?.toString() || '—'}</td>
+                                  <td style={{ padding: '5px 10px', color: 'var(--texto-sec)' }}>{row.sede?.toString() || '—'}</td>
                                 </tr>
                               )
                             })}
                           </tbody>
                         </table>
                         {xlsxRows.length > 50 && (
-                          <div style={{ padding: '8px 10px', fontSize: 11, color: '#888', textAlign: 'center', borderTop: '0.5px solid #E8E8E8' }}>
+                          <div style={{ padding: '8px 10px', fontSize: 11, color: 'var(--texto-muted)', textAlign: 'center', borderTop: '0.5px solid var(--gris-borde)' }}>
                             Mostrando primeras 50 de {xlsxRows.length} filas
                           </div>
                         )}
@@ -673,28 +688,28 @@ export default function GestionUsuarios() {
               {importStep === 3 && importResult && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{
-                    background: '#EDFAF3', border: '0.5px solid #7BC67A', borderRadius: 8,
+                    background: 'var(--success-bg)', border: '0.5px solid var(--verde)', borderRadius: 8,
                     padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8
                   }}>
-                    <Icon icon="lucide:check-circle" width={16} style={{ color: '#1A7A45' }} />
-                    <span style={{ fontSize: 13, color: '#1A7A45', fontWeight: 500 }}>
+                    <Icon icon="lucide:check-circle" width={16} style={{ color: 'var(--success)' }} />
+                    <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 500 }}>
                       {importResult.creados} usuario{importResult.creados !== 1 ? 's' : ''} creado{importResult.creados !== 1 ? 's' : ''} correctamente
                     </span>
                   </div>
 
                   {importResult.errores.length > 0 && (
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#C0392B', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--danger)', marginBottom: 8 }}>
                         {importResult.errores.length} fila{importResult.errores.length !== 1 ? 's' : ''} con error:
                       </div>
-                      <div style={{ border: '0.5px solid #E8E8E8', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                      <div style={{ border: '0.5px solid var(--gris-borde)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
                         {importResult.errores.map((err, i) => (
                           <div key={i} style={{
                             padding: '7px 12px', fontSize: 12, borderBottom: '0.5px solid #F0F0F0',
                             display: 'flex', gap: 10, background: i % 2 === 0 ? 'white' : '#FAFAFA'
                           }}>
-                            <span style={{ color: '#C0392B', fontWeight: 500, flexShrink: 0 }}>Fila {err.fila}</span>
-                            <span style={{ color: '#555' }}>{err.motivo}</span>
+                            <span style={{ color: 'var(--danger)', fontWeight: 500, flexShrink: 0 }}>Fila {err.fila}</span>
+                            <span style={{ color: 'var(--texto-sec)' }}>{err.motivo}</span>
                           </div>
                         ))}
                       </div>

@@ -7,8 +7,8 @@ import api from '../services/api'
 import { useAccesibilidad } from '../hooks/useAccesibilidad'
 
 const avatarColors = {
-  colaborador: '#F5A623', profesor: '#E8505B',
-  admin_sede: '#7BC67A', jefatura: '#F5A623',
+  colaborador: 'var(--amarillo)', profesor: 'var(--rojo)',
+  admin_sede: 'var(--verde)', jefatura: 'var(--amarillo)',
 }
 const rolesLabel = {
   colaborador: null, profesor: 'Profesor',
@@ -25,10 +25,10 @@ function rutaPorTipo(n, rol) {
 }
 
 const ROLES_VISTA = [
-  { rol: 'colaborador', label: 'Colaborador', color: '#F5A623', ruta: '/colaborador' },
-  { rol: 'profesor',    label: 'Profesor',    color: '#E8505B', ruta: '/profesor' },
-  { rol: 'admin_sede',  label: 'Admin sede',  color: '#7BC67A', ruta: '/admin' },
-  { rol: 'jefatura',    label: 'Jefatura',    color: '#2B4BA0', ruta: '/jefatura' },
+  { rol: 'colaborador', label: 'Colaborador', color: 'var(--amarillo)', ruta: '/colaborador' },
+  { rol: 'profesor',    label: 'Profesor',    color: 'var(--rojo)', ruta: '/profesor' },
+  { rol: 'admin_sede',  label: 'Admin sede',  color: 'var(--verde)', ruta: '/admin' },
+  { rol: 'jefatura',    label: 'Jefatura',    color: 'var(--azul)', ruta: '/jefatura' },
 ]
 
 export default function Topbar({ seccion }) {
@@ -102,7 +102,7 @@ export default function Topbar({ seccion }) {
               background: acc.textoGrande ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.15)',
               border: acc.textoGrande ? '1.5px solid #fff' : '1px solid rgba(255,255,255,0.3)',
               borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-              color: acc.textoGrande ? '#1E3A6E' : 'rgba(255,255,255,0.85)',
+              color: acc.textoGrande ? 'var(--azul-oscuro)' : 'rgba(255,255,255,0.85)',
               fontSize: 12, fontWeight: acc.textoGrande ? 700 : 400, lineHeight: 1,
             }}>
             A+
@@ -135,7 +135,7 @@ export default function Topbar({ seccion }) {
               <div style={{
                 position: 'absolute', top: 0, right: 0,
                 width: 16, height: 16, borderRadius: '50%',
-                background: '#E8505B', color: 'white',
+                background: 'var(--rojo)', color: 'white',
                 fontSize: 9, fontWeight: 600,
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
@@ -149,21 +149,21 @@ export default function Topbar({ seccion }) {
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setNotifAbierto(false)} />
               <div style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
-                background: 'white', borderRadius: 10, border: '0.5px solid #E8E8E8',
+                background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.12)', width: 320, overflow: 'hidden'
               }}>
-                <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--gris-borde)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 13, fontWeight: 500 }}>Notificaciones</span>
                   {noLeidas > 0 && (
                     <button onClick={handleLeerTodas}
-                      style={{ fontSize: 11, color: '#2B4BA0', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      style={{ fontSize: 11, color: 'var(--azul)', background: 'none', border: 'none', cursor: 'pointer' }}>
                       Marcar todas como leídas
                     </button>
                   )}
                 </div>
                 <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                   {notificaciones.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: 'center', color: '#888', fontSize: 13 }}>
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--texto-muted)', fontSize: 13 }}>
                       Sin notificaciones
                     </div>
                   ) : notificaciones.map(n => (
@@ -180,11 +180,11 @@ export default function Topbar({ seccion }) {
                       }}
                     >
                       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.leida ? '#CCC' : '#2B4BA0', marginTop: 4, flexShrink: 0 }} />
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: n.leida ? '#CCC' : 'var(--azul)', marginTop: 4, flexShrink: 0 }} />
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: '#1a1a1a', marginBottom: 2 }}>{n.titulo}</div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--texto)', marginBottom: 2 }}>{n.titulo}</div>
                           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>{n.mensaje}</div>
-                          <div style={{ fontSize: 10, color: '#AAA', marginTop: 4 }}>
+                          <div style={{ fontSize: 10, color: 'var(--texto-muted)', marginTop: 4 }}>
                             {new Date(n.created_at).toLocaleDateString('es-CL')}
                           </div>
                         </div>
@@ -216,10 +216,10 @@ export default function Topbar({ seccion }) {
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setVistaAbierto(false)} />
               <div style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
-                background: 'white', borderRadius: 10, border: '0.5px solid #E8E8E8',
+                background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.14)', minWidth: 170, overflow: 'hidden'
               }}>
-                <div style={{ padding: '9px 14px', borderBottom: '0.5px solid #EEE', fontSize: 10, fontWeight: 700, color: '#AAA', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                <div style={{ padding: '9px 14px', borderBottom: '0.5px solid #EEE', fontSize: 10, fontWeight: 700, color: 'var(--texto-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   Cambiar vista
                 </div>
                 {ROLES_VISTA.map(r => (
@@ -228,16 +228,16 @@ export default function Topbar({ seccion }) {
                     style={{
                       padding: '9px 14px', fontSize: 13, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', gap: 9,
-                      background: usuario?.rol === r.rol ? '#F4F5F7' : 'transparent',
+                      background: usuario?.rol === r.rol ? 'var(--gris-fondo)' : 'transparent',
                       fontWeight: usuario?.rol === r.rol ? 600 : 400,
-                      color: '#1a1a1a'
+                      color: 'var(--texto)'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#F4F5F7'}
-                    onMouseLeave={e => e.currentTarget.style.background = usuario?.rol === r.rol ? '#F4F5F7' : 'transparent'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--gris-fondo)'}
+                    onMouseLeave={e => e.currentTarget.style.background = usuario?.rol === r.rol ? 'var(--gris-fondo)' : 'transparent'}
                   >
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: r.color, flexShrink: 0 }} />
                     {r.label}
-                    {usuario?.rol === r.rol && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#AAA' }}>actual</span>}
+                    {usuario?.rol === r.rol && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--texto-muted)' }}>actual</span>}
                   </div>
                 ))}
               </div>
@@ -249,7 +249,7 @@ export default function Topbar({ seccion }) {
         {/* Avatar con menú */}
         <div style={{ position: 'relative' }}>
           <div className="avatar"
-            style={{ background: avatarColors[usuario?.rol] || '#F5A623', cursor: 'pointer' }}
+            style={{ background: avatarColors[usuario?.rol] || 'var(--amarillo)', cursor: 'pointer' }}
             onClick={() => { setMenuAbierto(!menuAbierto); setNotifAbierto(false) }}
             title="Opciones de cuenta"
           >
@@ -261,34 +261,34 @@ export default function Topbar({ seccion }) {
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuAbierto(false)} />
               <div style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
-                background: 'white', borderRadius: 10, border: '0.5px solid #E8E8E8',
+                background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 200, overflow: 'hidden'
               }}>
-                <div style={{ padding: '12px 16px', borderBottom: '0.5px solid #E8E8E8', background: '#F9F9F9' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--gris-borde)', background: '#F9F9F9' }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{usuario?.nombre}</div>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{usuario?.identificador}</div>
-                  {usuario?.sede_nombre && <div style={{ fontSize: 11, color: '#888' }}>{usuario.sede_nombre}</div>}
+                  <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>{usuario?.identificador}</div>
+                  {usuario?.sede_nombre && <div style={{ fontSize: 11, color: 'var(--texto-muted)' }}>{usuario.sede_nombre}</div>}
                 </div>
                 {[
                   { icon: 'lucide:user', label: 'Mis datos', path: '/mis-datos' },
                   { icon: 'lucide:lock', label: 'Cambiar contraseña', path: '/cambiar-password' },
                 ].map(item => (
                   <div key={item.label}
-                    style={{ padding: '10px 16px', fontSize: 13, color: '#1a1a1a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                    style={{ padding: '10px 16px', fontSize: 13, color: 'var(--texto)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
                     onClick={() => { setMenuAbierto(false); navigate(item.path) }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#F4F5F7'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--gris-fondo)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <Icon icon={item.icon} width={14} /> {item.label}
                   </div>
                 ))}
                 <div
-                  style={{ padding: '10px 16px', fontSize: 13, color: '#E8505B', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid #E8E8E8' }}
+                  style={{ padding: '10px 16px', fontSize: 13, color: 'var(--danger)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, borderTop: '0.5px solid var(--gris-borde)' }}
                   onClick={handleLogout}
-                  onMouseEnter={e => e.currentTarget.style.background = '#FFF0F0'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-bg)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <Icon icon="lucide:log-out" width={14} style={{ color: '#E8505B' }} />
+                  <Icon icon="lucide:log-out" width={14} style={{ color: 'var(--danger)' }} />
                   Cerrar sesión
                 </div>
               </div>

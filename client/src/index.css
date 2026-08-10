@@ -1,6 +1,17 @@
 :root {
+  /* ── Marca ────────────────────────────────────────────────────────────────
+     Los colores de marca se mantienen, pero solo como fondo, relleno o
+     acento. Para TEXTO usar siempre los tokens semánticos de abajo: el verde,
+     el amarillo y el coral de marca no llegan a 4.5:1 sobre blanco. */
   --azul: #2B4BA0;
   --azul-oscuro: #1E3A6E;
+  --azul-profundo: #0D2B5E;  /* fondo del topbar y del panel del login */
+  /* Panel izquierdo del login (§5 del plan). El gradiente anterior arrancaba
+     en #5A7ED6 y dejaba el triángulo azul del isotipo (#395E9F, verificado
+     sobre el PNG real) en 1.25:1, prácticamente invisible; con estos tonos
+     sube a 2.15–2.76. Es la misma familia de azul que ya usa .topbar, así que
+     no hace falta una placa detrás del logo para resolver la legibilidad. */
+  --gradiente-login: linear-gradient(160deg, #14264C 0%, var(--azul-profundo) 55%, #0A1830 100%);
   --verde: #7BC67A;
   --rojo: #E8505B;
   --amarillo: #F5A623;
@@ -8,8 +19,39 @@
   --gris-borde: #E8E8E8;
   --texto: #1A1A1A;
   --texto-sec: #555555;
+  /* Tercer nivel de jerarquía, para metadatos y placeholders. Sustituye al
+     #888 que se repetía en los estilos inline: daba 3.54:1 sobre blanco y no
+     cumplía AA. Este es el gris más claro que llega a 4.5:1 tanto sobre
+     blanco (4.97) como sobre el gris de las tarjetas (4.56). */
+  --texto-muted: #6C7077;
   --blanco: #FFFFFF;
   --azul-claro: #EEF2FF;
+
+  /* ── Tokens semánticos (§3.1 del plan de mejoras UX) ───────────────────────
+     Contrastes medidos sobre blanco / sobre su propio fondo tintado.
+     Todos cumplen AA (4.5:1) para texto normal. */
+  --success:      #1A7A45;   /* 5.37 / 5.00 — reemplaza --verde como texto    */
+  --success-bg:   #EDFAF3;
+  --warning:      #8F5A00;   /* 5.78 / 5.48 — reemplaza --amarillo como texto */
+  --warning-bg:   #FFF8EC;
+  --danger:       #C0392B;   /* 5.44 / 4.91 — reemplaza --rojo como texto     */
+  --danger-bg:    #FFF0F0;
+  --info:         #2B4BA0;   /* 8.03 sobre blanco                             */
+  --info-bg:      #EEF2FF;
+
+  /* Rellenos de objetos gráficos (barras, iconos de estado): el umbral es el
+     3:1 de WCAG 1.4.11, no el 4.5:1 de texto. Nunca usar como color de texto. */
+  --success-graphic: #3E8F58;  /* 3.65 sobre --gris-fondo */
+  --warning-graphic: #B8720A;  /* 3.53 sobre --gris-fondo */
+  --danger-graphic:  #D2453A;  /* 4.14 sobre --gris-fondo */
+
+  /* ── Escala de radios y espaciado (§3.2) ─────────────────────────────────── */
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --space-1: 8px;
+  --space-2: 12px;
+  --space-3: 16px;
+  --space-4: 24px;
 
   /* Curso detalle (inline-styled page) */
   --cd-page-bg: #F6F7FB;
@@ -19,7 +61,7 @@
   --cd-border-light: #F0F0F0;
   --cd-text: #1a1a1a;
   --cd-text-sec: #555555;
-  --cd-text-muted: #888888;
+  --cd-text-muted: #6C7077;
 }
 
 /* ── Accesibilidad: texto grande ─────────────────────────────────────────── */
@@ -32,7 +74,24 @@ html.alto-contraste {
   --gris-borde:  #BBA96A;
   --texto:       #1A1000;
   --texto-sec:   #3A2A00;
+  --texto-muted: #5A4A1A;
   --azul-claro:  #FFF3C4;
+
+  /* Tokens semánticos en alto contraste: los de base cumplen AA sobre el crema
+     (5.2–5.6:1) pero este modo apunta a AAA, así que se oscurecen a 8:1+.
+     Los fondos tintados se aplanan al crema del tema para no romperlo. */
+  --success:     #14572F;   /* 8.34 sobre el fondo crema */
+  --success-bg:  #E8F5EA;
+  --warning:     #6B4200;   /* 8.44 */
+  --warning-bg:  #FFF0B0;
+  --danger:      #8E1F14;   /* 8.61 */
+  --danger-bg:   #FFE8E4;
+  --info:        #7B3F00;   /* 7.95 — el azul se sustituye por el ámbar del tema */
+  --info-bg:     #FFF3C4;
+
+  --success-graphic: #14572F;
+  --warning-graphic: #6B4200;
+  --danger-graphic:  #8E1F14;
 
   /* Curso detalle alto contraste */
   --cd-page-bg:     #FFFBEF;
@@ -96,6 +155,16 @@ html.alto-contraste .notice {
   border-color: #B8860B !important;
   color: #2C1800 !important;
 }
+/* El anillo de foco azul se pierde sobre el crema del tema. */
+html.alto-contraste button:focus-visible,
+html.alto-contraste a:focus-visible,
+html.alto-contraste input:focus-visible,
+html.alto-contraste select:focus-visible,
+html.alto-contraste textarea:focus-visible,
+html.alto-contraste [tabindex]:focus-visible {
+  outline: 3px solid #7B3F00 !important;
+  outline-offset: 2px;
+}
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -118,18 +187,18 @@ a { color: var(--azul); text-decoration: none; }
 
 /* Topbar */
 .topbar {
-  background: #0D2B5E ; height: 56px;
+  background: var(--azul-profundo); height: 56px;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 1.5rem; position: sticky; top: 0; z-index: 100;
 }
-.topbar-dark { background: #1E3A6E; }
+.topbar-dark { background: var(--azul-oscuro); }
 .topbar-left  { display: flex; align-items: center; gap: 12px; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .topbar-logo-text { font-size: 18px; font-weight: 500; color: #fff; letter-spacing: 0.5px; }
 .topbar-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.25); }
 .topbar-section { font-size: 13px; color: rgba(255,255,255,0.7); }
 .topbar-name { font-size: 13px; color: rgba(255,255,255,0.85); }
-.role-badge { font-size: 10px; background: rgba(255,255,255,0.18); color: #fff; border-radius: 20px; padding: 3px 8px; }
+.role-badge { font-size: 12px; background: rgba(255,255,255,0.18); color: #fff; border-radius: 20px; padding: 3px 8px; }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -145,7 +214,7 @@ a { color: var(--azul); text-decoration: none; }
   flex-shrink: 0;
 }
 .nav-section-label {
-  font-size: 10px; color: var(--texto-sec); letter-spacing: 0.8px;
+  font-size: 12px; color: var(--texto-sec); letter-spacing: 0.8px;
   text-transform: uppercase; padding: 12px 1.25rem 4px;
 }
 .nav-item {
@@ -154,11 +223,11 @@ a { color: var(--azul); text-decoration: none; }
   cursor: pointer; border-left: 3px solid transparent;
 }
 .nav-item:hover { background: var(--gris-fondo); color: var(--texto); }
-.nav-item.active { background: #EEF2FF; color: #2B4BA0; border-left: 3px solid #2B4BA0; font-weight: 500; }
-.nav-item.active-dark { background: #EEF2FF; color: #1E3A6E; border-left: 3px solid #1E3A6E; font-weight: 500; }
+.nav-item.active { background: var(--azul-claro); color: var(--azul); border-left: 3px solid var(--azul); font-weight: 500; }
+.nav-item.active-dark { background: var(--azul-claro); color: var(--azul-oscuro); border-left: 3px solid var(--azul-oscuro); font-weight: 500; }
 .nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
-.nav-badge { margin-left: auto; font-size: 10px; background: #E8505B; color: #fff; border-radius: 20px; padding: 2px 7px; }
-.nav-new   { margin-left: auto; font-size: 10px; background: #F5A623; color: #fff; border-radius: 20px; padding: 2px 7px; }
+.nav-badge { margin-left: auto; font-size: 12px; font-weight: 600; background: var(--danger); color: #fff; border-radius: 20px; padding: 2px 7px; }
+.nav-new   { margin-left: auto; font-size: 12px; font-weight: 600; background: #8A5A0B; color: #fff; border-radius: 20px; padding: 2px 7px; }
 
 /* Cards */
 .card {
@@ -166,7 +235,7 @@ a { color: var(--azul); text-decoration: none; }
   border-radius: 12px; padding: 1.1rem 1.25rem;
 }
 .card-title { font-size: 13px; font-weight: 500; color: var(--texto); }
-.card-link  { font-size: 12px; color: #2B4BA0; cursor: pointer; }
+.card-link  { font-size: 12px; color: var(--azul); cursor: pointer; }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 
 /* Stats */
@@ -174,9 +243,9 @@ a { color: var(--azul); text-decoration: none; }
   background: white; border: 0.5px solid var(--gris-borde);
   border-radius: 12px; padding: 1rem 1.1rem;
 }
-.stat-label { font-size: 11px; color: var(--texto-sec); margin-bottom: 6px; }
+.stat-label { font-size: 12px; color: var(--texto-sec); margin-bottom: 6px; }
 .stat-value { font-size: 22px; font-weight: 500; }
-.stat-sub   { font-size: 11px; color: var(--texto-sec); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.stat-sub   { font-size: 12px; color: var(--texto-sec); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
 
 /* Page header */
 .page-title { font-size: 17px; font-weight: 500; color: var(--texto); }
@@ -184,41 +253,82 @@ a { color: var(--azul); text-decoration: none; }
 
 /* Buttons */
 .btn-primary {
-  background: #2B4BA0; color: #fff; border: none;
+  background: var(--azul); color: #fff; border: none;
   border-radius: 8px; padding: 8px 14px;
   font-size: 12px; font-weight: 500; cursor: pointer;
   display: flex; align-items: center; gap: 6px;
 }
 .btn-primary:hover { background: #233d85; }
 .btn-outline-dark {
-  background: none; color: #1E3A6E; border: 0.5px solid #1E3A6E;
+  background: none; color: var(--azul-oscuro); border: 0.5px solid var(--azul-oscuro);
   border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer;
   display: flex; align-items: center; gap: 6px;
 }
-.btn-sm { font-size: 11px; border-radius: 8px; padding: 5px 10px; cursor: pointer; white-space: nowrap; border: none; }
-.btn-sm-primary { background: #2B4BA0; color: #fff; }
+.btn-sm { font-size: 12px; border-radius: var(--radius-md); padding: 5px 10px; cursor: pointer; white-space: nowrap; border: none; }
+.btn-sm-primary { background: var(--azul); color: #fff; }
 .btn-sm-outline { background: none; border: 0.5px solid var(--gris-borde); color: var(--texto-sec); }
-.btn-aprobar { background: #EDFAF3; color: #1A7A45; border: 0.5px solid #7BC67A; border-radius: 8px; padding: 5px 10px; font-size: 11px; cursor: pointer; }
-.btn-rechazar { background: #FFF0F0; color: #C0392B; border: 0.5px solid #E8505B; border-radius: 8px; padding: 5px 10px; font-size: 11px; cursor: pointer; }
 
-/* Pills / Badges */
-.status-pill { font-size: 10px; border-radius: 20px; padding: 2px 8px; }
-.status-ok   { background: #EDFAF3; color: #1A7A45; }
-.status-pend { background: #FFF8EC; color: #B8720A; }
-.status-fallo { background: #FFF0F0; color: #C0392B; }
-.badge-nuevo { font-size: 10px; background: #FFF0F0; color: #C0392B; border-radius: 20px; padding: 2px 8px; }
-.format-tag { font-size: 10px; border-radius: 20px; padding: 2px 7px; }
-.tag-pdf     { background: #FFEEEC; color: #C0392B; }
-.tag-video   { background: #EEF2FF; color: #2B4BA0; }
-.tag-ppt     { background: #FFF8EC; color: #B8720A; }
-.tag-publicado { background: #EDFAF3; color: #1A7A45; }
+/* ── Estados hover / focus (Fase 1 del plan de mejoras UX) ───────────────────
+   Antes solo .btn-primary y .nav-item tenían hover, y ningún control tenía
+   indicador de foco visible, así que la interfaz no era navegable por teclado.
+   :focus-visible solo se dispara con teclado, no al hacer clic con el mouse. */
+.btn-outline-dark:hover { background: var(--azul-claro); }
+.btn-sm-primary:hover   { background: #233d85; }
+.btn-sm-outline:hover   { background: var(--gris-fondo); color: var(--texto); }
+.btn-aprobar:hover      { background: #DCF5E8; }
+.btn-rechazar:hover     { background: #FFE0E0; }
+.card-link:hover        { text-decoration: underline; }
+.btn-primary, .btn-outline-dark, .btn-sm, .btn-aprobar, .btn-rechazar {
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.nav-item:focus-visible,
+.card-link:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+/* Sobre fondo azul oscuro el anillo azul no se ve: se invierte a blanco. */
+.topbar button:focus-visible,
+.topbar [tabindex]:focus-visible,
+.greeting-bar button:focus-visible {
+  outline-color: #fff;
+}
+.btn-aprobar { background: var(--success-bg); color: var(--success); border: 0.5px solid var(--verde); border-radius: var(--radius-md); padding: 5px 10px; font-size: 12px; cursor: pointer; }
+.btn-rechazar { background: var(--danger-bg); color: var(--danger); border: 0.5px solid var(--rojo); border-radius: var(--radius-md); padding: 5px 10px; font-size: 12px; cursor: pointer; }
+
+/* Pills / Badges
+   12px es el piso admitido para etiquetas (§3.2): por debajo el color de
+   estado deja de cumplir 4.5:1 a tamaño legible. */
+.status-pill { font-size: 12px; font-weight: 600; border-radius: 20px; padding: 2px 8px; }
+.status-ok   { background: var(--success-bg); color: var(--success); }
+.status-pend { background: var(--warning-bg); color: var(--warning); }
+.status-fallo { background: var(--danger-bg); color: var(--danger); }
+.badge-nuevo { font-size: 12px; font-weight: 600; background: var(--danger-bg); color: var(--danger); border-radius: 20px; padding: 2px 8px; }
+.format-tag { font-size: 12px; border-radius: 20px; padding: 2px 7px; }
+.tag-pdf     { background: #FFEEEC; color: var(--danger); }
+.tag-video   { background: var(--info-bg); color: var(--info); }
+.tag-ppt     { background: var(--warning-bg); color: var(--warning); }
+.tag-publicado { background: var(--success-bg); color: var(--success); }
 .tag-borrador  { background: var(--gris-fondo); color: var(--texto-sec); border: 0.5px solid var(--gris-borde); }
-.preview-badge { font-size: 10px; background: #EDFAF3; color: #1A7A45; border-radius: 20px; padding: 3px 10px; }
-.ia-badge      { font-size: 10px; background: #F5A623; color: #fff; border-radius: 20px; padding: 3px 10px; }
+.preview-badge { font-size: 12px; background: var(--success-bg); color: var(--success); border-radius: 20px; padding: 3px 10px; }
+.ia-badge      { font-size: 12px; background: #8A5A0B; color: #fff; border-radius: 20px; padding: 3px 10px; }
 
-/* Progress bar */
-.progress-bar-wrap { height: 4px; background: var(--gris-fondo); border-radius: 2px; overflow: hidden; }
-.progress-bar-fill { height: 100%; border-radius: 2px; background: #2B4BA0; }
+/* Progress bar
+   La barra es un objeto gráfico informativo: el relleno debe cumplir 3:1
+   contra el track (WCAG 1.4.11), por eso usa los tokens -graphic y no los
+   colores de marca. */
+.progress-bar-wrap { height: 5px; background: var(--gris-fondo); border-radius: 3px; overflow: hidden; }
+.progress-bar-fill { height: 100%; border-radius: 3px; background: var(--azul); }
+.progress-bar-fill.fill-ok    { background: var(--success-graphic); }
+.progress-bar-fill.fill-pend  { background: var(--warning-graphic); }
+.progress-bar-fill.fill-fallo { background: var(--danger-graphic); }
 
 /* Grids */
 .stats-grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
@@ -242,13 +352,13 @@ a { color: var(--azul); text-decoration: none; }
 
 /* Form fields */
 .field { margin-bottom: 1rem; }
-.field label { display: block; font-size: 11px; color: var(--texto-sec); font-weight: 500; margin-bottom: 5px; }
+.field label { display: block; font-size: 12px; color: var(--texto-sec); font-weight: 500; margin-bottom: 5px; }
 .field input, .field select, .field textarea {
   width: 100%; border: 0.5px solid var(--gris-borde); border-radius: 8px;
   padding: 8px 10px; font-size: 13px; background: var(--gris-fondo); color: var(--texto);
 }
 .field input:focus, .field select:focus, .field textarea:focus {
-  border-color: #2B4BA0; box-shadow: 0 0 0 3px rgba(43,75,160,0.1);
+  border-color: var(--azul); box-shadow: 0 0 0 3px rgba(43,75,160,0.1);
 }
 
 /* Notice */
@@ -260,7 +370,7 @@ a { color: var(--azul); text-decoration: none; }
 
 /* Greeting bar */
 .greeting-bar {
-  background: linear-gradient(135deg, #0D2B5E 0%, #2B4BA0 100%);
+  background: linear-gradient(135deg, var(--azul-profundo) 0%, var(--azul) 100%);
   border-radius: 12px; padding: 1.25rem 1.5rem;
   display: flex; justify-content: space-between; align-items: center;
 }
@@ -296,12 +406,22 @@ svg { vertical-align: middle; }
   animation: toast-in 0.2s ease-out forwards; pointer-events: all;
 }
 .toast-leaving  { animation: toast-out 0.3s ease-in forwards; }
-.toast-success  { border-left-color: #7BC67A; }
-.toast-error    { border-left-color: #E8505B; }
-.toast-warn     { border-left-color: #F5A623; }
-.toast-info     { border-left-color: #2B4BA0; }
-.toast-icon     { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.toast-success  { border-left-color: var(--success); }
+.toast-error    { border-left-color: var(--danger); }
+.toast-warn     { border-left-color: var(--warning); }
+.toast-info     { border-left-color: var(--info); }
+.toast-icon     { font-size: 13px; font-weight: 700; flex-shrink: 0; display: flex; }
+.toast-success .toast-icon { color: var(--success); }
+.toast-error   .toast-icon { color: var(--danger); }
+.toast-warn    .toast-icon { color: var(--warning); }
+.toast-info    .toast-icon { color: var(--info); }
 .toast-message  { flex: 1; color: var(--texto); line-height: 1.4; }
+.toast-action   {
+  background: none; border: none; padding: 0; flex-shrink: 0;
+  font-size: 13px; font-weight: 600; color: var(--azul); cursor: pointer;
+  text-decoration: underline; white-space: nowrap;
+}
+.toast-action:hover { color: var(--azul-oscuro); }
 .toast-close    { background: none; border: none; font-size: 16px; color: var(--texto-sec); cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
 @keyframes toast-in  { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toast-out { from { opacity: 1; transform: translateX(0); }    to { opacity: 0; transform: translateX(20px); } }

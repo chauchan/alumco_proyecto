@@ -12,7 +12,7 @@ import Sidebar from '../components/Sidebar'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 
-const DONUT_COLORS = ['#2B4BA0', '#7BC67A', '#F5A623', '#E8505B', '#A855F7', '#06B6D4', '#F43F5E', '#14B8A6']
+const DONUT_COLORS = ['var(--azul)', 'var(--verde)', 'var(--amarillo)', 'var(--rojo)', '#A855F7', '#06B6D4', '#F43F5E', '#14B8A6']
 
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 const hace12MesesISO = () => {
@@ -71,7 +71,7 @@ export default function Jefatura() {
     { label:'Configuración', active:false },
   ]
 
-  const sedeColors = ['#2B4BA0','#7BC67A','#F5A623']
+  const sedeColors = ['var(--azul)','var(--verde)','var(--amarillo)']
 
   const enviarRecordatoriosAhora = async () => {
     setEnviandoRecordatorios(true)
@@ -145,10 +145,10 @@ export default function Jefatura() {
           {/* Stats globales */}
           <div className="stats-grid-4">
             {[
-              { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores totales', sub:'ambas sedes', color:'#2B4BA0' },
-              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'#7BC67A' },
-              { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este período', color:'#F5A623' },
-              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'#E8505B' },
+              { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores totales', sub:'ambas sedes', color:'var(--azul)' },
+              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'var(--success)' },
+              { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este período', color:'var(--warning)' },
+              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'var(--danger)' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">{s.label}</div>
@@ -162,7 +162,7 @@ export default function Jefatura() {
           <div>
             <div className="card-header" style={{ marginBottom:10 }}>
               <span className="card-title" style={{ fontSize:14 }}>Comparativa por sede</span>
-              <span className="card-link" style={{ color:'#1E3A6E' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span className="card-link" style={{ color:'var(--azul-oscuro)' }}>Detalle <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             <div className="two-col sedes-grid">
               {sedes.map((s, i) => (
@@ -172,15 +172,15 @@ export default function Jefatura() {
                     <div style={{ display:'flex', gap:16 }}>
                       <div style={{ textAlign:'center' }}>
                         <div style={{ fontSize:18, fontWeight:500 }}>{s.colaboradores}</div>
-                        <div style={{ fontSize:10, color:'#888' }}>colaboradores</div>
+                        <div style={{ fontSize:10, color:'var(--texto-muted)' }}>colaboradores</div>
                       </div>
                       <div style={{ textAlign:'center' }}>
                         <div style={{ fontSize:18, fontWeight:500 }}>{s.certificados}</div>
-                        <div style={{ fontSize:10, color:'#888' }}>certificados</div>
+                        <div style={{ fontSize:10, color:'var(--texto-muted)' }}>certificados</div>
                       </div>
                     </div>
                   </div>
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#888', marginBottom:4 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--texto-muted)', marginBottom:4 }}>
                     <span>Cobertura de capacitación</span>
                     <span>{s.cobertura_pct || 0}%</span>
                   </div>
@@ -196,26 +196,26 @@ export default function Jefatura() {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Cobertura por curso</span>
-              <span className="card-link" style={{ color:'#1E3A6E' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
+              <span className="card-link" style={{ color:'var(--azul-oscuro)' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead>
                 <tr>
                   {['Curso','Inscritos','Completaron','Cobertura'].map(h => (
-                    <th key={h} style={{ fontSize:11, fontWeight:500, color:'#888', textAlign:'left', padding:'6px 8px', borderBottom:'0.5px solid #E8E8E8' }}>{h}</th>
+                    <th key={h} style={{ fontSize:11, fontWeight:500, color:'var(--texto-muted)', textAlign:'left', padding:'6px 8px', borderBottom:'0.5px solid var(--gris-borde)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {cursos.slice(0,5).map(c => (
-                  <tr key={c.id} style={{ borderBottom:'0.5px solid #E8E8E8' }}>
+                  <tr key={c.id} style={{ borderBottom:'0.5px solid var(--gris-borde)' }}>
                     <td style={{ padding:'8px 8px' }}>{c.nombre}</td>
                     <td style={{ padding:'8px 8px' }}>{c.inscritos}</td>
                     <td style={{ padding:'8px 8px' }}>{c.completaron}</td>
                     <td style={{ padding:'8px 8px' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                         <div style={{ width:60, height:4, background:'#EEE', borderRadius:2, overflow:'hidden' }}>
-                          <div style={{ height:'100%', width:`${c.pct_completado||0}%`, background:'#2B4BA0', borderRadius:2 }} />
+                          <div style={{ height:'100%', width:`${c.pct_completado||0}%`, background:'var(--azul)', borderRadius:2 }} />
                         </div>
                         <span>{c.pct_completado||0}%</span>
                       </div>
@@ -232,10 +232,10 @@ export default function Jefatura() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <div>
                 <div className="card-title" style={{ fontSize:14 }}>Análisis y gráficos</div>
-                {cargandoGraficos && <div style={{ fontSize:11, color:'#999', marginTop:2 }}>Cargando…</div>}
+                {cargandoGraficos && <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:2 }}>Cargando…</div>}
               </div>
               <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                <label style={{ fontSize:11, color:'#888' }}>Desde</label>
+                <label style={{ fontSize:11, color:'var(--texto-muted)' }}>Desde</label>
                 <input
                   type="date"
                   value={desde}
@@ -243,7 +243,7 @@ export default function Jefatura() {
                   onChange={e => setDesde(e.target.value)}
                   style={{ fontSize:11, padding:'4px 6px', border:'1px solid #DDD', borderRadius:4, color:'#333' }}
                 />
-                <label style={{ fontSize:11, color:'#888' }}>Hasta</label>
+                <label style={{ fontSize:11, color:'var(--texto-muted)' }}>Hasta</label>
                 <input
                   type="date"
                   value={hasta}
@@ -261,7 +261,7 @@ export default function Jefatura() {
               <div className="card">
                 <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Cobertura por sede (%)</div>
                 {coberturaData.length === 0 && !cargandoGraficos
-                  ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
+                  ? <div style={{ fontSize:11, color:'var(--texto-muted)', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
                   : (
                     <ResponsiveContainer width="100%" height={200}>
                       <BarChart data={coberturaData} margin={{ top:4, right:8, left:-20, bottom:4 }}>
@@ -283,7 +283,7 @@ export default function Jefatura() {
               <div className="card">
                 <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Certificaciones emitidas por mes</div>
                 {certMesData.length === 0 && !cargandoGraficos
-                  ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
+                  ? <div style={{ fontSize:11, color:'var(--texto-muted)', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
                   : (
                     <ResponsiveContainer width="100%" height={200}>
                       <LineChart data={certMesData} margin={{ top:4, right:8, left:-20, bottom:4 }}>
@@ -310,7 +310,7 @@ export default function Jefatura() {
               <div className="card">
                 <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Distribución por estamento</div>
                 {estamentoData.length === 0 && !cargandoGraficos
-                  ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
+                  ? <div style={{ fontSize:11, color:'var(--texto-muted)', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
                   : (
                     <ResponsiveContainer width="100%" height={200}>
                       <PieChart>

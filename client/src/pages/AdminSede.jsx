@@ -102,7 +102,7 @@ export default function AdminSede() {
     return 'Al día'
   }
 
-  const avatarBg = ['#2B4BA0','#F5A623','#E8505B','#7BC67A']
+  const avatarBg = ['var(--azul)','var(--amarillo)','var(--rojo)','var(--verde)']
 
   return (
     <div className="app-shell">
@@ -132,10 +132,10 @@ export default function AdminSede() {
           {/* Stats */}
           <div className="stats-grid-4">
             {[
-              { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores activos', sub:'en esta sede', color:'#7BC67A' },
-              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'con todos sus cursos', color:'#F5A623' },
-              { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este trimestre', color:'#2B4BA0' },
-              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o vencidos', color:'#E8505B' },
+              { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores activos', sub:'en esta sede', color:'var(--success)' },
+              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'con todos sus cursos', color:'var(--warning)' },
+              { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este trimestre', color:'var(--azul)' },
+              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o vencidos', color:'var(--danger)' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">{s.label}</div>
@@ -160,7 +160,7 @@ export default function AdminSede() {
                   </div>
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:12, fontWeight:500 }}>{u.nombre}</div>
-                    <div style={{ fontSize:11, color:'#888' }}>{u.tipo_contrato || 'Fijo'}</div>
+                    <div style={{ fontSize:11, color:'var(--texto-muted)' }}>{u.tipo_contrato || 'Fijo'}</div>
                   </div>
                   <span className={`status-pill ${statusClass(u)}`}>{statusLabel(u)}</span>
                 </div>
@@ -177,10 +177,10 @@ export default function AdminSede() {
                 <div key={c.id} style={{ marginBottom:14 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
                     <span>{c.nombre}</span>
-                    <span style={{ color:'#888' }}>{c.pct_completado || 0}%</span>
+                    <span style={{ color:'var(--texto-muted)' }}>{c.pct_completado || 0}%</span>
                   </div>
                   <div className="progress-bar-wrap" style={{ height:5 }}>
-                    <div className="progress-bar-fill" style={{ width:`${c.pct_completado||0}%`, background:'#2B4BA0' }} />
+                    <div className="progress-bar-fill" style={{ width:`${c.pct_completado||0}%`, background:'var(--azul)' }} />
                   </div>
                 </div>
               ))}
@@ -193,7 +193,7 @@ export default function AdminSede() {
               <div className="card-header">
                 <span className="card-title">
                   Colaboradores bloqueados
-                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                  <span style={{ marginLeft:8, background:'var(--rojo)', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
                     {bloqueados.length}
                   </span>
                 </span>
@@ -204,16 +204,16 @@ export default function AdminSede() {
                   <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
-                      <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{b.curso_nombre}</div>
+                      <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:2 }}>{b.curso_nombre}</div>
                     </div>
-                    <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>
+                    <span style={{ fontSize:11, color:'var(--texto-muted)', whiteSpace:'nowrap' }}>
                       {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
                     </span>
                     <button
                       className="btn-sm btn-sm-primary"
                       disabled={desbloqueando.has(key)}
                       onClick={() => desbloquear(b.curso_id, b.usuario_id)}
-                      style={{ background:'#1A7A45', color:'#fff', minWidth:100 }}
+                      style={{ background:'var(--success)', color:'#fff', minWidth:100 }}
                     >
                       {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
                     </button>
@@ -229,21 +229,21 @@ export default function AdminSede() {
               <span className="card-title">
                 Alertas y acciones requeridas
                 {noLeidas > 0 && (
-                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                  <span style={{ marginLeft:8, background:'var(--rojo)', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
                     {noLeidas}
                   </span>
                 )}
               </span>
               {noLeidas > 0 && (
                 <button onClick={marcarTodasLeidas}
-                  style={{ fontSize:11, color:'#2B4BA0', background:'none', border:'none', cursor:'pointer' }}>
+                  style={{ fontSize:11, color:'var(--azul)', background:'none', border:'none', cursor:'pointer' }}>
                   Marcar todas como leídas
                 </button>
               )}
             </div>
             {notificaciones.length === 0 ? (
-              <div style={{ padding:'20px 0', textAlign:'center', color:'#aaa', fontSize:12 }}>
-                <Icon icon="lucide:check-circle" width={20} style={{display:'block',margin:'0 auto 8px',color:'#22C55E'}} />
+              <div style={{ padding:'20px 0', textAlign:'center', color:'var(--texto-muted)', fontSize:12 }}>
+                <Icon icon="lucide:check-circle" width={20} style={{display:'block',margin:'0 auto 8px',color:'var(--success)'}} />
                 Sin alertas pendientes
               </div>
             ) : notificaciones.map(n => (
@@ -254,13 +254,13 @@ export default function AdminSede() {
               >
                 <div style={{
                   width:8, height:8, borderRadius:'50%', marginTop:4, flexShrink:0,
-                  background: n.leida ? '#CCC' : '#E8505B'
+                  background: n.leida ? '#CCC' : 'var(--rojo)'
                 }} />
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:12, fontWeight: n.leida ? 400 : 600, color:'#1a1a1a', marginBottom:2 }}>{n.titulo}</div>
+                  <div style={{ fontSize:12, fontWeight: n.leida ? 400 : 600, color:'var(--texto)', marginBottom:2 }}>{n.titulo}</div>
                   <div style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>{n.mensaje}</div>
                 </div>
-                <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>{tiempoRelativo(n.created_at)}</span>
+                <span style={{ fontSize:11, color:'var(--texto-muted)', whiteSpace:'nowrap' }}>{tiempoRelativo(n.created_at)}</span>
               </div>
             ))}
           </div>

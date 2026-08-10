@@ -9,8 +9,8 @@ import { useConfirm } from '../context/ConfirmContext'
 const FORM_INICIAL = { nombre: '', ciudad: '' }
 
 const BTN_GHOST = {
-  background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8,
-  padding: '0 14px', height: 36, fontSize: 13, color: '#555', cursor: 'pointer'
+  background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8,
+  padding: '0 14px', height: 36, fontSize: 13, color: 'var(--texto-sec)', cursor: 'pointer'
 }
 
 export default function GestionSedes() {
@@ -122,26 +122,26 @@ export default function GestionSedes() {
           {/* Tabla */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {cargando ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
+              <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando...</div>
             ) : sedes.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 40, fontSize: 13 }}>
+              <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 40, fontSize: 13 }}>
                 No hay sedes registradas. Creá la primera con el botón de arriba.
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: '#F4F5F7' }}>
+                  <tr style={{ background: 'var(--gris-fondo)' }}>
                     {['Nombre', 'Ciudad', 'Estado', 'Usuarios activos', 'Acciones'].map(h => (
                       <th key={h} style={{
-                        fontSize: 11, fontWeight: 500, color: '#888', textAlign: 'left',
-                        padding: '10px 16px', borderBottom: '0.5px solid #E8E8E8'
+                        fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left',
+                        padding: '10px 16px', borderBottom: '0.5px solid var(--gris-borde)'
                       }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {sedes.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '0.5px solid #E8E8E8', opacity: s.activa ? 1 : 0.55 }}>
+                    <tr key={s.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: s.activa ? 1 : 0.55 }}>
                       <td style={{ padding: '11px 16px', fontWeight: 500 }}>{s.nombre}</td>
                       <td style={{ padding: '11px 16px', color: '#666' }}>{s.ciudad || '—'}</td>
                       <td style={{ padding: '11px 16px' }}>
@@ -149,10 +149,10 @@ export default function GestionSedes() {
                           {s.activa ? 'Activa' : 'Inactiva'}
                         </span>
                       </td>
-                      <td style={{ padding: '11px 16px', color: '#555' }}>
+                      <td style={{ padding: '11px 16px', color: 'var(--texto-sec)' }}>
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
-                          fontSize: 12, color: parseInt(s.usuarios_activos) > 0 ? '#2B4BA0' : '#AAA'
+                          fontSize: 12, color: parseInt(s.usuarios_activos) > 0 ? 'var(--azul)' : 'var(--texto-muted)'
                         }}>
                           <Icon icon="lucide:users" width={12} />
                           {s.usuarios_activos}

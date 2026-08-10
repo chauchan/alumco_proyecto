@@ -27,11 +27,11 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
   }
   const fld = { fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #CCC', width: '100%', boxSizing: 'border-box' }
   const ta = { ...fld, resize: 'none' }
-  const lbl = { fontSize: 11, color: '#555', marginBottom: 4, display: 'block' }
+  const lbl = { fontSize: 11, color: 'var(--texto-sec)', marginBottom: 4, display: 'block' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 20px', maxHeight: '55vh', overflowY: 'auto' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: '#2B4BA0', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--azul)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
         Editando slide: {slide.tipo}
       </div>
 
@@ -108,7 +108,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
       </>)}
 
       {!['objetivos', 'desempeno', 'introduccion', 'seccion', 'caso_practico', 'puntos_clave', 'importante', 'conclusion'].includes(slide.tipo) && (
-        <div style={{ fontSize: 12, color: '#888', textAlign: 'center', padding: '2rem 0' }}>
+        <div style={{ fontSize: 12, color: 'var(--texto-muted)', textAlign: 'center', padding: '2rem 0' }}>
           El tipo "{slide.tipo}" no tiene campos editables en esta vista.
         </div>
       )}
@@ -119,10 +119,10 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
           <label style={lbl}>Imagen del protocolo (opcional)</label>
           {slide.imagen && (
             <div style={{ marginBottom: 8, position: 'relative', display: 'inline-block' }}>
-              <SignedImage src={slide.imagen} alt="seleccionada" style={{ height: 80, borderRadius: 6, border: '2px solid #2B4BA0', objectFit: 'cover' }} />
+              <SignedImage src={slide.imagen} alt="seleccionada" style={{ height: 80, borderRadius: 6, border: '2px solid var(--azul)', objectFit: 'cover' }} />
               <button onClick={() => upd('imagen', null)} style={{
                 position: 'absolute', top: -6, right: -6, width: 18, height: 18,
-                borderRadius: '50%', background: '#E8505B', color: '#fff', border: 'none',
+                borderRadius: '50%', background: 'var(--rojo)', color: '#fff', border: 'none',
                 fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}><Icon icon="lucide:x" width={18} /></button>
             </div>
@@ -133,7 +133,7 @@ export function SlideEditor({ slide, onChange, imagenes = [] }) {
                 onClick={() => upd('imagen', url)}
                 style={{
                   width: '100%', height: 60, objectFit: 'cover', borderRadius: 5, cursor: 'pointer',
-                  border: slide.imagen === url ? '2px solid #2B4BA0' : '1.5px solid #DDD',
+                  border: slide.imagen === url ? '2px solid var(--azul)' : '1.5px solid #DDD',
                   opacity: slide.imagen === url ? 1 : 0.8
                 }} />
             ))}
@@ -192,7 +192,7 @@ export function Slide({ slide, total, actual }) {
     objetivos:    { bg: '#191B0E', color: '#EFEDE3', accent: '#F26B43' },
     desempeno:    { bg: '#EFEDE3', color: '#191B0E', accent: '#F26B43' },
     introduccion: { bg: '#fff',    color: '#191B0E', accent: '#897B61' },
-    seccion:      { bg: '#fff',    color: '#191B0E', accent: '#1E3A6E' },
+    seccion:      { bg: '#fff',    color: '#191B0E', accent: 'var(--azul-oscuro)' },
     caso_practico:{ bg: '#EFEDE3', color: '#191B0E', accent: '#8DAB8E' },
     puntos_clave: { bg: '#EFEDE3', color: '#191B0E', accent: '#8DAB8E' },
     importante:   { bg: '#191B0E', color: '#EFEDE3', accent: '#E6C069' },
@@ -605,14 +605,14 @@ export default function GeneradorIA() {
 
           <div className="three-col">
             {[
-              { num: 1, color: '#2B4BA0', title: 'Sube el protocolo', desc: 'Selecciona el PDF del protocolo institucional a digitalizar.' },
-              { num: 2, color: '#F5A623', title: 'La IA genera el borrador', desc: 'El sistema extrae módulos, preguntas y presentaciones PPT.' },
-              { num: 3, color: '#7BC67A', title: 'El profesor valida', desc: 'El contenido generado es revisado y aprobado antes de publicarse.' },
+              { num: 1, color: 'var(--azul)', title: 'Sube el protocolo', desc: 'Selecciona el PDF del protocolo institucional a digitalizar.' },
+              { num: 2, color: 'var(--warning)', title: 'La IA genera el borrador', desc: 'El sistema extrae módulos, preguntas y presentaciones PPT.' },
+              { num: 3, color: 'var(--success)', title: 'El profesor valida', desc: 'El contenido generado es revisado y aprobado antes de publicarse.' },
             ].map(s => (
               <div key={s.num} className="card" style={{ position: 'relative' }}>
                 <div style={{ width: 24, height: 24, borderRadius: '50%', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 500, color: '#fff', marginBottom: 10 }}>{s.num}</div>
                 <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{s.title}</div>
-                <div style={{ fontSize: 11, color: '#888', lineHeight: 1.6 }}>{s.desc}</div>
+                <div style={{ fontSize: 11, color: 'var(--texto-muted)', lineHeight: 1.6 }}>{s.desc}</div>
               </div>
             ))}
           </div>
@@ -639,12 +639,12 @@ export default function GeneradorIA() {
             }
 
             const colores = {
-              menos: { bg: '#FFF3F3', border: '#F5C6C6', text: '#C0392B' },
+              menos: { bg: '#FFF3F3', border: '#F5C6C6', text: 'var(--danger)' },
               mas:   { bg: '#FFFBEA', border: '#E6C069', text: '#7D6000' },
-              ok:    { bg: '#F0FBF4', border: '#A8D8B0', text: '#1A7A45' },
+              ok:    { bg: '#F0FBF4', border: '#A8D8B0', text: 'var(--success)' },
             }
             const c = colores[tipo]
-            const icono = tipo === 'menos' ? <Icon icon="lucide:alert-triangle" width={20} style={{color:'#B45309',flexShrink:0}} /> : tipo === 'mas' ? <Icon icon="lucide:lightbulb" width={20} style={{color:'#B45309',flexShrink:0}} /> : <Icon icon="lucide:check-circle" width={20} style={{color:'#1A7A45',flexShrink:0}} />
+            const icono = tipo === 'menos' ? <Icon icon="lucide:alert-triangle" width={20} style={{color:'var(--warning)',flexShrink:0}} /> : tipo === 'mas' ? <Icon icon="lucide:lightbulb" width={20} style={{color:'var(--warning)',flexShrink:0}} /> : <Icon icon="lucide:check-circle" width={20} style={{color:'var(--success)',flexShrink:0}} />
 
             return (
               <div style={{
@@ -672,7 +672,7 @@ export default function GeneradorIA() {
                     <button key={val} type="button" onClick={() => setFuentePDF(val)} style={{
                       flex: 1, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: fuentePDF === val ? 600 : 400,
                       background: fuentePDF === val ? '#fff' : 'transparent',
-                      color: fuentePDF === val ? '#1E3A6E' : '#888',
+                      color: fuentePDF === val ? 'var(--azul-oscuro)' : 'var(--texto-muted)',
                       boxShadow: fuentePDF === val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
                     }}>{lbl}</button>
                   ))}
@@ -682,35 +682,35 @@ export default function GeneradorIA() {
                   <div className="upload-zone" style={{ marginBottom: 16 }} onClick={() => document.getElementById('input-pdf').click()}>
                     <input id="input-pdf" type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => setArchivo(e.target.files[0])} />
                     {archivo ? (
-                      <><Icon icon="lucide:check" width={20} style={{margin:"0 auto 4px",display:"block",color:"#1A7A45"}} />
-                        <div style={{ fontSize: 12, fontWeight: 500, color: '#1A7A45' }}>{archivo.name}</div>
+                      <><Icon icon="lucide:check" width={20} style={{margin:"0 auto 4px",display:"block",color:"var(--success)"}} />
+                        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--success)' }}>{archivo.name}</div>
                         <span className="format-tag tag-pdf" style={{ marginTop: 6, display: 'inline-block' }}>PDF</span></>
                     ) : (
                       <><div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Arrastra o selecciona un PDF</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>Protocolo institucional en formato PDF</div></>
+                        <div style={{ fontSize: 11, color: 'var(--texto-muted)' }}>Protocolo institucional en formato PDF</div></>
                     )}
                   </div>
                 ) : (
                   <div style={{ marginBottom: 16 }}>
                     {protocolos.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F4F5F7', borderRadius: 8, fontSize: 12, color: '#888' }}>
-                        No hay protocolos guardados. <a href="/jefatura/protocolos" style={{ color: '#1E3A6E' }}>Ir a la biblioteca <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></a>
+                      <div style={{ textAlign: 'center', padding: '1.5rem', background: 'var(--gris-fondo)', borderRadius: 8, fontSize: 12, color: 'var(--texto-muted)' }}>
+                        No hay protocolos guardados. <a href="/jefatura/protocolos" style={{ color: 'var(--azul-oscuro)' }}>Ir a la biblioteca <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></a>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                         {protocolos.map(p => (
                           <div key={p.id} onClick={() => setProtocoloSeleccionado(p)} style={{
                             padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
-                            border: `1.5px solid ${protocoloSeleccionado?.id === p.id ? '#1E3A6E' : '#E8E8E8'}`,
+                            border: `1.5px solid ${protocoloSeleccionado?.id === p.id ? 'var(--azul-oscuro)' : 'var(--gris-borde)'}`,
                             background: protocoloSeleccionado?.id === p.id ? '#F0F4FF' : '#fff',
                             display: 'flex', alignItems: 'center', gap: 10
                           }}>
                             <Icon icon="lucide:file-text" width={16} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 500, color: '#222' }}>{p.nombre}</div>
-                              {p.descripcion && <div style={{ fontSize: 10, color: '#888' }}>{p.descripcion}</div>}
+                              {p.descripcion && <div style={{ fontSize: 10, color: 'var(--texto-muted)' }}>{p.descripcion}</div>}
                             </div>
-                            {protocoloSeleccionado?.id === p.id && <Icon icon="lucide:check" color="#1E3A6E" width={14} />}
+                            {protocoloSeleccionado?.id === p.id && <Icon icon="lucide:check" color="var(--azul-oscuro)" width={14} />}
                           </div>
                         ))}
                       </div>
@@ -742,7 +742,7 @@ export default function GeneradorIA() {
                     ))}
                   </select>
                   {!form.profesor_id && (
-                    <span style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'block' }}>
+                    <span style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
                       Si no elegís, lo asignaremos automáticamente según sede y estamento
                     </span>
                   )}
@@ -760,9 +760,9 @@ export default function GeneradorIA() {
                     value={form.contexto} onChange={e => setForm({ ...form, contexto: e.target.value })}
                     style={{ resize: 'none' }} />
                 </div>
-                {error && <p style={{ color: '#E8505B', fontSize: 12, marginBottom: 8 }}>{error}</p>}
+                {error && <p style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 8 }}>{error}</p>}
                 <button type="submit" disabled={cargando} style={{
-                  width: '100%', height: 42, background: '#1E3A6E', color: '#fff', border: 'none',
+                  width: '100%', height: 42, background: 'var(--azul-oscuro)', color: '#fff', border: 'none',
                   borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                 }}>
@@ -781,15 +781,15 @@ export default function GeneradorIA() {
               {cargando && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0' }}>
                   <MascotaFoye size={80} estado="activo" animate />
-                  <div style={{ fontSize: 13, marginTop: 12, color: '#555', fontWeight: 500 }}>Analizando el protocolo...</div>
-                  <div style={{ fontSize: 11, marginTop: 6, color: '#888' }}>Esto puede tomar 30–60 segundos</div>
+                  <div style={{ fontSize: 13, marginTop: 12, color: 'var(--texto-sec)', fontWeight: 500 }}>Analizando el protocolo...</div>
+                  <div style={{ fontSize: 11, marginTop: 6, color: 'var(--texto-muted)' }}>Esto puede tomar 30–60 segundos</div>
                 </div>
               )}
 
               {!resultado && !cargando && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0', color: '#CCC' }}>
                   <MascotaFoye size={72} estado="neutral" animate />
-                  <div style={{ fontSize: 13, marginTop: 12, color: '#888' }}>El borrador aparecerá aquí</div>
+                  <div style={{ fontSize: 13, marginTop: 12, color: 'var(--texto-muted)' }}>El borrador aparecerá aquí</div>
                 </div>
               )}
 
@@ -807,25 +807,25 @@ export default function GeneradorIA() {
                       }} onClick={e => e.stopPropagation()}>
 
                         {/* Cabecera modal */}
-                        <div style={{ background: '#F4F5F7', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid #E8E8E8' }}>
+                        <div style={{ background: 'var(--gris-fondo)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--gris-borde)' }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{mod.titulo}</div>
-                            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>Módulo {presentacionActiva + 1} de {resultado.modulos?.length ?? '?'}</div>
+                            <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>Módulo {presentacionActiva + 1} de {resultado.modulos?.length ?? '?'}</div>
                           </div>
                           {/* Tabs */}
                           {pres && pres !== 'cargando' && pres !== 'error' && (
-                            <div style={{ display: 'flex', background: '#E8E8E8', borderRadius: 8, padding: 3, gap: 2 }}>
+                            <div style={{ display: 'flex', background: 'var(--gris-borde)', borderRadius: 8, padding: 3, gap: 2 }}>
                               <button onClick={() => setModoPPT(false)} style={{
                                 fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
                                 background: !modoPPT ? '#fff' : 'transparent',
-                                color: !modoPPT ? '#1E3A6E' : '#888',
+                                color: !modoPPT ? 'var(--azul-oscuro)' : 'var(--texto-muted)',
                                 fontWeight: !modoPPT ? 600 : 400,
                                 boxShadow: !modoPPT ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
                               }}>Resumen</button>
                               <button onClick={() => { setModoPPT(true); setSlideActual(0) }} style={{
                                 fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                                background: modoPPT ? '#1E3A6E' : 'transparent',
-                                color: modoPPT ? '#fff' : '#888',
+                                background: modoPPT ? 'var(--azul-oscuro)' : 'transparent',
+                                color: modoPPT ? '#fff' : 'var(--texto-muted)',
                                 fontWeight: modoPPT ? 600 : 400
                               , display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:play" width={11} /> Presentación</button>
                             </div>
@@ -861,15 +861,15 @@ export default function GeneradorIA() {
                               }}
                               style={{
                                 fontSize: 11, padding: '4px 10px', borderRadius: 6,
-                                border: `1px solid ${editandoPPT ? '#2B4BA0' : '#CCC'}`,
-                                background: editandoPPT ? '#2B4BA0' : 'transparent',
-                                color: editandoPPT ? '#fff' : '#555',
+                                border: `1px solid ${editandoPPT ? 'var(--azul)' : '#CCC'}`,
+                                background: editandoPPT ? 'var(--azul)' : 'transparent',
+                                color: editandoPPT ? '#fff' : 'var(--texto-sec)',
                                 cursor: 'pointer', fontWeight: 500
                               }}>
                               {editandoPPT ? <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Vista previa</> : <><Icon icon="lucide:pencil" width={13} style={{verticalAlign:'middle',marginRight:3}} /> Editar slides</>}
                             </button>
                           )}
-                          <button onClick={cerrarModal} style={{ background: 'none', border: 'none', fontSize: 18, color: '#AAA', cursor: 'pointer', display:'flex', alignItems:'center' }}><Icon icon="lucide:x" width={18} /></button>
+                          <button onClick={cerrarModal} style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--texto-muted)', cursor: 'pointer', display:'flex', alignItems:'center' }}><Icon icon="lucide:x" width={18} /></button>
                         </div>
 
                         {/* Cuerpo modal */}
@@ -879,17 +879,17 @@ export default function GeneradorIA() {
                           {(!pres || pres === 'cargando') && (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0' }}>
                               <MascotaFoye size={64} estado="activo" animate />
-                              <div style={{ fontSize: 13, marginTop: 10, color: '#555', fontWeight: 500 }}>Generando presentación con IA...</div>
-                              <div style={{ fontSize: 11, marginTop: 4, color: '#888' }}>Puede tomar unos segundos</div>
+                              <div style={{ fontSize: 13, marginTop: 10, color: 'var(--texto-sec)', fontWeight: 500 }}>Generando presentación con IA...</div>
+                              <div style={{ fontSize: 11, marginTop: 4, color: 'var(--texto-muted)' }}>Puede tomar unos segundos</div>
                             </div>
                           )}
 
                           {/* Estado error */}
                           {pres === 'error' && (
                             <div style={{ textAlign: 'center', padding: '3rem 0' }}>
-                              <div style={{ fontSize: 13, color: '#E8505B', marginBottom: 12 }}>No se pudo generar la presentación</div>
+                              <div style={{ fontSize: 13, color: 'var(--danger)', marginBottom: 12 }}>No se pudo generar la presentación</div>
                               <button onClick={() => { setPresentaciones(prev => { const n = { ...prev }; delete n[presentacionActiva]; return n }); abrirPresentacion(presentacionActiva) }}
-                                style={{ fontSize: 12, background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>
+                                style={{ fontSize: 12, background: 'var(--azul-oscuro)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', cursor: 'pointer' }}>
                                 Reintentar
                               </button>
                             </div>
@@ -928,26 +928,26 @@ export default function GeneradorIA() {
                               {introduccion?.texto && (
                                 <div>
                                   <div style={{ fontSize: 11, fontWeight: 700, color: '#897B61', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Introducción</div>
-                                  <div style={{ fontSize: 12, color: '#555', lineHeight: 1.7 }}>{introduccion.texto}</div>
+                                  <div style={{ fontSize: 12, color: 'var(--texto-sec)', lineHeight: 1.7 }}>{introduccion.texto}</div>
                                 </div>
                               )}
                               {secciones.length > 0 && (
                                 <div>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Contenido</div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--azul-oscuro)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Contenido</div>
                                   {secciones.map((sec, k) => (
                                     <div key={k} style={{ marginBottom: 10 }}>
-                                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1E3A6E', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
-                                        <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#1E3A6E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, flexShrink: 0 }}>{k+1}</span>
+                                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--azul-oscuro)', marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                        <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--azul-oscuro)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, flexShrink: 0 }}>{k+1}</span>
                                         {sec.titulo}
                                       </div>
-                                      <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6, paddingLeft: 24 }}>{sec.texto}</div>
+                                      <div style={{ fontSize: 12, color: 'var(--texto-sec)', lineHeight: 1.6, paddingLeft: 24 }}>{sec.texto}</div>
                                     </div>
                                   ))}
                                 </div>
                               )}
                               {caso && (
                                 <div style={{ background: '#F0F4FF', borderRadius: 8, padding: '10px 14px' }}>
-                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1E3A6E', marginBottom: 6 }}>Caso práctico</div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--azul-oscuro)', marginBottom: 6 }}>Caso práctico</div>
                                   <div style={{ fontSize: 12, color: '#333', lineHeight: 1.6, marginBottom: 8 }}>{caso.descripcion}</div>
                                   {caso.pasos?.map((p, k) => (
                                     <div key={k} style={{ display: 'flex', gap: 8, fontSize: 12, color: '#333', marginBottom: 4 }}>
@@ -984,7 +984,7 @@ export default function GeneradorIA() {
                                 </div>
                               )}
                               {diaps.length === 0 && (
-                                <div style={{ textAlign: 'center', color: '#AAA', padding: '2rem 0', fontSize: 13 }}>
+                                <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: '2rem 0', fontSize: 13 }}>
                                   Sin contenido de resumen disponible
                                 </div>
                               )}
@@ -997,7 +997,7 @@ export default function GeneradorIA() {
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
                                     {resultado.imagenes_protocolo.map((url, k) => (
                                       <SignedImage key={k} src={url} alt={`Imagen ${k + 1}`} style={{
-                                        width: '100%', borderRadius: 6, border: '0.5px solid #E8E8E8',
+                                        width: '100%', borderRadius: 6, border: '0.5px solid var(--gris-borde)',
                                         objectFit: 'cover', maxHeight: 120, cursor: 'pointer'
                                       }} />
                                     ))}
@@ -1011,8 +1011,8 @@ export default function GeneradorIA() {
                           {pres && pres !== 'cargando' && pres !== 'error' && modoPPT && slides.length > 0 && (
                             <div>
                               {/* Barra de progreso */}
-                              <div style={{ height: 3, background: '#E8E8E8' }}>
-                                <div style={{ height: 3, background: '#1E3A6E', width: `${((slideActual + 1) / slides.length) * 100}%`, transition: 'width 0.3s ease' }} />
+                              <div style={{ height: 3, background: 'var(--gris-borde)' }}>
+                                <div style={{ height: 3, background: 'var(--azul-oscuro)', width: `${((slideActual + 1) / slides.length) * 100}%`, transition: 'width 0.3s ease' }} />
                               </div>
 
                               {/* Slide */}
@@ -1041,8 +1041,8 @@ export default function GeneradorIA() {
                                   onClick={() => setSlideActual(s => Math.max(0, s - 1))}
                                   disabled={slideActual === 0}
                                   style={{
-                                    height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #E8E8E8',
-                                    background: slideActual === 0 ? '#F4F5F7' : '#fff', color: slideActual === 0 ? '#CCC' : '#333',
+                                    height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid var(--gris-borde)',
+                                    background: slideActual === 0 ? 'var(--gris-fondo)' : '#fff', color: slideActual === 0 ? '#CCC' : '#333',
                                     fontSize: 12, cursor: slideActual === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6
                                   }}>
                                   <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Anterior</>
@@ -1053,7 +1053,7 @@ export default function GeneradorIA() {
                                   {slides.map((_, k) => (
                                     <div key={k} onClick={() => setSlideActual(k)} style={{
                                       width: k === slideActual ? 20 : 8, height: 8, borderRadius: 4,
-                                      background: k === slideActual ? '#1E3A6E' : '#D0D5E0',
+                                      background: k === slideActual ? 'var(--azul-oscuro)' : '#D0D5E0',
                                       cursor: 'pointer', transition: 'all 0.2s'
                                     }} />
                                   ))}
@@ -1064,7 +1064,7 @@ export default function GeneradorIA() {
                                   disabled={slideActual === slides.length - 1}
                                   style={{
                                     height: 36, padding: '0 16px', borderRadius: 8, border: 'none',
-                                    background: slideActual === slides.length - 1 ? '#CCC' : '#1E3A6E',
+                                    background: slideActual === slides.length - 1 ? '#CCC' : 'var(--azul-oscuro)',
                                     color: '#fff', fontSize: 12,
                                     cursor: slideActual === slides.length - 1 ? 'default' : 'pointer',
                                     display: 'flex', alignItems: 'center', gap: 6
@@ -1080,52 +1080,52 @@ export default function GeneradorIA() {
                   )}
 
                   {/* ── CABECERA RESULTADO ── */}
-                  <div style={{ background: '#F4F5F7', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 12, color: '#555' }}>Fuente: <strong>{archivo?.name}</strong></div>
+                  <div style={{ background: 'var(--gris-fondo)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 12, color: 'var(--texto-sec)' }}>Fuente: <strong>{archivo?.name}</strong></div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: '#1E3A6E', fontWeight: 500 }}>{resultado.modulos?.length} módulos</span>
-                      <span style={{ fontSize: 11, color: '#888' }}>•</span>
-                      <span style={{ fontSize: 11, color: '#555' }}>{resultado.modulos?.reduce((acc, m) => acc + (m.preguntas?.length || 0), 0)} preguntas</span>
+                      <span style={{ fontSize: 11, color: 'var(--azul-oscuro)', fontWeight: 500 }}>{resultado.modulos?.length} módulos</span>
+                      <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>•</span>
+                      <span style={{ fontSize: 11, color: 'var(--texto-sec)' }}>{resultado.modulos?.reduce((acc, m) => acc + (m.preguntas?.length || 0), 0)} preguntas</span>
                     </div>
                   </div>
 
                   {/* ── LISTA DE MÓDULOS ── */}
                   {resultado.modulos?.map((m, i) => (
-                    <div key={i} style={{ border: '0.5px solid #E8E8E8', borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
+                    <div key={i} style={{ border: '0.5px solid var(--gris-borde)', borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
                       <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: moduloExpandido === i ? '#F0F4FF' : '#fff' }}
                         onClick={() => setModuloExpandido(moduloExpandido === i ? null : i)}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#1E3A6E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', flexShrink: 0 }}>{i + 1}</div>
+                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--azul-oscuro)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', flexShrink: 0 }}>{i + 1}</div>
                         <span style={{ fontSize: 12, fontWeight: 500, flex: 1 }}>{m.titulo}</span>
                         <button onClick={e => { e.stopPropagation(); abrirPresentacion(i) }} style={{
-                          fontSize: 10, background: '#1E3A6E', color: '#fff', border: 'none',
+                          fontSize: 10, background: 'var(--azul-oscuro)', color: '#fff', border: 'none',
                           borderRadius: 5, padding: '3px 8px', cursor: 'pointer', flexShrink: 0,
                           display: 'flex', alignItems: 'center', gap: 4
                         }}><Icon icon="lucide:play" width={11} /> PPT</button>
-                        <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>{m.preguntas?.length || 0} preg.</span>
+                        <span style={{ fontSize: 11, color: 'var(--texto-muted)', flexShrink: 0 }}>{m.preguntas?.length || 0} preg.</span>
                         <span className="format-tag tag-borrador" style={{ flexShrink: 0 }}>Módulo</span>
-                        <span style={{ fontSize: 12, color: '#AAA', flexShrink: 0 }}>{moduloExpandido === i ? '▲' : '▼'}</span>
+                        <span style={{ fontSize: 12, color: 'var(--texto-muted)', flexShrink: 0 }}>{moduloExpandido === i ? '▲' : '▼'}</span>
                       </div>
 
                       {moduloExpandido === i && (
-                        <div style={{ borderTop: '0.5px solid #E8E8E8', padding: '10px 12px' }}>
+                        <div style={{ borderTop: '0.5px solid var(--gris-borde)', padding: '10px 12px' }}>
                           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.5, marginBottom: 10 }}>{m.descripcion}</div>
-                          <div style={{ fontSize: 10, fontWeight: 600, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--azul-oscuro)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                             Preguntas de evaluación ({m.preguntas?.length || 0})
                           </div>
                           {m.preguntas?.map((p, j) => (
                             <div key={j} style={{ marginBottom: 8, border: '0.5px solid #EEE', borderRadius: 7, overflow: 'hidden' }}>
                               <div style={{ display: 'flex', gap: 6, padding: '7px 10px', cursor: 'pointer', background: preguntasExpandidas[`${i}-${j}`] ? '#F7F8FF' : '#FAFAFA' }}
                                 onClick={() => setPreguntasExpandidas(prev => ({ ...prev, [`${i}-${j}`]: !prev[`${i}-${j}`] }))}>
-                                <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#E8E8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#666', flexShrink: 0 }}>{j + 1}</span>
+                                <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--gris-borde)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#666', flexShrink: 0 }}>{j + 1}</span>
                                 <span style={{ fontSize: 11, color: '#333', flex: 1 }}>{p.texto}</span>
-                                <span style={{ fontSize: 10, color: '#AAA' }}>{preguntasExpandidas[`${i}-${j}`] ? '▲' : '▼'}</span>
+                                <span style={{ fontSize: 10, color: 'var(--texto-muted)' }}>{preguntasExpandidas[`${i}-${j}`] ? '▲' : '▼'}</span>
                               </div>
                               {preguntasExpandidas[`${i}-${j}`] && (
                                 <div style={{ padding: '6px 10px 8px 32px', background: '#F7F8FF', borderTop: '0.5px solid #EEE' }}>
                                   {p.alternativas?.map((alt, k) => (
-                                    <div key={k} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '3px 0', color: alt.correcta ? '#1A7A45' : '#555' }}>
-                                      <span style={{ width: 14, height: 14, borderRadius: '50%', border: alt.correcta ? '2px solid #1A7A45' : '1.5px solid #CCC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, flexShrink: 0, background: alt.correcta ? '#E8F5ED' : 'transparent' }}>
-                                        {alt.correcta ? <Icon icon="lucide:check" color="#1A7A45" width={9} /> : null}
+                                    <div key={k} style={{ display: 'flex', gap: 6, fontSize: 11, padding: '3px 0', color: alt.correcta ? 'var(--success)' : 'var(--texto-sec)' }}>
+                                      <span style={{ width: 14, height: 14, borderRadius: '50%', border: alt.correcta ? '2px solid var(--success)' : '1.5px solid #CCC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, flexShrink: 0, background: alt.correcta ? '#E8F5ED' : 'transparent' }}>
+                                        {alt.correcta ? <Icon icon="lucide:check" color="var(--success)" width={9} /> : null}
                                       </span>
                                       {alt.texto}
                                     </div>
@@ -1141,8 +1141,8 @@ export default function GeneradorIA() {
 
                   {/* Modo edición */}
                   {modoEdicion && borradorEdit && (
-                    <div style={{ border: '1.5px solid #2B4BA0', borderRadius: 10, padding: 14, marginBottom: 12, background: '#F7F9FF' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1E3A6E', marginBottom: 10 }}>Editando borrador</div>
+                    <div style={{ border: '1.5px solid var(--azul)', borderRadius: 10, padding: 14, marginBottom: 12, background: '#F7F9FF' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--azul-oscuro)', marginBottom: 10 }}>Editando borrador</div>
                       <div className="field" style={{ marginBottom: 10 }}>
                         <label style={{ fontSize: 11 }}>Nombre del curso</label>
                         <input type="text" value={borradorEdit.nombre}
@@ -1153,11 +1153,11 @@ export default function GeneradorIA() {
                         <label style={{ fontSize: 11 }}>Descripción general del curso</label>
                         <textarea rows={3} value={borradorEdit.descripcion || ''}
                           onChange={e => setBorradorEdit(prev => ({ ...prev, descripcion: e.target.value }))}
-                          style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', color: '#555' }} />
+                          style={{ fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', color: 'var(--texto-sec)' }} />
                       </div>
                       {borradorEdit.modulos?.map((mod, i) => (
-                        <div key={i} style={{ marginBottom: 8, background: '#fff', borderRadius: 8, padding: '10px 12px', border: '0.5px solid #E8E8E8' }}>
-                          <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Módulo {i + 1}</div>
+                        <div key={i} style={{ marginBottom: 8, background: '#fff', borderRadius: 8, padding: '10px 12px', border: '0.5px solid var(--gris-borde)' }}>
+                          <div style={{ fontSize: 10, color: 'var(--texto-muted)', marginBottom: 4 }}>Módulo {i + 1}</div>
                           <input type="text" value={mod.titulo}
                             onChange={e => setBorradorEdit(prev => {
                               const mods = [...prev.modulos]; mods[i] = { ...mods[i], titulo: e.target.value }; return { ...prev, modulos: mods }
@@ -1167,15 +1167,15 @@ export default function GeneradorIA() {
                             onChange={e => setBorradorEdit(prev => {
                               const mods = [...prev.modulos]; mods[i] = { ...mods[i], descripcion: e.target.value }; return { ...prev, modulos: mods }
                             })}
-                            style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', color: '#555' }} />
+                            style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', color: 'var(--texto-sec)' }} />
                           {mod.preguntas?.length > 0 && (
                             <div style={{ marginTop: 10 }}>
-                              <div style={{ fontSize: 10, fontWeight: 600, color: '#1E3A6E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--azul-oscuro)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                                 Preguntas de evaluación
                               </div>
                               {mod.preguntas.map((preg, j) => (
                                 <div key={j} style={{ marginBottom: 8, background: '#F0F4FF', borderRadius: 7, padding: '8px 10px' }}>
-                                  <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Pregunta {j + 1}</div>
+                                  <div style={{ fontSize: 10, color: 'var(--texto-muted)', marginBottom: 4 }}>Pregunta {j + 1}</div>
                                   <textarea rows={2} value={preg.texto}
                                     onChange={e => setBorradorEdit(prev => {
                                       const mods = [...prev.modulos]
@@ -1185,7 +1185,7 @@ export default function GeneradorIA() {
                                       return { ...prev, modulos: mods }
                                     })}
                                     style={{ fontSize: 11, padding: '5px 8px', borderRadius: 6, border: '1px solid #CCC', width: '100%', resize: 'none', marginBottom: 6 }} />
-                                  <div style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Alternativas (● = correcta)</div>
+                                  <div style={{ fontSize: 10, color: 'var(--texto-muted)', marginBottom: 4 }}>Alternativas (● = correcta)</div>
                                   {preg.alternativas?.map((alt, k) => (
                                     <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
                                       <input type="radio" name={`correcta-${i}-${j}`} checked={!!alt.correcta}
@@ -1208,7 +1208,7 @@ export default function GeneradorIA() {
                                           return { ...prev, modulos: mods }
                                         })}
                                         style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid #CCC' }} />
-                                      {alt.correcta && <span style={{ fontSize: 10, color: '#1A7A45', fontWeight: 700, display:'flex', alignItems:'center' }}><Icon icon="lucide:check" width={10} /></span>}
+                                      {alt.correcta && <span style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, display:'flex', alignItems:'center' }}><Icon icon="lucide:check" width={10} /></span>}
                                     </div>
                                   ))}
                                 </div>
@@ -1219,11 +1219,11 @@ export default function GeneradorIA() {
                       ))}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button onClick={guardarEdicion} disabled={guardando}
-                          style={{ flex: 1, height: 36, background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                          style={{ flex: 1, height: 36, background: 'var(--azul-oscuro)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
                           {guardando ? 'Guardando...' : 'Guardar cambios'}
                         </button>
                         <button onClick={() => setModoEdicion(false)}
-                          style={{ height: 36, padding: '0 16px', background: 'none', color: '#888', border: '0.5px solid #E8E8E8', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
+                          style={{ height: 36, padding: '0 16px', background: 'none', color: 'var(--texto-muted)', border: '0.5px solid var(--gris-borde)', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}>
                           Cancelar
                         </button>
                       </div>
@@ -1235,7 +1235,7 @@ export default function GeneradorIA() {
                     <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                       <button
                         disabled={enviando || enviado}
-                        style={{ flex: 1, height: 38, background: enviado ? '#4CAF50' : '#7BC67A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: enviando || enviado ? 'default' : 'pointer' }}
+                        style={{ flex: 1, height: 38, background: enviado ? '#4CAF50' : 'var(--verde)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: enviando || enviado ? 'default' : 'pointer' }}
                         onClick={async () => {
                           setEnviando(true)
                           try {
@@ -1270,19 +1270,19 @@ export default function GeneradorIA() {
                         {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}
                       </button>
                       <button
-                        style={{ flex: 1, height: 38, background: 'none', color: '#1E3A6E', border: '0.5px solid #1E3A6E', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                        style={{ flex: 1, height: 38, background: 'none', color: 'var(--azul-oscuro)', border: '0.5px solid var(--azul-oscuro)', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
                         onClick={() => { setBorradorEdit(JSON.parse(JSON.stringify(resultado))); setModoEdicion(true) }}>
                         Editar
                       </button>
                       <button
-                        style={{ flex: 1, height: 38, background: 'none', color: '#E8505B', border: '0.5px solid #E8505B', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
+                        style={{ flex: 1, height: 38, background: 'none', color: 'var(--danger)', border: '0.5px solid var(--danger)', borderRadius: 8, fontSize: 12, cursor: 'pointer' }}
                         onClick={descartarBorrador}>
                         Descartar
                       </button>
                     </div>
                   )}
 
-                  <p style={{ fontSize: 10, color: '#F5A623', textAlign: 'center', marginTop: 10 }}>
+                  <p style={{ fontSize: 12, color: 'var(--warning)', textAlign: 'center', marginTop: 10 }}>
                     <Icon icon="lucide:alert-triangle" width={13} style={{verticalAlign:"middle",marginRight:4}} /> El contenido no se publica sin validación del profesor
                   </p>
                 </>

@@ -78,11 +78,11 @@ export default function Capacitaciones() {
           {/* Mis capacitaciones (solo roles no-colaborador) */}
           {esRolNoColaborador && (
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto)', marginBottom: 10 }}>
                 Mis capacitaciones
               </div>
               {misCursos.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', color: '#888', padding: 24, fontSize: 13 }}>
+                <div className="card" style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 24, fontSize: 13 }}>
                   No hay capacitaciones publicadas disponibles
                 </div>
               ) : (
@@ -91,18 +91,18 @@ export default function Capacitaciones() {
                     <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                       <div style={{
                         width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                        background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        background: 'var(--azul-claro)', display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
-                        <Icon icon="lucide:clipboard-list" width={22} style={{ color: '#2B4BA0' }} />
+                        <Icon icon="lucide:clipboard-list" width={22} style={{ color: 'var(--azul)' }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</span>
                           {curso.obligatorio === 1 && (
-                            <span style={{ fontSize: 10, background: '#FFF0F0', color: '#C0392B', borderRadius: 20, padding: '2px 7px', fontWeight: 600 }}>OBLIGATORIO</span>
+                            <span style={{ fontSize: 10, background: 'var(--danger-bg)', color: 'var(--danger)', borderRadius: 20, padding: '2px 7px', fontWeight: 600 }}>OBLIGATORIO</span>
                           )}
                         </div>
-                        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#888' }}>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--texto-muted)' }}>
                           {curso.area && <span>{curso.area}</span>}
                           {curso.profesor_nombre && <span>Prof. {curso.profesor_nombre}</span>}
                         </div>
@@ -110,7 +110,7 @@ export default function Capacitaciones() {
                           <div className="progress-bar-wrap" style={{ width: 200 }}>
                             <div className="progress-bar-fill" style={{ width: `${curso.progreso || 0}%` }} />
                           </div>
-                          <span style={{ fontSize: 10, color: '#888' }}>{curso.progreso || 0}% completado</span>
+                          <span style={{ fontSize: 10, color: 'var(--texto-muted)' }}>{curso.progreso || 0}% completado</span>
                         </div>
                       </div>
                       <div style={{ flexShrink: 0 }}>
@@ -128,7 +128,7 @@ export default function Capacitaciones() {
 
           {/* Separador y título de gestión */}
           {esRolNoColaborador && (
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginTop: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--texto)', marginTop: 4 }}>
               {usuario?.rol === 'profesor' ? 'Mis cursos creados' : 'Gestión de cursos'}
             </div>
           )}
@@ -138,16 +138,16 @@ export default function Capacitaciones() {
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Buscar curso..."
                 value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 13, background: '#F4F5F7' }}
+                style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 13, background: 'var(--gris-fondo)' }}
               />
               {areas.length > 0 && (
                 <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)}
-                  style={{ height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 10px', fontSize: 13, background: '#F4F5F7' }}>
+                  style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                   <option value="">Todas las áreas</option>
                   {areas.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               )}
-              <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginLeft: 'auto' }}>
                 {cursosFiltrados.length} curso{cursosFiltrados.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -155,9 +155,9 @@ export default function Capacitaciones() {
 
           {/* Lista cursos */}
           {cargando ? (
-            <div className="card" style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando capacitaciones...</div>
+            <div className="card" style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando capacitaciones...</div>
           ) : cursosFiltrados.length === 0 ? (
-            <div className="card" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
+            <div className="card" style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: 'var(--texto-muted)', padding: 40 }}>
               <Icon icon="lucide:book-open" width={32} style={{marginBottom:12,display:"block",color:"#CCC"}} />
               <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
                 {busqueda || filtroArea ? 'No se encontraron cursos con ese criterio' : 'No hay cursos disponibles aún'}
@@ -174,10 +174,10 @@ export default function Capacitaciones() {
                   {/* Ícono área */}
                   <div style={{
                     width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                    background: '#EEF2FF', display: 'flex', alignItems: 'center',
+                    background: 'var(--azul-claro)', display: 'flex', alignItems: 'center',
                     justifyContent: 'center'
                   }}>
-                    <Icon icon="lucide:clipboard-list" width={22} style={{color:'#2B4BA0'}} />
+                    <Icon icon="lucide:clipboard-list" width={22} style={{color:'var(--azul)'}} />
                   </div>
 
                   {/* Info */}
@@ -187,7 +187,7 @@ export default function Capacitaciones() {
                       {!curso.publicado && <span className="format-tag tag-borrador">Borrador</span>}
                       {curso.generado_por_ia && <span style={{ fontSize: 10, background: '#F4F0FF', color: '#6B4DC4', borderRadius: 20, padding: '2px 7px', display:'inline-flex', alignItems:'center', gap:3 }}><Icon icon="lucide:sparkles" width={10} /> IA</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#888' }}>
+                    <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--texto-muted)' }}>
                       {curso.area && <span>{curso.area}</span>}
                       {curso.profesor_nombre && <span>Prof. {curso.profesor_nombre}</span>}
                       {curso.inscritos > 0 && <span>{curso.inscritos} inscritos</span>}
@@ -198,7 +198,7 @@ export default function Capacitaciones() {
                         <div className="progress-bar-wrap" style={{ width: 200 }}>
                           <div className="progress-bar-fill" style={{ width: `${curso.progreso || 0}%` }} />
                         </div>
-                        <span style={{ fontSize: 10, color: '#888' }}>{curso.progreso || 0}% completado</span>
+                        <span style={{ fontSize: 10, color: 'var(--texto-muted)' }}>{curso.progreso || 0}% completado</span>
                       </div>
                     )}
                   </div>

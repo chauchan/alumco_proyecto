@@ -372,10 +372,10 @@ export default function Profesor() {
           {/* Stats */}
           <div className="stats-grid-4">
             {[
-              { val: cursos.filter(c=>c.publicado).length, label:'Cursos publicados', color:'#7BC67A' },
-              { val: cursos.filter(c=>!c.publicado).length, label:'Borradores', color:'#888' },
-              { val: pendientes.length, label:'Por validar', color:'#E8505B' },
-              { val: certificados.filter(c=>c.estado==='aprobado').length, label:'Certificados emitidos', color:'#2B4BA0' },
+              { val: cursos.filter(c=>c.publicado).length, label:'Cursos publicados', color:'var(--success)' },
+              { val: cursos.filter(c=>!c.publicado).length, label:'Borradores', color:'var(--texto-muted)' },
+              { val: pendientes.length, label:'Por validar', color:'var(--danger)' },
+              { val: certificados.filter(c=>c.estado==='aprobado').length, label:'Certificados emitidos', color:'var(--azul)' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">{s.label}</div>
@@ -392,7 +392,7 @@ export default function Profesor() {
                 onClick={e => e.stopPropagation()}>
 
                 {/* Cabecera */}
-                <div style={{ background:'#1E3A6E', borderRadius:'14px 14px 0 0', padding:'18px 24px', flexShrink:0 }}>
+                <div style={{ background:'var(--azul-oscuro)', borderRadius:'14px 14px 0 0', padding:'18px 24px', flexShrink:0 }}>
                   <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:15, fontWeight:600, color:'#fff' }}>{cursoDetalle.nombre}</div>
@@ -410,7 +410,7 @@ export default function Profesor() {
                       <button key={key} onClick={() => { setTabDetalle(key); setPptModuloIdx(null); setPptEditando(false) }} style={{
                         fontSize:12, padding:'5px 14px', borderRadius:6, border:'none', cursor:'pointer',
                         background: tabDetalle === key ? '#fff' : 'rgba(255,255,255,0.12)',
-                        color: tabDetalle === key ? '#1E3A6E' : 'rgba(255,255,255,0.8)',
+                        color: tabDetalle === key ? 'var(--azul-oscuro)' : 'rgba(255,255,255,0.8)',
                         fontWeight: tabDetalle === key ? 600 : 400
                       }}>{label}</button>
                     ))}
@@ -426,22 +426,22 @@ export default function Profesor() {
                       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, gap:6 }}>
                         {editandoModulos ? (
                           <>
-                            <button onClick={() => setEditandoModulos(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
-                            <button onClick={guardarModulos} disabled={guardandoModulos} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
+                            <button onClick={() => setEditandoModulos(false)} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'var(--texto-sec)' }}>Cancelar</button>
+                            <button onClick={guardarModulos} disabled={guardandoModulos} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'var(--success)', color:'#fff', cursor:'pointer', fontWeight:500 }}>
                               {guardandoModulos ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar cambios</>}
                             </button>
                           </>
                         ) : (
                           <button onClick={() => { setModulosEdit(JSON.parse(JSON.stringify(cursoDetalle.modulos))); setEditandoModulos(true) }}
-                            style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
+                            style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid var(--azul-oscuro)', background:'#fff', color:'var(--azul-oscuro)', cursor:'pointer' }}>
                             <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar módulos</>
                           </button>
                         )}
                       </div>
                       {(editandoModulos ? modulosEdit : cursoDetalle.modulos)?.map((mod, i) => (
-                        <div key={i} style={{ border: editandoModulos ? '1px solid #C5D3F0' : '0.5px solid #E8E8E8', borderRadius:8, padding:'10px 14px', marginBottom:8, background: editandoModulos ? '#F7F9FF' : '#fff' }}>
+                        <div key={i} style={{ border: editandoModulos ? '1px solid #C5D3F0' : '0.5px solid var(--gris-borde)', borderRadius:8, padding:'10px 14px', marginBottom:8, background: editandoModulos ? '#F7F9FF' : '#fff' }}>
                           <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom: editandoModulos ? 8 : 4 }}>
-                            <div style={{ width:20, height:20, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0, marginTop:2 }}>{i+1}</div>
+                            <div style={{ width:20, height:20, borderRadius:'50%', background:'var(--azul-oscuro)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0, marginTop:2 }}>{i+1}</div>
                             {editandoModulos ? (
                               <input value={mod.titulo} onChange={e => { const arr=[...modulosEdit]; arr[i]={...arr[i],titulo:e.target.value}; setModulosEdit(arr) }}
                                 style={{ flex:1, fontSize:12, fontWeight:500, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', outline:'none' }} />
@@ -454,7 +454,7 @@ export default function Profesor() {
                               onChange={e => { const arr=[...modulosEdit]; arr[i]={...arr[i],descripcion:e.target.value}; setModulosEdit(arr) }}
                               style={{ width:'100%', fontSize:11, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', resize:'none', lineHeight:1.5, boxSizing:'border-box', marginLeft:28 }} />
                           ) : (
-                            <div style={{ fontSize:11, color:'#888', lineHeight:1.5, paddingLeft:28 }}>{mod.descripcion}</div>
+                            <div style={{ fontSize:11, color:'var(--texto-muted)', lineHeight:1.5, paddingLeft:28 }}>{mod.descripcion}</div>
                           )}
                         </div>
                       ))}
@@ -467,11 +467,11 @@ export default function Profesor() {
                       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10, gap:6 }}>
                         {editandoPreguntas ? (
                           <>
-                            <button onClick={() => { setEditandoPreguntas(false); setDeletedPregIds([]) }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>Cancelar</button>
-                            <button onClick={() => setPreguntasEdit(prev => [...prev, nuevaPreguntaVacia()])} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #2B4BA0', background:'#EEF2FF', color:'#2B4BA0', cursor:'pointer', fontWeight:500 }}>
+                            <button onClick={() => { setEditandoPreguntas(false); setDeletedPregIds([]) }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'var(--texto-sec)' }}>Cancelar</button>
+                            <button onClick={() => setPreguntasEdit(prev => [...prev, nuevaPreguntaVacia()])} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid var(--azul)', background:'var(--azul-claro)', color:'var(--azul)', cursor:'pointer', fontWeight:500 }}>
                               <><Icon icon="lucide:plus" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Agregar pregunta</>
                             </button>
-                            <button onClick={guardarPreguntas} disabled={guardandoPreguntas} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
+                            <button onClick={guardarPreguntas} disabled={guardandoPreguntas} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'var(--success)', color:'#fff', cursor:'pointer', fontWeight:500 }}>
                               {guardandoPreguntas ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar cambios</>}
                             </button>
                           </>
@@ -483,14 +483,14 @@ export default function Profesor() {
                             })))
                             setDeletedPregIds([])
                             setEditandoPreguntas(true)
-                          }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
+                          }} style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid var(--azul-oscuro)', background:'#fff', color:'var(--azul-oscuro)', cursor:'pointer' }}>
                             <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar preguntas</>
                           </button>
                         )}
                       </div>
 
                       {cursoDetalle.preguntas?.length === 0 && (
-                        <div style={{ textAlign:'center', color:'#888', padding:32, fontSize:13 }}>No hay preguntas cargadas</div>
+                        <div style={{ textAlign:'center', color:'var(--texto-muted)', padding:32, fontSize:13 }}>No hay preguntas cargadas</div>
                       )}
 
                       {(editandoPreguntas ? preguntasEdit : cursoDetalle.preguntas)?.map((preg, j) => {
@@ -498,7 +498,7 @@ export default function Profesor() {
                         return editandoPreguntas ? (
                           <div key={j} style={{ border:'1px solid #C5D3F0', borderRadius:8, marginBottom:10, padding:'10px 12px', background:'#F7F9FF' }}>
                             <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:8 }}>
-                              <span style={{ width:18, height:18, borderRadius:'50%', background:'#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', flexShrink:0, marginTop:3 }}>{j+1}</span>
+                              <span style={{ width:18, height:18, borderRadius:'50%', background:'var(--azul-oscuro)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#fff', flexShrink:0, marginTop:3 }}>{j+1}</span>
                               <textarea value={preg.texto} rows={2}
                                 onChange={e => { const arr=[...preguntasEdit]; arr[j]={...arr[j],texto:e.target.value}; setPreguntasEdit(arr) }}
                                 style={{ flex:1, fontSize:12, padding:'5px 8px', borderRadius:6, border:'1px solid #CCC', resize:'none', lineHeight:1.5, boxSizing:'border-box' }} />
@@ -516,14 +516,14 @@ export default function Profesor() {
                                     const arr = JSON.parse(JSON.stringify(preguntasEdit))
                                     arr[j].alternativas = arr[j].alternativas.map((a, ki) => ({ ...a, correcta: ki === k }))
                                     setPreguntasEdit(arr)
-                                  }} style={{ width:16, height:16, borderRadius:'50%', border: alt.correcta ? '2px solid #1A7A45' : '1.5px solid #CCC', background: alt.correcta ? '#E8F5ED' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
-                                    {alt.correcta && <div style={{ width:8, height:8, borderRadius:'50%', background:'#1A7A45' }} />}
+                                  }} style={{ width:16, height:16, borderRadius:'50%', border: alt.correcta ? '2px solid var(--success)' : '1.5px solid #CCC', background: alt.correcta ? '#E8F5ED' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0 }}>
+                                    {alt.correcta && <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)' }} />}
                                   </div>
                                   <input value={alt.texto} onChange={e => {
                                     const arr = JSON.parse(JSON.stringify(preguntasEdit))
                                     arr[j].alternativas[k].texto = e.target.value
                                     setPreguntasEdit(arr)
-                                  }} style={{ flex:1, fontSize:11, padding:'4px 7px', borderRadius:5, border:'1px solid #CCC', color: alt.correcta ? '#1A7A45' : '#333' }} />
+                                  }} style={{ flex:1, fontSize:11, padding:'4px 7px', borderRadius:5, border:'1px solid #CCC', color: alt.correcta ? 'var(--success)' : '#333' }} />
                                 </div>
                               ))}
                             </div>
@@ -532,16 +532,16 @@ export default function Profesor() {
                           <div key={j} style={{ border:'0.5px solid #EEE', borderRadius:8, marginBottom:8, overflow:'hidden' }}>
                             <div style={{ display:'flex', gap:8, padding:'9px 12px', cursor:'pointer', background: pregExpandida === j ? '#F7F8FF' : '#FAFAFA' }}
                               onClick={() => setPregExpandida(pregExpandida === j ? null : j)}>
-                              <span style={{ width:18, height:18, borderRadius:'50%', background:'#E8E8E8', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#666', flexShrink:0 }}>{j+1}</span>
+                              <span style={{ width:18, height:18, borderRadius:'50%', background:'var(--gris-borde)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#666', flexShrink:0 }}>{j+1}</span>
                               <span style={{ fontSize:12, color:'#333', flex:1 }}>{preg.texto}</span>
-                              <span style={{ fontSize:10, color:'#AAA' }}>{pregExpandida === j ? '▲' : '▼'}</span>
+                              <span style={{ fontSize:10, color:'var(--texto-muted)' }}>{pregExpandida === j ? '▲' : '▼'}</span>
                             </div>
                             {pregExpandida === j && (
                               <div style={{ padding:'8px 12px 10px 38px', background:'#F7F8FF', borderTop:'0.5px solid #EEE' }}>
                                 {alts?.map((alt, k) => (
-                                  <div key={k} style={{ display:'flex', gap:7, fontSize:12, padding:'4px 0', color: alt.correcta ? '#1A7A45' : '#555' }}>
-                                    <span style={{ width:16, height:16, borderRadius:'50%', border: alt.correcta ? '2px solid #1A7A45' : '1.5px solid #CCC', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, flexShrink:0, background: alt.correcta ? '#E8F5ED' : 'transparent' }}>
-                                      {alt.correcta ? <Icon icon="lucide:check" color="#1A7A45" width={9} /> : null}
+                                  <div key={k} style={{ display:'flex', gap:7, fontSize:12, padding:'4px 0', color: alt.correcta ? 'var(--success)' : 'var(--texto-sec)' }}>
+                                    <span style={{ width:16, height:16, borderRadius:'50%', border: alt.correcta ? '2px solid var(--success)' : '1.5px solid #CCC', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, flexShrink:0, background: alt.correcta ? '#E8F5ED' : 'transparent' }}>
+                                      {alt.correcta ? <Icon icon="lucide:check" color="var(--success)" width={9} /> : null}
                                     </span>
                                     {alt.texto}
                                   </div>
@@ -560,7 +560,7 @@ export default function Profesor() {
                       {pptModuloIdx === null ? (
                         <>
                           <div style={{ marginBottom:14 }}>
-                            <div style={{ fontSize:12, color:'#888' }}>Selecciona un módulo para ver su presentación:</div>
+                            <div style={{ fontSize:12, color:'var(--texto-muted)' }}>Selecciona un módulo para ver su presentación:</div>
                           </div>
                           {cursoDetalle.modulos?.map((mod, i) => {
                             const tienePPT = (() => {
@@ -574,11 +574,11 @@ export default function Profesor() {
                               } catch { return false }
                             })()
                             return (
-                            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:`0.5px solid ${tienePPT ? '#BBF7D0' : '#E8E8E8'}`, borderRadius:8, marginBottom:8, background: tienePPT ? '#F0FDF4' : '#fff' }}>
-                              <div style={{ width:22, height:22, borderRadius:'50%', background: tienePPT ? '#22C55E' : '#1E3A6E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{tienePPT ? <Icon icon="lucide:check" color="#fff" width={12} /> : i+1}</div>
+                            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', border:`0.5px solid ${tienePPT ? '#BBF7D0' : 'var(--gris-borde)'}`, borderRadius:8, marginBottom:8, background: tienePPT ? '#F0FDF4' : '#fff' }}>
+                              <div style={{ width:22, height:22, borderRadius:'50%', background: tienePPT ? 'var(--success)' : 'var(--azul-oscuro)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#fff', flexShrink:0 }}>{tienePPT ? <Icon icon="lucide:check" color="#fff" width={12} /> : i+1}</div>
                               <span style={{ fontSize:12, fontWeight:500, flex:1 }}>{mod.titulo}</span>
                               <button onClick={() => abrirPPTModulo(mod, i)} style={{
-                                fontSize:11, background:'#1E3A6E', color:'#fff', border:'none', borderRadius:6, padding:'4px 12px', cursor:'pointer'
+                                fontSize:11, background:'var(--azul-oscuro)', color:'#fff', border:'none', borderRadius:6, padding:'4px 12px', cursor:'pointer'
                               }}>
                                 {pptPresentaciones[i] === 'cargando' ? <Icon icon="lucide:loader-circle" width={13} /> : tienePPT ? <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Ver</> : <><Icon icon="lucide:play" width={11} style={{verticalAlign:'middle',marginRight:3}} /> Generar</>}
                               </button>
@@ -593,20 +593,20 @@ export default function Profesor() {
                         return (
                           <div>
                             <button onClick={() => { setPptModuloIdx(null); setPptSlide(0); setPptEditando(false) }}
-                              style={{ fontSize:11, color:'#1E3A6E', background:'none', border:'none', cursor:'pointer', marginBottom:12, display:'flex', alignItems:'center', gap:4 }}>
+                              style={{ fontSize:11, color:'var(--azul-oscuro)', background:'none', border:'none', cursor:'pointer', marginBottom:12, display:'flex', alignItems:'center', gap:4 }}>
                               <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Volver a módulos</>
                             </button>
                             {ppres === 'cargando' && (
-                              <div style={{ textAlign:'center', padding:'2rem 0', color:'#888' }}>
-                                <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 8px",display:"block",color:"#888"}} />
+                              <div style={{ textAlign:'center', padding:'2rem 0', color:'var(--texto-muted)' }}>
+                                <Icon icon="lucide:loader-circle" width={28} style={{margin:"0 auto 8px",display:"block",color:"var(--texto-muted)"}} />
                                 <div style={{ fontSize:13 }}>Generando presentación...</div>
                               </div>
                             )}
                             {ppres === 'error' && (
                               <div style={{ textAlign:'center', padding:'2rem 0' }}>
-                                <div style={{ fontSize:13, color:'#E8505B', marginBottom:10 }}>Error al generar</div>
+                                <div style={{ fontSize:13, color:'var(--danger)', marginBottom:10 }}>Error al generar</div>
                                 <button onClick={() => { setPptPresentaciones(prev => { const n={...prev}; delete n[pptModuloIdx]; return n }); abrirPPTModulo(mod, pptModuloIdx) }}
-                                  style={{ fontSize:12, background:'#1E3A6E', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', cursor:'pointer' }}>
+                                  style={{ fontSize:12, background:'var(--azul-oscuro)', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', cursor:'pointer' }}>
                                   Reintentar
                                 </button>
                               </div>
@@ -621,25 +621,25 @@ export default function Profesor() {
                                     {pptEditando ? (
                                       <>
                                         <button onClick={() => setPptEditando(false)}
-                                          style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}>
+                                          style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'var(--texto-sec)' }}>
                                           Cancelar
                                         </button>
                                         <button onClick={() => guardarEdicion(pptModuloIdx, mod)} disabled={pptGuardando}
-                                          style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'#1A7A45', color:'#fff', cursor:'pointer', fontWeight:500 }}>
+                                          style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'none', background:'var(--success)', color:'#fff', cursor:'pointer', fontWeight:500 }}>
                                           {pptGuardando ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar</>}
                                         </button>
                                       </>
                                     ) : (
                                       <button onClick={() => iniciarEdicion(pptModuloIdx, slides)}
-                                        style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer' }}>
+                                        style={{ fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid var(--azul-oscuro)', background:'#fff', color:'var(--azul-oscuro)', cursor:'pointer' }}>
                                         <><Icon icon="lucide:pencil" width={12} style={{verticalAlign:"middle",marginRight:3}} /> Editar slides</>
                                       </button>
                                     )}
                                   </div>
 
                                   {/* Barra de progreso */}
-                                  <div style={{ height:3, background:'#E8E8E8', marginBottom:0 }}>
-                                    <div style={{ height:3, background:'#1E3A6E', width:`${((pptSlide+1)/editSlides.length)*100}%`, transition:'width 0.3s' }} />
+                                  <div style={{ height:3, background:'var(--gris-borde)', marginBottom:0 }}>
+                                    <div style={{ height:3, background:'var(--azul-oscuro)', width:`${((pptSlide+1)/editSlides.length)*100}%`, transition:'width 0.3s' }} />
                                   </div>
 
                                   {/* Slide o Editor */}
@@ -662,16 +662,16 @@ export default function Profesor() {
                                   {/* Navegación */}
                                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                                     <button onClick={() => setPptSlide(s => Math.max(0,s-1))} disabled={pptSlide===0}
-                                      style={{ height:34, padding:'0 14px', borderRadius:8, border:'1px solid #E8E8E8', background: pptSlide===0?'#F4F5F7':'#fff', color: pptSlide===0?'#CCC':'#333', fontSize:12, cursor: pptSlide===0?'default':'pointer' }}>
+                                      style={{ height:34, padding:'0 14px', borderRadius:8, border:'1px solid var(--gris-borde)', background: pptSlide===0?'var(--gris-fondo)':'#fff', color: pptSlide===0?'#CCC':'#333', fontSize:12, cursor: pptSlide===0?'default':'pointer' }}>
                                       <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Anterior</>
                                     </button>
                                     <div style={{ display:'flex', gap:5 }}>
                                       {editSlides.map((_,k) => (
-                                        <div key={k} onClick={() => setPptSlide(k)} style={{ width: k===pptSlide?18:7, height:7, borderRadius:4, background: k===pptSlide?'#1E3A6E':'#D0D5E0', cursor:'pointer', transition:'all 0.2s' }} />
+                                        <div key={k} onClick={() => setPptSlide(k)} style={{ width: k===pptSlide?18:7, height:7, borderRadius:4, background: k===pptSlide?'var(--azul-oscuro)':'#D0D5E0', cursor:'pointer', transition:'all 0.2s' }} />
                                       ))}
                                     </div>
                                     <button onClick={() => setPptSlide(s => Math.min(editSlides.length-1,s+1))} disabled={pptSlide===editSlides.length-1}
-                                      style={{ height:34, padding:'0 14px', borderRadius:8, border:'none', background: pptSlide===editSlides.length-1?'#CCC':'#1E3A6E', color:'#fff', fontSize:12, cursor: pptSlide===editSlides.length-1?'default':'pointer' }}>
+                                      style={{ height:34, padding:'0 14px', borderRadius:8, border:'none', background: pptSlide===editSlides.length-1?'#CCC':'var(--azul-oscuro)', color:'#fff', fontSize:12, cursor: pptSlide===editSlides.length-1?'default':'pointer' }}>
                                       <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle",marginLeft:4}} /></>
                                     </button>
                                   </div>
@@ -688,9 +688,9 @@ export default function Profesor() {
                     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
                       {/* Sede */}
-                      <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
+                      <div style={{ border:'0.5px solid var(--gris-borde)', borderRadius:10, padding:'14px 16px' }}>
                         <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:6 }}>¿En qué sede se publica?</div>
-                        <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)', marginBottom:12 }}>
                           Publica en tu sede o en todas las sedes.
                         </div>
                         {[
@@ -701,14 +701,14 @@ export default function Profesor() {
                           return (
                             <div key={String(op.value)} onClick={() => setTargeting(t => ({ ...t, sede_objetivo: op.value }))}
                               style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:4, cursor:'pointer',
-                                border: sel ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                                border: sel ? '2px solid var(--azul-oscuro)' : '1px solid var(--gris-borde)',
                                 background: sel ? '#F0F4FF' : '#FAFAFA' }}>
-                              <div style={{ width:16, height:16, borderRadius:'50%', border: sel ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: sel ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <div style={{ width:16, height:16, borderRadius:'50%', border: sel ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: sel ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                                 {sel && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
                               </div>
                               <div>
                                 <div style={{ fontSize:12, fontWeight: sel ? 600 : 400, color:'#222' }}>{op.label}</div>
-                                <div style={{ fontSize:10, color:'#888' }}>{op.sub}</div>
+                                <div style={{ fontSize:10, color:'var(--texto-muted)' }}>{op.sub}</div>
                               </div>
                             </div>
                           )
@@ -716,28 +716,28 @@ export default function Profesor() {
                       </div>
 
                       {/* Estamentos */}
-                      <div style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:'14px 16px' }}>
+                      <div style={{ border:'0.5px solid var(--gris-borde)', borderRadius:10, padding:'14px 16px' }}>
                         <div style={{ fontSize:13, fontWeight:600, color:'#222', marginBottom:6 }}>¿A quién va dirigido?</div>
-                        <div style={{ fontSize:11, color:'#888', marginBottom:12 }}>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)', marginBottom:12 }}>
                           Selecciona uno o más estamentos. Si no seleccionas ninguno, el curso será visible para todos.
                         </div>
 
                         {/* Opción Todos */}
                         <div onClick={() => setTargeting(t => ({ ...t, estamento_objetivo: null }))}
                           style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:8, cursor:'pointer',
-                            border: targeting.estamento_objetivo === null ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                            border: targeting.estamento_objetivo === null ? '2px solid var(--azul-oscuro)' : '1px solid var(--gris-borde)',
                             background: targeting.estamento_objetivo === null ? '#F0F4FF' : '#FAFAFA' }}>
-                          <div style={{ width:16, height:16, borderRadius:'50%', border: targeting.estamento_objetivo === null ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: targeting.estamento_objetivo === null ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <div style={{ width:16, height:16, borderRadius:'50%', border: targeting.estamento_objetivo === null ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: targeting.estamento_objetivo === null ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                             {targeting.estamento_objetivo === null && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
                           </div>
                           <div>
                             <div style={{ fontSize:12, fontWeight: targeting.estamento_objetivo === null ? 600 : 400, color:'#222' }}>Todos los colaboradores</div>
-                            <div style={{ fontSize:10, color:'#888' }}>Curso global — visible para todos los estamentos</div>
+                            <div style={{ fontSize:10, color:'var(--texto-muted)' }}>Curso global — visible para todos los estamentos</div>
                           </div>
                         </div>
 
                         {/* Estamentos específicos — checkboxes multiselect */}
-                        <div style={{ fontSize:11, fontWeight:500, color:'#888', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>
+                        <div style={{ fontSize:11, fontWeight:500, color:'var(--texto-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>
                           O elige estamentos específicos:
                         </div>
                         {ESTAMENTOS.map(est => {
@@ -750,9 +750,9 @@ export default function Profesor() {
                           return (
                             <div key={est} onClick={toggleEst}
                               style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, marginBottom:4, cursor:'pointer',
-                                border: seleccionado ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                                border: seleccionado ? '2px solid var(--azul-oscuro)' : '1px solid var(--gris-borde)',
                                 background: seleccionado ? '#F0F4FF' : '#FAFAFA' }}>
-                              <div style={{ width:16, height:16, borderRadius:4, border: seleccionado ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: seleccionado ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                              <div style={{ width:16, height:16, borderRadius:4, border: seleccionado ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: seleccionado ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                                 {seleccionado && <Icon icon="lucide:check" color="white" width={10} />}
                               </div>
                               <span style={{ fontSize:12, fontWeight: seleccionado ? 600 : 400, color:'#222' }}>{est}</span>
@@ -762,15 +762,15 @@ export default function Profesor() {
                       </div>
 
                       {/* Resumen + Guardar */}
-                      <div style={{ background:'#F4F5F7', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
-                        <div style={{ fontSize:12, color:'#555' }}>
+                      <div style={{ background:'var(--gris-fondo)', borderRadius:8, padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+                        <div style={{ fontSize:12, color:'var(--texto-sec)' }}>
                           {targeting.sede_objetivo ? <>Sede: <strong>{usuario?.sede_nombre}</strong> · </> : <>Todas las sedes · </>}
                           {Array.isArray(targeting.estamento_objetivo) && targeting.estamento_objetivo.length > 0
                             ? <>Obligatorio para: <strong>{targeting.estamento_objetivo.length === 1 ? targeting.estamento_objetivo[0] : `${targeting.estamento_objetivo.length} estamentos`}</strong></>
                             : <>Todos los estamentos (opcional)</>}
                         </div>
                         <button onClick={guardarTargeting} disabled={guardandoTargeting}
-                          style={{ fontSize:12, padding:'6px 16px', borderRadius:7, border:'none', background:'#1E3A6E', color:'#fff', cursor:'pointer', fontWeight:500, flexShrink:0 }}>
+                          style={{ fontSize:12, padding:'6px 16px', borderRadius:7, border:'none', background:'var(--azul-oscuro)', color:'#fff', cursor:'pointer', fontWeight:500, flexShrink:0 }}>
                           {guardandoTargeting ? 'Guardando...' : <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Guardar configuración</>}
                         </button>
                       </div>
@@ -780,7 +780,7 @@ export default function Profesor() {
                   {/* ── Tab Video Intro ── */}
                   {tabDetalle === 'video' && (
                     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                      <div style={{ fontSize:13, color:'#555' }}>
+                      <div style={{ fontSize:13, color:'var(--texto-sec)' }}>
                         El video introductorio se muestra al colaborador <strong>antes</strong> de que pueda acceder a los módulos del curso.
                         Acepta archivos MP4 o WebM (máx. 500 MB).
                       </div>
@@ -792,12 +792,12 @@ export default function Profesor() {
                             <source src={videoIntroUrl} type="video/webm" />
                           </video>
                           <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-                            <label style={{ background:'#2B4BA0', color:'#fff', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
+                            <label style={{ background:'var(--azul)', color:'#fff', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
                               {subiendoVideo ? 'Subiendo...' : <><Icon icon="lucide:upload" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Reemplazar video</>}
                               <input type="file" accept="video/mp4,video/webm" style={{ display:'none' }} onChange={subirVideoIntro} disabled={subiendoVideo} />
                             </label>
                             <button onClick={eliminarVideoIntro} disabled={eliminandoVideo}
-                              style={{ background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
+                              style={{ background:'none', color:'var(--danger)', border:'1px solid var(--danger)', borderRadius:8, padding:'8px 16px', fontSize:12, cursor:'pointer', fontWeight:500 }}>
                               {eliminandoVideo ? 'Eliminando...' : <><Icon icon="lucide:x" width={13} style={{verticalAlign:'middle',marginRight:3}} /> Quitar video</>}
                             </button>
                           </div>
@@ -808,11 +808,11 @@ export default function Profesor() {
                           border:'2px dashed #D0D5DD', borderRadius:12, padding:'40px 24px', cursor:'pointer',
                           background: subiendoVideo ? '#F9FAFB' : '#FAFAFA', gap:10
                         }}>
-                          <Icon icon="lucide:video" width={36} style={{marginBottom:8,display:"block",color:"#888"}} />
+                          <Icon icon="lucide:video" width={36} style={{marginBottom:8,display:"block",color:"var(--texto-muted)"}} />
                           <div style={{ fontSize:13, fontWeight:500, color:'#444' }}>
                             {subiendoVideo ? 'Subiendo video...' : 'Arrastra o haz click para subir un video'}
                           </div>
-                          <div style={{ fontSize:11, color:'#888' }}>MP4 o WebM · máx. 500 MB</div>
+                          <div style={{ fontSize:11, color:'var(--texto-muted)' }}>MP4 o WebM · máx. 500 MB</div>
                           <input type="file" accept="video/mp4,video/webm" style={{ display:'none' }} onChange={subirVideoIntro} disabled={subiendoVideo} />
                         </label>
                       )}
@@ -821,10 +821,10 @@ export default function Profesor() {
                 </div>
 
                 {/* Botones de acción según estado del curso */}
-                <div style={{ padding:'14px 24px', borderTop:'0.5px solid #E8E8E8', display:'flex', gap:10, flexShrink:0 }}>
+                <div style={{ padding:'14px 24px', borderTop:'0.5px solid var(--gris-borde)', display:'flex', gap:10, flexShrink:0 }}>
                   {cursoDetalle.publicado ? (
                     <>
-                      <button style={{ flex:1, height:40, background:'none', color:'#555', border:'1px solid #CCC', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                      <button style={{ flex:1, height:40, background:'none', color:'var(--texto-sec)', border:'1px solid #CCC', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           const ok = await confirm({
                             title: 'Despublicar curso',
@@ -838,7 +838,7 @@ export default function Profesor() {
                         }}>
                         <><Icon icon="lucide:eye-off" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Despublicar</>
                       </button>
-                      <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                      <button style={{ flex:1, height:40, background:'none', color:'var(--danger)', border:'1px solid var(--danger)', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           const ok = await confirm({
                             title: 'Eliminar curso',
@@ -852,21 +852,21 @@ export default function Profesor() {
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar</>
                       </button>
-                      <button style={{ height:40, padding:'0 20px', background:'#1E3A6E', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                      <button style={{ height:40, padding:'0 20px', background:'var(--azul-oscuro)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={cerrarDetalle}>
                         Cerrar
                       </button>
                     </>
                   ) : (
                     <>
-                      <button style={{ flex:1, height:40, background:'#1A7A45', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                      <button style={{ flex:1, height:40, background:'var(--success)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
                           catch { toast.error('Error al aprobar el curso') }
                         }}>
                         <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
                       </button>
-                      <button style={{ flex:1, height:40, background:'none', color:'#E8505B', border:'1px solid #E8505B', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
+                      <button style={{ flex:1, height:40, background:'none', color:'var(--danger)', border:'1px solid var(--danger)', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           const ok = await confirm({
                             title: 'Eliminar borrador',
@@ -889,7 +889,7 @@ export default function Profesor() {
 
           {/* Borradores IA pendientes */}
           {borradoresIA.length > 0 && (
-            <div className="card" style={{ borderLeft: '3px solid #F5A623' }}>
+            <div className="card" style={{ borderLeft: '3px solid var(--amarillo)' }}>
               <div className="card-header" style={{ marginBottom: 12 }}>
                 <span className="card-title">Borradores IA pendientes de validación</span>
                 <span style={{ fontSize: 11, background: '#FFF8E8', color: '#B8860B', borderRadius: 20, padding: '2px 10px', border: '1px solid #F5C842' }}>
@@ -898,15 +898,15 @@ export default function Profesor() {
               </div>
               {borradoresIA.map(curso => (
                 <div key={curso.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '0.5px solid #F0F0F0' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon icon="lucide:sparkles" width={18} style={{color:'#F5A623'}} /></div>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon icon="lucide:sparkles" width={18} style={{color:'var(--amarillo)'}} /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#222' }}>{curso.nombre}</div>
-                    <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>
                       {curso.modulos_count} módulos · {curso.preguntas_count} preguntas
                     </div>
                   </div>
                   <button
-                    style={{ height: 32, padding: '0 14px', background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
+                    style={{ height: 32, padding: '0 14px', background: 'var(--azul-oscuro)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12, cursor: 'pointer' }}
                     onClick={() => abrirDetalleCurso(curso)}>
                     Revisar
                   </button>
@@ -923,16 +923,16 @@ export default function Profesor() {
                 <div style={{ display:'flex', gap:6, marginLeft:'auto' }}>
                   {modoSeleccion ? (
                     <>
-                      <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'#555' }}
+                      <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #CCC', background:'#fff', cursor:'pointer', color:'var(--texto-sec)' }}
                         onClick={() => { setModoSeleccion(false); setSeleccionados(new Set()) }}>
                         Cancelar
                       </button>
-                      <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background: seleccionados.size===cursos.length?'#555':'#EEE', color: seleccionados.size===cursos.length?'#fff':'#333', cursor:'pointer' }}
+                      <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background: seleccionados.size===cursos.length?'var(--texto-sec)':'#EEE', color: seleccionados.size===cursos.length?'#fff':'#333', cursor:'pointer' }}
                         onClick={() => setSeleccionados(seleccionados.size===cursos.length ? new Set() : new Set(cursos.map(c=>c.id)))}>
                         {seleccionados.size===cursos.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
                       </button>
                       {seleccionados.size === 1 && (
-                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #1E3A6E', background:'#fff', color:'#1E3A6E', cursor:'pointer', fontWeight:500 }}
+                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid var(--azul-oscuro)', background:'#fff', color:'var(--azul-oscuro)', cursor:'pointer', fontWeight:500 }}
                           onClick={() => {
                             const c = cursos.find(c => seleccionados.has(c.id))
                             if (c) { setModoSeleccion(false); setSeleccionados(new Set()); abrirDetalleCurso(c) }
@@ -941,14 +941,14 @@ export default function Profesor() {
                         </button>
                       )}
                       {seleccionados.size > 0 && (
-                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background:'#E8505B', color:'#fff', cursor:'pointer', fontWeight:500 }}
+                        <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'none', background:'var(--rojo)', color:'#fff', cursor:'pointer', fontWeight:500 }}
                           onClick={eliminarMasivo} disabled={eliminandoMasivo}>
                           {eliminandoMasivo ? 'Eliminando...' : `Eliminar (${seleccionados.size})`}
                         </button>
                       )}
                     </>
                   ) : (
-                    <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid #E8E8E8', background:'#fff', cursor:'pointer', color:'#666' }}
+                    <button style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid var(--gris-borde)', background:'#fff', cursor:'pointer', color:'#666' }}
                       onClick={() => setModoSeleccion(true)}>
                       Seleccionar
                     </button>
@@ -960,7 +960,7 @@ export default function Profesor() {
                   <div key={c.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', cursor: modoSeleccion ? 'pointer' : 'default' }}
                     onClick={modoSeleccion ? () => toggleSeleccion(c.id) : undefined}>
                     {modoSeleccion && (
-                      <div style={{ width:18, height:18, borderRadius:4, border: seleccionados.has(c.id) ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: seleccionados.has(c.id) ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <div style={{ width:18, height:18, borderRadius:4, border: seleccionados.has(c.id) ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: seleccionados.has(c.id) ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         {seleccionados.has(c.id) && <Icon icon="lucide:check" color="#fff" width={11} />}
                       </div>
                     )}
@@ -971,13 +971,13 @@ export default function Profesor() {
                         <span className={`format-tag ${c.publicado ? 'tag-publicado' : 'tag-borrador'}`}>
                           {c.publicado ? 'Publicado' : 'Borrador'}
                         </span>
-                        {c.obligatorio ? <span style={{ fontSize:9, background:'#E8505B', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span> : null}
+                        {c.obligatorio ? <span style={{ fontSize:9, background:'var(--rojo)', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span> : null}
                         {(() => {
                           let ests = null
                           try { ests = c.estamento_objetivo ? (typeof c.estamento_objetivo === 'string' ? JSON.parse(c.estamento_objetivo) : c.estamento_objetivo) : null } catch { ests = c.estamento_objetivo ? [c.estamento_objetivo] : null }
                           return ests && ests.length > 0
-                            ? <span style={{ fontSize:9, background:'#EEF2FF', color:'#2B4BA0', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>{ests.length === 1 ? ests[0].split(' ').slice(0,2).join(' ') : `${ests.length} estamentos`}</span>
-                            : <span style={{ fontSize:9, background:'#F0FBF4', color:'#1A7A45', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>Todos</span>
+                            ? <span style={{ fontSize:9, background:'var(--azul-claro)', color:'var(--azul)', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>{ests.length === 1 ? ests[0].split(' ').slice(0,2).join(' ') : `${ests.length} estamentos`}</span>
+                            : <span style={{ fontSize:9, background:'#F0FBF4', color:'var(--success)', borderRadius:4, padding:'2px 6px', fontWeight:500 }}>Todos</span>
                         })()}
                       </div>
                     </div>
@@ -997,21 +997,21 @@ export default function Profesor() {
               <div className="card-header">
                 <span className="card-title">Certificados por validar</span>
                 {pendientes.length > 0 && (
-                  <span style={{ fontSize:10, background:'#FFF0F0', color:'#C0392B', borderRadius:20, padding:'2px 8px' }}>
+                  <span style={{ fontSize:10, background:'var(--danger-bg)', color:'var(--danger)', borderRadius:20, padding:'2px 8px' }}>
                     {pendientes.length}
                   </span>
                 )}
               </div>
               {pendientes.length === 0 ? (
-                <div style={{ textAlign:'center', color:'#888', padding:24, fontSize:13 }}>No hay certificados pendientes</div>
+                <div style={{ textAlign:'center', color:'var(--texto-muted)', padding:24, fontSize:13 }}>No hay certificados pendientes</div>
               ) : pendientes.slice(0,4).map(cert => (
                 <div key={cert.id} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
-                  <div className="avatar" style={{ width:30, height:30, fontSize:11, background:'#2B4BA0', flexShrink:0 }}>
+                  <div className="avatar" style={{ width:30, height:30, fontSize:11, background:'var(--azul)', flexShrink:0 }}>
                     {cert.usuario_nombre?.split(' ').map(n=>n[0]).slice(0,2).join('')}
                   </div>
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:12, fontWeight:500 }}>{cert.usuario_nombre}</div>
-                    <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{cert.curso_nombre}</div>
+                    <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:2 }}>{cert.curso_nombre}</div>
                   </div>
                   <div style={{ display:'flex', gap:6 }}>
                     <button className="btn-aprobar" onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado:'aprobado' }).then(() => window.location.reload())}>Aprobar</button>
@@ -1028,7 +1028,7 @@ export default function Profesor() {
               <div className="card-header">
                 <span className="card-title">
                   Colaboradores bloqueados en mis cursos
-                  <span style={{ marginLeft:8, background:'#E8505B', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
+                  <span style={{ marginLeft:8, background:'var(--rojo)', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'2px 7px' }}>
                     {bloqueados.length}
                   </span>
                 </span>
@@ -1039,16 +1039,16 @@ export default function Profesor() {
                   <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
-                      <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{b.curso_nombre}</div>
+                      <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:2 }}>{b.curso_nombre}</div>
                     </div>
-                    <span style={{ fontSize:11, color:'#AAA', whiteSpace:'nowrap' }}>
+                    <span style={{ fontSize:11, color:'var(--texto-muted)', whiteSpace:'nowrap' }}>
                       {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
                     </span>
                     <button
                       className="btn-sm btn-sm-primary"
                       disabled={desbloqueando.has(key)}
                       onClick={() => desbloquear(b.curso_id, b.usuario_id)}
-                      style={{ background:'#1A7A45', color:'#fff', minWidth:100 }}
+                      style={{ background:'var(--success)', color:'#fff', minWidth:100 }}
                     >
                       {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
                     </button>

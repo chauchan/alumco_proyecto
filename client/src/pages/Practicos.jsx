@@ -226,7 +226,7 @@ export default function Practicos() {
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               {googleConectado ? (
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  <span style={{ fontSize:12, color:'#1A7A45', background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:6, padding:'4px 10px' }}>
+                  <span style={{ fontSize:12, color:'var(--success)', background:'var(--success-bg)', border:'0.5px solid var(--verde)', borderRadius:6, padding:'4px 10px' }}>
                     <Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Google Calendar conectado
                   </span>
                   <button className="btn-outline-dark" style={{ fontSize:12 }}
@@ -300,15 +300,15 @@ export default function Practicos() {
             <div className="card">
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                 <button onClick={() => { if (mes === 0) { setMes(11); setAnio(anio-1) } else setMes(mes-1) }}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-left" width={16} /></button>
+                  style={{ background:'none', border:'0.5px solid var(--gris-borde)', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-left" width={16} /></button>
                 <span style={{ fontSize:15, fontWeight:500 }}>{MESES[mes]} {anio}</span>
                 <button onClick={() => { if (mes === 11) { setMes(0); setAnio(anio+1) } else setMes(mes+1) }}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-right" width={16} /></button>
+                  style={{ background:'none', border:'0.5px solid var(--gris-borde)', borderRadius:6, width:30, height:30, cursor:'pointer', display:'flex',alignItems:'center',justifyContent:'center' }}><Icon icon="lucide:chevron-right" width={16} /></button>
               </div>
 
               <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2, marginBottom:4 }}>
                 {DIAS.map(d => (
-                  <div key={d} style={{ textAlign:'center', fontSize:10, fontWeight:500, color:'#888', padding:'4px 0' }}>{d}</div>
+                  <div key={d} style={{ textAlign:'center', fontSize:10, fontWeight:500, color:'var(--texto-muted)', padding:'4px 0' }}>{d}</div>
                 ))}
               </div>
 
@@ -323,22 +323,22 @@ export default function Practicos() {
                       onClick={() => setDiaSeleccionado(dia === diaSeleccionado ? null : dia)}
                       style={{
                         height:72, padding:'4px 6px', borderRadius:8, cursor:'pointer',
-                        border:`0.5px solid ${seleccionado ? '#2B4BA0' : esHoy ? '#2B4BA0' : '#E8E8E8'}`,
-                        background: seleccionado ? '#EEF2FF' : esHoy ? '#F4F8FF' : 'white',
+                        border:`0.5px solid ${seleccionado ? 'var(--azul)' : esHoy ? 'var(--azul)' : 'var(--gris-borde)'}`,
+                        background: seleccionado ? 'var(--azul-claro)' : esHoy ? '#F4F8FF' : 'white',
                         overflow:'hidden', boxSizing:'border-box'
                       }}
                     >
-                      <div style={{ fontSize:12, fontWeight:esHoy ? 600 : 400, color:esHoy ? '#2B4BA0' : '#1a1a1a', marginBottom:2 }}>{dia}</div>
+                      <div style={{ fontSize:12, fontWeight:esHoy ? 600 : 400, color:esHoy ? 'var(--azul)' : 'var(--texto)', marginBottom:2 }}>{dia}</div>
                       {eventos.slice(0,2).map((e, i) => (
                         <div key={i} style={{
-                          fontSize:9, background:e.origen === 'google' ? '#4285F4' : '#2B4BA0', color:'white',
+                          fontSize:9, background:e.origen === 'google' ? '#4285F4' : 'var(--azul)', color:'white',
                           borderRadius:3, padding:'1px 4px', marginBottom:1,
                           overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'
                         }}>
                           {e.hora_inicio?.slice(0,5)} {e.titulo}
                         </div>
                       ))}
-                      {eventos.length > 2 && <div style={{ fontSize:9, color:'#888' }}>+{eventos.length - 2} más</div>}
+                      {eventos.length > 2 && <div style={{ fontSize:9, color:'var(--texto-muted)' }}>+{eventos.length - 2} más</div>}
                     </div>
                   )
                 })}
@@ -353,29 +353,29 @@ export default function Practicos() {
                     {diaSeleccionado} de {MESES[mes]}
                   </div>
                   {practicosDelDia.length === 0 ? (
-                    <div style={{ color:'#888', fontSize:13, textAlign:'center', padding:16 }}>Sin eventos este día</div>
+                    <div style={{ color:'var(--texto-muted)', fontSize:13, textAlign:'center', padding:16 }}>Sin eventos este día</div>
                   ) : practicosDelDia.map(p => (
-                    <div key={p.id} style={{ border:`0.5px solid ${p.origen === 'google' ? '#4285F4' : '#E8E8E8'}`, borderRadius:8, padding:12, marginBottom:8 }}>
+                    <div key={p.id} style={{ border:`0.5px solid ${p.origen === 'google' ? '#4285F4' : 'var(--gris-borde)'}`, borderRadius:8, padding:12, marginBottom:8 }}>
                       {p.origen === 'google' && (
                         <div style={{ fontSize:10, color:'#4285F4', fontWeight:500, marginBottom:4, display:'flex', alignItems:'center', gap:3 }}><Icon icon="lucide:calendar" width={10} /> Google Calendar</div>
                       )}
                       <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>{p.titulo}</div>
                       {p.curso_nombre && (
-                        <div style={{ fontSize:11, color:'#888', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:clipboard-list" width={11} /> {p.curso_nombre}</div>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}><Icon icon="lucide:clipboard-list" width={11} /> {p.curso_nombre}</div>
                       )}
                       {p.hora_inicio && (
-                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}>
+                        <div style={{ fontSize:11, color:'var(--texto-sec)', marginBottom:2 }}>
                           <Icon icon="lucide:clock" width={11} style={{marginRight:3}} /> {p.hora_inicio?.slice(0,5)}{p.hora_fin ? ` — ${p.hora_fin.slice(0,5)}` : ''}
                         </div>
                       )}
                       {p.sede_nombre && (
-                        <div style={{ fontSize:11, color:'#555', marginBottom:2 }}><Icon icon="lucide:map-pin" width={11} style={{marginRight:3}} /> {p.sede_nombre}</div>
+                        <div style={{ fontSize:11, color:'var(--texto-sec)', marginBottom:2 }}><Icon icon="lucide:map-pin" width={11} style={{marginRight:3}} /> {p.sede_nombre}</div>
                       )}
                       {p.descripcion && (
-                        <div style={{ fontSize:11, color:'#888', marginTop:6, lineHeight:1.5 }}>{p.descripcion}</div>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:6, lineHeight:1.5 }}>{p.descripcion}</div>
                       )}
                       {p.creado_por_nombre && (
-                        <div style={{ fontSize:10, color:'#AAA', marginTop:6 }}>Creado por {p.creado_por_nombre}</div>
+                        <div style={{ fontSize:10, color:'var(--texto-muted)', marginTop:6 }}>Creado por {p.creado_por_nombre}</div>
                       )}
                       {p.origen !== 'google' && (
                         <div style={{ display:'flex', gap:6, marginTop:8, flexWrap:'wrap' }}>
@@ -390,7 +390,7 @@ export default function Practicos() {
                           {puedeAsistencia && (
                             <button
                               onClick={() => abrirAsistencia(p.id)}
-                              style={{ fontSize:11, padding:'4px 8px', borderRadius:6, border:'0.5px solid #2B4BA0', color:'#2B4BA0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                              style={{ fontSize:11, padding:'4px 8px', borderRadius:6, border:'0.5px solid var(--azul)', color:'var(--azul)', background:'white', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
                               <Icon icon="lucide:clipboard-check" width={12} /> Tomar asistencia
                             </button>
                           )}
@@ -408,7 +408,7 @@ export default function Practicos() {
               ) : (
                 <div className="card" style={{ display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', padding:24 }}>
                   <Icon icon="lucide:calendar" width={28} style={{marginBottom:8,display:"block",color:"#CCC"}} />
-                  <div style={{ fontSize:13, color:'#888' }}>Selecciona un día para ver los prácticos programados</div>
+                  <div style={{ fontSize:13, color:'var(--texto-muted)' }}>Selecciona un día para ver los prácticos programados</div>
                 </div>
               )}
 
@@ -416,24 +416,24 @@ export default function Practicos() {
               <div className="card">
                 <div className="card-title" style={{ marginBottom:12 }}>Próximos prácticos</div>
                 {cargando ? (
-                  <div style={{ color:'#888', fontSize:13 }}>Cargando...</div>
+                  <div style={{ color:'var(--texto-muted)', fontSize:13 }}>Cargando...</div>
                 ) : practicos.filter(p => new Date(p.fecha) >= hoy).slice(0, 4).length === 0 ? (
-                  <div style={{ color:'#888', fontSize:13 }}>Sin prácticos próximos</div>
+                  <div style={{ color:'var(--texto-muted)', fontSize:13 }}>Sin prácticos próximos</div>
                 ) : practicos
                   .filter(p => new Date(p.fecha) >= hoy)
                   .slice(0, 4)
                   .map(p => (
                     <div key={p.id} style={{ display:'flex', gap:10, marginBottom:10, alignItems:'flex-start' }}>
                       <div style={{
-                        width:36, height:36, borderRadius:8, background:'#EEF2FF',
+                        width:36, height:36, borderRadius:8, background:'var(--azul-claro)',
                         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0
                       }}>
-                        <div style={{ fontSize:11, fontWeight:600, color:'#2B4BA0' }}>{new Date(p.fecha).getUTCDate()}</div>
-                        <div style={{ fontSize:9, color:'#888' }}>{MESES[new Date(p.fecha).getUTCMonth()]?.slice(0,3)}</div>
+                        <div style={{ fontSize:11, fontWeight:600, color:'var(--azul)' }}>{new Date(p.fecha).getUTCDate()}</div>
+                        <div style={{ fontSize:9, color:'var(--texto-muted)' }}>{MESES[new Date(p.fecha).getUTCMonth()]?.slice(0,3)}</div>
                       </div>
                       <div>
                         <div style={{ fontSize:12, fontWeight:500 }}>{p.titulo}</div>
-                        <div style={{ fontSize:11, color:'#888' }}>{p.hora_inicio?.slice(0,5)} · {p.sede_nombre}</div>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)' }}>{p.hora_inicio?.slice(0,5)} · {p.sede_nombre}</div>
                       </div>
                     </div>
                   ))
@@ -452,32 +452,32 @@ export default function Practicos() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
                 <div style={{ fontSize:16, fontWeight:600 }}>Tomar asistencia</div>
-                <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Marca los colaboradores que asistieron</div>
+                <div style={{ fontSize:12, color:'var(--texto-muted)', marginTop:2 }}>Marca los colaboradores que asistieron</div>
               </div>
               <button onClick={() => setModalAsistId(null)}
-                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888' }}>
+                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'var(--texto-muted)' }}>
                 <Icon icon="lucide:x" width={18} />
               </button>
             </div>
 
             {cargandoAsist ? (
-              <div style={{ textAlign:'center', padding:32, color:'#888', fontSize:13 }}>Cargando colaboradores...</div>
+              <div style={{ textAlign:'center', padding:32, color:'var(--texto-muted)', fontSize:13 }}>Cargando colaboradores...</div>
             ) : asistencias.length === 0 ? (
-              <div style={{ textAlign:'center', padding:32, color:'#888', fontSize:13 }}>
+              <div style={{ textAlign:'center', padding:32, color:'var(--texto-muted)', fontSize:13 }}>
                 No hay colaboradores asignados a este curso en esta sede.
               </div>
             ) : (
               <>
                 {/* Seleccionar todos */}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, paddingBottom:10, borderBottom:'0.5px solid #E8E8E8' }}>
-                  <span style={{ fontSize:12, color:'#555' }}>{asistencias.filter(u => u.asistio).length} de {asistencias.length} presentes</span>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, paddingBottom:10, borderBottom:'0.5px solid var(--gris-borde)' }}>
+                  <span style={{ fontSize:12, color:'var(--texto-sec)' }}>{asistencias.filter(u => u.asistio).length} de {asistencias.length} presentes</span>
                   <div style={{ display:'flex', gap:8 }}>
                     <button onClick={() => setAsistencias(prev => prev.map(u => ({ ...u, asistio: true })))}
-                      style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'0.5px solid #7BC67A', color:'#1A7A45', background:'#EDFAF3', cursor:'pointer' }}>
+                      style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'0.5px solid var(--verde)', color:'var(--success)', background:'var(--success-bg)', cursor:'pointer' }}>
                       Todos presentes
                     </button>
                     <button onClick={() => setAsistencias(prev => prev.map(u => ({ ...u, asistio: false })))}
-                      style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'0.5px solid #E8E8E8', color:'#888', background:'#F9F9F9', cursor:'pointer' }}>
+                      style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'0.5px solid var(--gris-borde)', color:'var(--texto-muted)', background:'#F9F9F9', cursor:'pointer' }}>
                       Limpiar
                     </button>
                   </div>
@@ -488,28 +488,28 @@ export default function Practicos() {
                     <div key={u.id}
                       onClick={() => toggleAsistencia(u.id)}
                       style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 8px', borderRadius:8, cursor:'pointer', marginBottom:2,
-                        background: u.asistio ? '#EDFAF3' : '#FAFAFA',
-                        border: `0.5px solid ${u.asistio ? '#7BC67A' : '#E8E8E8'}`
+                        background: u.asistio ? 'var(--success-bg)' : '#FAFAFA',
+                        border: `0.5px solid ${u.asistio ? 'var(--verde)' : 'var(--gris-borde)'}`
                       }}>
                       <div style={{
-                        width:18, height:18, borderRadius:4, border:`2px solid ${u.asistio ? '#1A7A45' : '#CCC'}`,
-                        background: u.asistio ? '#1A7A45' : '#fff',
+                        width:18, height:18, borderRadius:4, border:`2px solid ${u.asistio ? 'var(--success)' : '#CCC'}`,
+                        background: u.asistio ? 'var(--success)' : '#fff',
                         display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0
                       }}>
                         {u.asistio && <Icon icon="lucide:check" color="white" width={11} />}
                       </div>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:500, color: u.asistio ? '#1A7A45' : '#333' }}>{u.nombre}</div>
-                        {u.tipo_contrato && <div style={{ fontSize:11, color:'#888' }}>{u.tipo_contrato}</div>}
+                        <div style={{ fontSize:13, fontWeight:500, color: u.asistio ? 'var(--success)' : '#333' }}>{u.nombre}</div>
+                        {u.tipo_contrato && <div style={{ fontSize:11, color:'var(--texto-muted)' }}>{u.tipo_contrato}</div>}
                       </div>
                       {u.asistio && (
-                        <span style={{ fontSize:11, color:'#1A7A45', fontWeight:600 }}>Presente</span>
+                        <span style={{ fontSize:11, color:'var(--success)', fontWeight:600 }}>Presente</span>
                       )}
                     </div>
                   ))}
                 </div>
 
-                <div style={{ display:'flex', gap:8, justifyContent:'flex-end', borderTop:'0.5px solid #E8E8E8', paddingTop:16 }}>
+                <div style={{ display:'flex', gap:8, justifyContent:'flex-end', borderTop:'0.5px solid var(--gris-borde)', paddingTop:16 }}>
                   <button onClick={() => setModalAsistId(null)} className="btn-outline-dark">Cancelar</button>
                   <button onClick={guardarAsistencia} className="btn-primary" disabled={guardandoAsist}>
                     {guardandoAsist ? 'Guardando...' : 'Guardar asistencia'}
@@ -528,48 +528,48 @@ export default function Practicos() {
           <div style={{ background:'white', borderRadius:12, padding:28, width:440, boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:0 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
-                <div style={{ fontSize:16, fontWeight:600, color:'#1a1a1a' }}>Nuevo evento</div>
-                <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Se agregará a tu Google Calendar</div>
+                <div style={{ fontSize:16, fontWeight:600, color:'var(--texto)' }}>Nuevo evento</div>
+                <div style={{ fontSize:12, color:'var(--texto-muted)', marginTop:2 }}>Se agregará a tu Google Calendar</div>
               </div>
               <button onClick={() => setMostrarModalEvento(false)}
-                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#888', lineHeight:1 }}><Icon icon="lucide:x" width={18} /></button>
+                style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'var(--texto-muted)', lineHeight:1 }}><Icon icon="lucide:x" width={18} /></button>
             </div>
 
             <form onSubmit={handleCrearEvento} style={{ display:'flex', flexDirection:'column', gap:14 }}>
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}>Título *</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}>Título *</label>
                 <input type="text" placeholder="Añadir título"
                   style={{ fontSize:15, padding:'8px 12px', border:'none', borderBottom:'2px solid #4285F4', borderRadius:0, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.titulo} onChange={e => setFormEvento({...formEvento, titulo:e.target.value})} autoFocus />
               </div>
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:calendar" width={13} style={{marginRight:4}} /> Fecha *</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}><Icon icon="lucide:calendar" width={13} style={{marginRight:4}} /> Fecha *</label>
                 <input type="date"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.fecha} onChange={e => setFormEvento({...formEvento, fecha:e.target.value})} />
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div className="field">
-                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora inicio *</label>
+                  <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora inicio *</label>
                   <input type="time"
                     style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                     value={formEvento.hora_inicio} onChange={e => setFormEvento({...formEvento, hora_inicio:e.target.value})} />
                 </div>
                 <div className="field">
-                  <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora término</label>
+                  <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}><Icon icon="lucide:clock" width={13} style={{marginRight:4}} /> Hora término</label>
                   <input type="time"
                     style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                     value={formEvento.hora_fin} onChange={e => setFormEvento({...formEvento, hora_fin:e.target.value})} />
                 </div>
               </div>
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:map-pin" width={13} style={{marginRight:4}} /> Ubicación</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}><Icon icon="lucide:map-pin" width={13} style={{marginRight:4}} /> Ubicación</label>
                 <input type="text" placeholder="Añadir ubicación"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box' }}
                   value={formEvento.lugar} onChange={e => setFormEvento({...formEvento, lugar:e.target.value})} />
               </div>
               <div className="field">
-                <label style={{ fontSize:12, fontWeight:500, color:'#555', marginBottom:4, display:'block' }}><Icon icon="lucide:align-left" width={13} style={{marginRight:4}} /> Descripción</label>
+                <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}><Icon icon="lucide:align-left" width={13} style={{marginRight:4}} /> Descripción</label>
                 <textarea rows={3} placeholder="Añadir descripción"
                   style={{ fontSize:13, padding:'8px 12px', border:'0.5px solid #E0E0E0', borderRadius:8, outline:'none', width:'100%', boxSizing:'border-box', resize:'none' }}
                   value={formEvento.descripcion} onChange={e => setFormEvento({...formEvento, descripcion:e.target.value})} />

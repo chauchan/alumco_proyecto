@@ -16,17 +16,30 @@ export default function Login() {
   const [verPassword, setVerPassword] = useState(false)
   const { acc, toggle } = useAccesibilidad()
 
+  // Qué campos marcar en rojo. 'ambos' cubre el caso de credenciales
+  // incorrectas, donde el servidor no dice cuál de los dos falló.
+  const [campoError, setCampoError] = useState(null)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.identificador || !form.password) return setError('Completa todos los campos')
-    setCargando(true); setError('')
+    if (!form.identificador || !form.password) {
+      setCampoError(!form.identificador ? 'identificador' : 'password')
+      return setError('Completa todos los campos para poder ingresar.')
+    }
+    setCargando(true); setError(''); setCampoError(null)
     try {
       const u = await login(form.identificador, form.password)
       navigate(RUTA[u.rol] || '/')
     } catch (err) {
-      setError(err.response?.data?.error || 'Credenciales incorrectas')
+      setCampoError('ambos')
+      setError(err.response?.data?.error || 'El RUT o la contraseña no coinciden. Revisa los datos e inténtalo de nuevo.')
     } finally { setCargando(false) }
   }
+
+  const marcado = (campo) => campoError === campo || campoError === 'ambos'
+  const estiloCampo = (campo) => marcado(campo)
+    ? { height:42, borderColor:'var(--danger)', boxShadow:'0 0 0 3px rgba(192,57,43,0.10)' }
+    : { height:42 }
 
   return (
     <div style={{ display:'flex', minHeight:'100vh' }}>
@@ -34,7 +47,7 @@ export default function Login() {
       {/* Panel izquierdo */}
       <div style={{
         width:'44%',
-        background: 'linear-gradient(160deg, #5A7ED6 0%, #4060BC 55%, #2B4BA0 100%)',
+        background: 'var(--gradiente-login)',
         display:'flex', flexDirection:'column',
         justifyContent:'center', alignItems:'center',
         padding:'3rem 2.5rem', position:'relative', overflow:'hidden',
@@ -102,44 +115,69 @@ export default function Login() {
       <div style={{ flex:1, background:'white', display:'flex', flexDirection:'column' }}>
         <div style={{ flex:1, padding:'2.5rem', display:'flex', flexDirection:'column', justifyContent:'center' }}>
           <div style={{ fontSize:20, fontWeight:500, marginBottom:4 }}>Bienvenida/o</div>
-          <div style={{ fontSize:13, color:'#888', marginBottom:32, lineHeight:1.6 }}>
+          <div style={{ fontSize:13, color:'var(--texto-muted)', marginBottom:32, lineHeight:1.6 }}>
             Ingresa con las credenciales entregadas<br/>por tu organización
           </div>
 
-          <form onSubmit={handleSubmit}>
+          {/* noValidate: los campos siguen marcados como required para el lector
+              de pantalla, pero la validación la hacemos nosotros para mostrar el
+              mensaje diseñado y no la burbuja nativa del navegador. */}
+          <form onSubmit={handleSubmit} noValidate>
             <div className="field">
-              <label>RUT o correo</label>
-              <input type="text" placeholder="12.345.678-9"
+              <label htmlFor="login-identificador">
+                RUT o correo <span aria-hidden="true" style={{ color:'var(--danger)' }}>*</span>
+              </label>
+              <input id="login-identificador" type="text" placeholder="12.345.678-9"
                 value={form.identificador}
                 onChange={e => setForm({...form, identificador: e.target.value})}
-                style={{ height:42 }}
+                aria-invalid={marcado('identificador')}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+                style={estiloCampo('identificador')}
               />
             </div>
             <div className="field">
-              <label>Contraseña</label>
+              <label htmlFor="login-password">
+                Contraseña <span aria-hidden="true" style={{ color:'var(--danger)' }}>*</span>
+              </label>
               <div style={{ position: 'relative' }}>
-                <input type={verPassword ? 'text' : 'password'} placeholder="••••••••"
+                <input id="login-password" type={verPassword ? 'text' : 'password'} placeholder="••••••••"
                   value={form.password}
                   onChange={e => setForm({...form, password: e.target.value})}
-                  style={{ height:42, width:'100%', paddingRight: 40 }}
+                  aria-invalid={marcado('password')}
+                  aria-describedby={error ? 'login-error' : undefined}
+                  required
+                  style={{ ...estiloCampo('password'), width:'100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setVerPassword(v => !v)}
-                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:0, display:'flex', alignItems:'center' }}>
                   <Icon icon={verPassword ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
                 </button>
               </div>
             </div>
 
             <div style={{ textAlign:'right', marginBottom:18 }}>
-              <Link to="/forgot-password" style={{ fontSize:12, color:'#2B4BA0' }}>
+              <Link to="/forgot-password" style={{ fontSize:12, color:'var(--azul)' }}>
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
 
-            {error && <p style={{ color:'#E8505B', fontSize:13, marginBottom:12 }}>{error}</p>}
+            {/* role="alert" hace que el lector de pantalla anuncie el error sin
+                que el usuario tenga que volver a recorrer el formulario. */}
+            {error && (
+              <p id="login-error" role="alert" style={{
+                display:'flex', alignItems:'flex-start', gap:8,
+                background:'var(--danger-bg)', color:'var(--danger)',
+                border:'0.5px solid var(--danger)', borderRadius:'var(--radius-md)',
+                padding:'9px 12px', fontSize:13, lineHeight:1.5, marginBottom:12,
+              }}>
+                <Icon icon="lucide:alert-circle" width={16} style={{ flexShrink:0, marginTop:1 }} />
+                {error}
+              </p>
+            )}
 
             <button type="submit" disabled={cargando} style={{
-              width:'100%', height:44, background:'#2B4BA0', color:'#fff', border:'none',
+              width:'100%', height:44, background:'var(--azul)', color:'#fff', border:'none',
               borderRadius:8, fontSize:14, fontWeight:500, cursor:'pointer',
               display:'flex', alignItems:'center', justifyContent:'center', gap:8
             }}>
@@ -158,22 +196,22 @@ export default function Login() {
 
         {/* Barra accesibilidad */}
         <div style={{
-          borderTop:'0.5px solid #E8E8E8', padding:'10px 2.5rem',
+          borderTop:'0.5px solid var(--gris-borde)', padding:'10px 2.5rem',
           display:'flex', alignItems:'center', gap:10, background:'#F9F9F9'
         }}>
-          <span style={{ fontSize:11, color:'#888' }}>Accesibilidad:</span>
+          <span style={{ fontSize:11, color:'var(--texto-muted)' }}>Accesibilidad:</span>
           <button onClick={() => toggle('textoGrande')} style={{
             fontSize:11, cursor:'pointer', borderRadius:20, padding:'4px 10px',
-            border: acc.textoGrande ? '1.5px solid #2B4BA0' : '0.5px solid #E8E8E8',
-            background: acc.textoGrande ? '#EEF2FF' : 'white',
-            color: acc.textoGrande ? '#2B4BA0' : '#888',
+            border: acc.textoGrande ? '1.5px solid var(--azul)' : '0.5px solid var(--gris-borde)',
+            background: acc.textoGrande ? 'var(--azul-claro)' : 'white',
+            color: acc.textoGrande ? 'var(--azul)' : 'var(--texto-muted)',
             fontWeight: acc.textoGrande ? 600 : 400,
           }}>A+ Texto grande</button>
           <button onClick={() => toggle('altoContraste')} style={{
             fontSize:11, cursor:'pointer', borderRadius:20, padding:'4px 10px',
-            border: acc.altoContraste ? '1.5px solid #1A1A1A' : '0.5px solid #E8E8E8',
-            background: acc.altoContraste ? '#1A1A1A' : 'white',
-            color: acc.altoContraste ? '#fff' : '#888',
+            border: acc.altoContraste ? '1.5px solid var(--texto)' : '0.5px solid var(--gris-borde)',
+            background: acc.altoContraste ? 'var(--texto)' : 'white',
+            color: acc.altoContraste ? '#fff' : 'var(--texto-muted)',
             fontWeight: acc.altoContraste ? 600 : 400,
           }}>Alto contraste</button>
         </div>

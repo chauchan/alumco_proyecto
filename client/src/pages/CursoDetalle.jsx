@@ -322,12 +322,12 @@ export default function CursoDetalle() {
             <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>{slideActual + 1} / {total}</span>
             {esUltimo ? (
               <button onClick={() => marcarCompleto(mod.id)}
-                style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Completar módulo</>
               </button>
             ) : (
               <button onClick={() => setSlideActual(s => Math.min(total - 1, s + 1))}
-                style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>
+                style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>
                 <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
               </button>
             )}
@@ -352,7 +352,7 @@ export default function CursoDetalle() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>El módulo se marcará como completo al terminar el video.</span>
             <button onClick={() => marcarCompleto(mod.id)}
-              style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
             </button>
           </div>
@@ -371,7 +371,7 @@ export default function CursoDetalle() {
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button onClick={() => marcarCompleto(mod.id)}
-              style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
             </button>
           </div>
@@ -395,7 +395,7 @@ export default function CursoDetalle() {
               <Icon icon="lucide:download" width={12} /> Descargar PPT
             </a>
             <button onClick={() => marcarCompleto(mod.id)}
-              style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
             </button>
           </div>
@@ -411,7 +411,7 @@ export default function CursoDetalle() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={() => marcarCompleto(mod.id)}
-            style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
           </button>
         </div>
@@ -452,17 +452,17 @@ export default function CursoDetalle() {
             /* ── CURSO BLOQUEADO ── */
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <div style={{ background: 'var(--cd-card-bg)', borderRadius: 16, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <Icon icon="lucide:lock" width={56} style={{color:'#E8505B'}} />
+                <Icon icon="lucide:lock" width={56} style={{color:'var(--rojo)'}} />
                 <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--cd-text)' }}>Curso temporalmente bloqueado</div>
                 <div style={{ fontSize: 14, color: 'var(--cd-text-sec)', lineHeight: 1.6 }}>
                   Has fallado este curso 2 veces. Podrás intentarlo nuevamente el{' '}
                   <strong>{bloqueadoHasta.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
                 </div>
-                <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12, padding: '14px 24px', fontSize: 13, color: '#B91C1C', maxWidth: 360 }}>
+                <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12, padding: '14px 24px', fontSize: 13, color: 'var(--danger)', maxWidth: 360 }}>
                   Tu administrador de sede ha sido notificado. Aprovecha este tiempo para repasar los contenidos.
                 </div>
                 <button onClick={() => navigate(-1)}
-                  style={{ background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
+                  style={{ background: 'var(--azul-oscuro)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
                   Volver
                 </button>
               </div>
@@ -478,7 +478,7 @@ export default function CursoDetalle() {
                   {/* Barra de progreso */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                     <div style={{ flex: 1, height: 6, background: 'var(--cd-border-light)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
+                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? 'var(--success)' : 'var(--azul)', borderRadius: 3, transition: 'width 0.4s' }} />
                     </div>
                     <span style={{ fontSize: 12, color: 'var(--cd-text-muted)', flexShrink: 0 }}>{progreso}%</span>
                   </div>
@@ -500,8 +500,8 @@ export default function CursoDetalle() {
                             background: 'none', border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer',
                             padding: '10px 18px', fontSize: 13,
                             fontWeight: activo ? 600 : 400,
-                            color: bloqueado ? '#ccc' : activo ? '#2B4BA0' : hecho ? '#22C55E' : 'var(--cd-text-muted)',
-                            borderBottom: activo ? '2px solid #2B4BA0' : hecho ? '2px solid #22C55E' : '2px solid transparent',
+                            color: bloqueado ? '#ccc' : activo ? 'var(--azul)' : hecho ? 'var(--success)' : 'var(--cd-text-muted)',
+                            borderBottom: activo ? '2px solid var(--azul)' : hecho ? '2px solid var(--success)' : '2px solid transparent',
                             display: 'flex', alignItems: 'center', gap: 5
                           }}>
                           {hecho && <Icon icon="lucide:check" width={11} />}
@@ -534,7 +534,7 @@ export default function CursoDetalle() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>
                           {videoVisto
-                            ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:3,color:'#16A34A'}} /> Video completado</>
+                            ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:3,color:'var(--success)'}} /> Video completado</>
                             : 'El video debe terminar para continuar.'}
                         </span>
                         <button
@@ -546,7 +546,7 @@ export default function CursoDetalle() {
                           }}
                           disabled={!videoVisto}
                           style={{
-                            background: videoVisto ? '#2B4BA0' : '#ccc', color: '#fff', border: 'none',
+                            background: videoVisto ? 'var(--azul)' : '#ccc', color: '#fff', border: 'none',
                             borderRadius: 10, padding: '10px 24px', fontSize: 13, fontWeight: 600,
                             cursor: videoVisto ? 'pointer' : 'not-allowed'
                           }}>
@@ -577,16 +577,16 @@ export default function CursoDetalle() {
                                   style={{
                                     flexShrink: 0, background: 'none', border: 'none',
                                     padding: '10px 16px', cursor: 'pointer',
-                                    borderBottom: activo ? '2px solid #2B4BA0' : completo ? '2px solid #22C55E' : '2px solid transparent',
+                                    borderBottom: activo ? '2px solid var(--azul)' : completo ? '2px solid var(--success)' : '2px solid transparent',
                                     display: 'flex', alignItems: 'center', gap: 7,
-                                    color: activo ? '#2B4BA0' : completo ? '#16A34A' : 'var(--cd-text-sec)',
+                                    color: activo ? 'var(--azul)' : completo ? 'var(--success)' : 'var(--cd-text-sec)',
                                     fontWeight: activo ? 600 : 400, fontSize: 13,
                                     maxWidth: 200, marginBottom: -1.5,
                                     whiteSpace: 'nowrap'
                                   }}>
                                   <span style={{
                                     width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                                    background: activo ? '#2B4BA0' : completo ? '#22C55E' : 'var(--cd-border)',
+                                    background: activo ? 'var(--azul)' : completo ? 'var(--success)' : 'var(--cd-border)',
                                     color: activo || completo ? '#fff' : 'var(--cd-text-muted)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     fontSize: 10, fontWeight: 700
@@ -613,25 +613,25 @@ export default function CursoDetalle() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                                   <div style={{
                                     width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                                    background: completo ? '#DCFCE7' : '#EEF2FF',
+                                    background: completo ? '#DCFCE7' : 'var(--azul-claro)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                                   }}>
                                     {completo
-                                      ? <Icon icon="lucide:check" color="#16A34A" width={16} />
+                                      ? <Icon icon="lucide:check" color="var(--success)" width={16} />
                                       : mod.tipo === 'video'
-                                        ? <Icon icon="lucide:video" width={16} style={{color:'#2B4BA0'}} />
+                                        ? <Icon icon="lucide:video" width={16} style={{color:'var(--azul)'}} />
                                         : mod.tipo === 'pdf'
-                                          ? <Icon icon="lucide:file-text" width={16} style={{color:'#E8505B'}} />
+                                          ? <Icon icon="lucide:file-text" width={16} style={{color:'var(--rojo)'}} />
                                           : <Icon icon="lucide:presentation" width={16} style={{color:'var(--cd-text-muted)'}} />}
                                   </div>
                                   <div>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: completo ? '#15803D' : 'var(--cd-text)' }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: completo ? 'var(--success)' : 'var(--cd-text)' }}>
                                       {i + 1}. {mod.titulo}
                                     </div>
                                     {mod.descripcion && <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginTop: 2 }}>{mod.descripcion}</div>}
                                   </div>
                                   {completo && (
-                                    <span style={{ marginLeft: 'auto', fontSize: 12, color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '4px 10px' }}>
+                                    <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '4px 10px' }}>
                                       <Icon icon="lucide:check" width={12} /> Completado
                                     </span>
                                   )}
@@ -639,12 +639,12 @@ export default function CursoDetalle() {
 
                                 {/* Contenido */}
                                 {completo ? (
-                                  <div style={{ textAlign: 'center', padding: '32px 16px', color: '#16A34A' }}>
+                                  <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--success)' }}>
                                     <Icon icon="lucide:check-circle" width={40} style={{marginBottom:8,display:'block',margin:'0 auto 12px'}} />
                                     <div style={{ fontSize: 14, fontWeight: 500 }}>Módulo completado</div>
                                     {i + 1 < curso.modulos.length && (
                                       <button onClick={() => { setModuloActivo(curso.modulos[i + 1].id); setSlideActual(0) }}
-                                        style={{ marginTop: 14, background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ marginTop: 14, background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                                         <>Siguiente módulo <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
                                       </button>
                                     )}
@@ -672,10 +672,10 @@ export default function CursoDetalle() {
                                   return (
                                     <div style={{ marginTop: 28, borderTop: '0.5px solid var(--cd-border-light)', paddingTop: 20 }}>
                                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--cd-text)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <Icon icon="lucide:message-circle" width={15} style={{color:'#2B4BA0'}} />
+                                        <Icon icon="lucide:message-circle" width={15} style={{color:'var(--azul)'}} />
                                         Preguntas y comentarios
                                         {coms.length > 0 && (
-                                          <span style={{ fontSize: 11, background: '#EEF2FF', color: '#2B4BA0', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
+                                          <span style={{ fontSize: 11, background: 'var(--azul-claro)', color: 'var(--azul)', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
                                             {coms.length}
                                           </span>
                                         )}
@@ -698,7 +698,7 @@ export default function CursoDetalle() {
                                             <div style={{ fontSize: 13, color: 'var(--cd-text)', lineHeight: 1.6, wordBreak: 'break-word' }}>{com.texto}</div>
                                             <button
                                               onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: prev[mod.id] === com.id ? null : com.id }))}
-                                              style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: '#2B4BA0', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                              style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: 'var(--azul)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
                                               <Icon icon="lucide:corner-down-right" width={11} /> Responder
                                             </button>
                                           </div>
@@ -728,7 +728,7 @@ export default function CursoDetalle() {
                                                 <button
                                                   onClick={() => enviarComentario(mod.id, textoReply, com.id)}
                                                   disabled={!textoReply.trim() || enviando}
-                                                  style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: textoReply.trim() ? 'pointer' : 'not-allowed', opacity: textoReply.trim() ? 1 : 0.5 }}>
+                                                  style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: textoReply.trim() ? 'pointer' : 'not-allowed', opacity: textoReply.trim() ? 1 : 0.5 }}>
                                                   {enviando ? '...' : 'Enviar'}
                                                 </button>
                                                 <button
@@ -754,7 +754,7 @@ export default function CursoDetalle() {
                                         <button
                                           onClick={() => enviarComentario(mod.id, textoInput, null)}
                                           disabled={!textoInput.trim() || enviando}
-                                          style={{ alignSelf: 'flex-end', background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: textoInput.trim() ? 'pointer' : 'not-allowed', opacity: textoInput.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
+                                          style={{ alignSelf: 'flex-end', background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: textoInput.trim() ? 'pointer' : 'not-allowed', opacity: textoInput.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
                                           <Icon icon="lucide:send" width={14} style={{verticalAlign:'middle',marginRight:4}} />
                                           {enviando ? 'Enviando...' : 'Comentar'}
                                         </button>
@@ -771,7 +771,7 @@ export default function CursoDetalle() {
                             <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 20, borderTop: '0.5px solid var(--cd-border-light)' }}>
                               {todosModulosCompletos ? (
                                 <button onClick={() => setPaso('evaluacion')} style={{
-                                  background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10,
+                                  background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 10,
                                   padding: '11px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
                                 }}>
                                   <>Ir a la evaluación <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
@@ -795,11 +795,11 @@ export default function CursoDetalle() {
                         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                           {resultado.aprobado ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                              <Icon icon="lucide:trophy" width={64} style={{color:'#F5A623'}} />
-                              <div style={{ fontSize: 22, fontWeight: 700, color: '#15803D' }}>¡Curso finalizado!</div>
+                              <Icon icon="lucide:trophy" width={64} style={{color:'var(--amarillo)'}} />
+                              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--success)' }}>¡Curso finalizado!</div>
                               <div style={{ fontSize: 14, color: 'var(--cd-text-sec)' }}>{curso?.nombre}</div>
                               <div style={{
-                                background: 'linear-gradient(135deg, #1E3A6E 0%, #2B4BA0 100%)',
+                                background: 'linear-gradient(135deg, var(--azul-oscuro) 0%, var(--azul) 100%)',
                                 borderRadius: 16, padding: '24px 40px', color: '#fff', width: '100%', maxWidth: 340
                               }}>
                                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7, marginBottom: 8 }}>
@@ -815,7 +815,7 @@ export default function CursoDetalle() {
                                   <div style={{
                                     height: '100%', borderRadius: 4, transition: 'width 0.8s ease',
                                     width: `${resultado.score}%`,
-                                    background: resultado.score >= 80 ? '#22C55E' : resultado.score >= 60 ? '#F5A623' : '#E8505B'
+                                    background: resultado.score >= 80 ? 'var(--success)' : resultado.score >= 60 ? 'var(--amarillo)' : 'var(--rojo)'
                                   }} />
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--cd-text-muted)', marginTop: 4 }}>
@@ -824,27 +824,27 @@ export default function CursoDetalle() {
                                   <span>100%</span>
                                 </div>
                               </div>
-                              <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
+                              <div style={{ fontSize: 12, color: 'var(--success)', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
                                 <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
                               </div>
                               {esperandoPractico && (
-                                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#C2410C', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
+                                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
                                   <Icon icon="lucide:clock" width={16} style={{flexShrink:0}} />
                                   Has aprobado la evaluación. Falta asistir al práctico para certificarte.
                                 </div>
                               )}
                               <button onClick={() => navigate(-1)}
-                                style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
+                                style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
                                 Volver a capacitaciones
                               </button>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                              <Icon icon="lucide:frown" width={56} style={{color:'#E8505B'}} />
+                              <Icon icon="lucide:frown" width={56} style={{color:'var(--rojo)'}} />
                               <div style={{ fontSize: 18, fontWeight: 600 }}>No aprobaste esta vez</div>
                               <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 14, padding: '20px 32px', width: '100%', maxWidth: 320 }}>
-                                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#E8505B', letterSpacing: '0.08em', marginBottom: 6 }}>Tu puntaje</div>
-                                <div style={{ fontSize: 44, fontWeight: 800, color: '#E8505B', lineHeight: 1 }}>{resultado.score}%</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--danger)', letterSpacing: '0.08em', marginBottom: 6 }}>Tu puntaje</div>
+                                <div style={{ fontSize: 44, fontWeight: 800, color: 'var(--danger)', lineHeight: 1 }}>{resultado.score}%</div>
                                 <div style={{ fontSize: 13, color: 'var(--cd-text-muted)', marginTop: 6 }}>
                                   {resultado.correctas} de {resultado.total} correctas · Necesitas 60% para aprobar
                                 </div>
@@ -855,18 +855,18 @@ export default function CursoDetalle() {
                                 border: `1px solid ${intentosRestantes <= 0 ? '#FECACA' : 'var(--cd-border)'}`,
                                 borderRadius: 10, padding: '10px 20px', fontSize: 13
                               }}>
-                                <Icon icon="lucide:refresh-cw" width={14} style={{color: intentosRestantes <= 0 ? '#E8505B' : 'var(--cd-text-muted)'}} />
-                                <span style={{ color: intentosRestantes <= 0 ? '#E8505B' : 'var(--cd-text-sec)', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
+                                <Icon icon="lucide:refresh-cw" width={14} style={{color: intentosRestantes <= 0 ? 'var(--rojo)' : 'var(--cd-text-muted)'}} />
+                                <span style={{ color: intentosRestantes <= 0 ? 'var(--rojo)' : 'var(--cd-text-sec)', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
                                   Intentos restantes: <strong>{intentosRestantes}/2</strong>
                                 </span>
                               </div>
                               {intentosRestantes <= 0 ? (
-                                <div style={{ fontSize: 13, color: '#E8505B', textAlign: 'center', maxWidth: 300 }}>
+                                <div style={{ fontSize: 13, color: 'var(--danger)', textAlign: 'center', maxWidth: 300 }}>
                                   Has agotado tus intentos. El curso quedará bloqueado por 7 días.
                                 </div>
                               ) : (
                                 <button onClick={() => { setResultado(null); setRespuestas({}) }}
-                                  style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                                  style={{ background: 'var(--azul)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
                                   Intentar nuevamente
                                 </button>
                               )}
@@ -888,12 +888,12 @@ export default function CursoDetalle() {
                                     <label key={ai} style={{
                                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
                                       borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                                      background: sel ? '#EEF2FF' : 'var(--cd-subtle-bg)',
-                                      border: `1px solid ${sel ? '#2B4BA0' : 'var(--cd-border)'}`
+                                      background: sel ? 'var(--azul-claro)' : 'var(--cd-subtle-bg)',
+                                      border: `1px solid ${sel ? 'var(--azul)' : 'var(--cd-border)'}`
                                     }}>
                                       <input type="radio" name={`preg-${preg.id}`} checked={sel}
                                         onChange={() => setRespuestas(prev => ({ ...prev, [preg.id]: ai }))}
-                                        style={{ accentColor: '#2B4BA0' }} />
+                                        style={{ accentColor: 'var(--azul)' }} />
                                       {alt.texto}
                                     </label>
                                   )
@@ -902,7 +902,7 @@ export default function CursoDetalle() {
                             </div>
                           ))}
                           <button onClick={enviarEvaluacion} disabled={!todosRespondidos || enviando} style={{
-                            background: todosRespondidos ? '#2B4BA0' : '#ccc', color: '#fff',
+                            background: todosRespondidos ? 'var(--azul)' : '#ccc', color: '#fff',
                             border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14,
                             fontWeight: 600, cursor: todosRespondidos ? 'pointer' : 'not-allowed',
                             alignSelf: 'center', marginTop: 4
@@ -947,12 +947,12 @@ export default function CursoDetalle() {
                   <div style={{ marginTop: 16, paddingTop: 16, borderTop: '0.5px solid var(--cd-border-light)' }}>
                     <div style={{ fontSize: 11, color: 'var(--cd-text-muted)', marginBottom: 6 }}>Tu progreso</div>
                     <div style={{ height: 6, background: 'var(--cd-border-light)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
-                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
+                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? 'var(--success)' : 'var(--azul)', borderRadius: 3, transition: 'width 0.4s' }} />
                     </div>
-                    <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : 'var(--cd-text-sec)', fontWeight: 500 }}>{progreso}% completado</div>
+                    <div style={{ fontSize: 12, color: progreso >= 100 ? 'var(--success)' : 'var(--cd-text-sec)', fontWeight: 500 }}>{progreso}% completado</div>
                   </div>
                   {esperandoPractico && !resultado && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--cd-border-light)', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--cd-border-light)', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: 'var(--warning)', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
                       <Icon icon="lucide:clock" width={14} style={{flexShrink:0, marginTop:1}} />
                       <span>Has aprobado la evaluación. Falta asistir al práctico para certificarte.</span>
                     </div>

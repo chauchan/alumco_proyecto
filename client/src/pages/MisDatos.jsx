@@ -76,7 +76,7 @@ export default function MisDatos() {
               <div className="card-title" style={{ marginBottom: 20 }}>Información de contacto</div>
 
               {cargando ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: 24 }}>Cargando...</div>
+                <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 24 }}>Cargando...</div>
               ) : (
                 <form onSubmit={handleGuardar}>
                   <div className="field">
@@ -99,12 +99,12 @@ export default function MisDatos() {
                   </div>
 
                   {exito && (
-                    <div style={{ background: '#EDFAF3', border: '0.5px solid #7BC67A', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#1A7A45', marginBottom: 14 }}>
+                    <div style={{ background: 'var(--success-bg)', border: '0.5px solid var(--verde)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--success)', marginBottom: 14 }}>
                       <Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}
                     </div>
                   )}
                   {error && (
-                    <div style={{ background: '#FFF0F0', border: '0.5px solid #E8505B', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#C0392B', marginBottom: 14 }}>
+                    <div style={{ background: 'var(--danger-bg)', border: '0.5px solid var(--rojo)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--danger)', marginBottom: 14 }}>
                       <Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}
                     </div>
                   )}
@@ -116,7 +116,7 @@ export default function MisDatos() {
                     <button
                       type="button"
                       onClick={() => navigate(rutaVolver[usuario?.rol] || '/')}
-                      style={{ background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#888', cursor: 'pointer' }}
+                      style={{ background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: 'var(--texto-muted)', cursor: 'pointer' }}
                     >
                       Volver
                     </button>
@@ -142,7 +142,7 @@ export default function MisDatos() {
                   { label: 'Tipo de contrato', value: usuario?.tipo_contrato === 'fijo' ? 'Fijo' : usuario?.tipo_contrato === 'reemplazo' ? 'Reemplazo' : '—' },
                 ].map(item => (
                   <div key={item.label}>
-                    <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>{item.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginBottom: 3 }}>{item.label}</div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{item.value || '—'}</div>
                   </div>
                 ))}

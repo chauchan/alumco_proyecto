@@ -167,14 +167,14 @@ export default function NuevoCurso() {
                     <div style={{
                       width:28, height:28, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
                       fontSize:12, fontWeight:500, color:'#fff', flexShrink:0,
-                      background: completado ? '#7BC67A' : activo ? '#2B4BA0' : '#CCC'
+                      background: completado ? 'var(--verde)' : activo ? 'var(--azul)' : '#CCC'
                     }}>
                       {completado ? <Icon icon="lucide:check" color="white" width={13} /> : num}
                     </div>
-                    <span style={{ fontSize:13, fontWeight: activo ? 500 : 400, color: activo ? '#2B4BA0' : '#888' }}>{p}</span>
+                    <span style={{ fontSize:13, fontWeight: activo ? 500 : 400, color: activo ? 'var(--azul)' : 'var(--texto-muted)' }}>{p}</span>
                   </div>
                   {i < pasos.length - 1 && (
-                    <div style={{ flex:1, height:1, background:'#E8E8E8', margin:'0 12px' }} />
+                    <div style={{ flex:1, height:1, background:'var(--gris-borde)', margin:'0 12px' }} />
                   )}
                 </div>
               )
@@ -182,7 +182,7 @@ export default function NuevoCurso() {
           </div>
 
           {error && (
-            <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}>
+            <div style={{ background:'var(--danger-bg)', border:'0.5px solid var(--rojo)', borderRadius:8, padding:'10px 14px', fontSize:13, color:'var(--danger)' }}>
               <Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}
             </div>
           )}
@@ -215,18 +215,18 @@ export default function NuevoCurso() {
                     <input type="checkbox"
                       checked={form.requiere_practico}
                       onChange={e => setForm({...form, requiere_practico: e.target.checked})}
-                      style={{ accentColor:'#2B4BA0', width:15, height:15 }}
+                      style={{ accentColor:'var(--azul)', width:15, height:15 }}
                     />
                     Este curso requiere práctico presencial
                   </label>
-                  <div style={{ fontSize:11, color:'#888', marginTop:4, paddingLeft:23 }}>
+                  <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:4, paddingLeft:23 }}>
                     El colaborador debe asistir al práctico para obtener el certificado, aunque apruebe la evaluación.
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <button type="submit" className="btn-primary">Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} /></button>
                   <button type="button" onClick={() => navigate('/profesor')}
-                    style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
+                    style={{ background:'none', border:'0.5px solid var(--gris-borde)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--texto-muted)', cursor:'pointer' }}>
                     Cancelar
                   </button>
                 </div>
@@ -239,7 +239,7 @@ export default function NuevoCurso() {
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <div className="card">
                 <div className="card-title" style={{ marginBottom:4 }}>Subir material formativo</div>
-                <div style={{ fontSize:12, color:'#888', marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'var(--texto-muted)', marginBottom:16 }}>
                   Puedes subir múltiples archivos. Formatos: PDF, Video (MP4, máx 5 min), PPT
                 </div>
 
@@ -247,12 +247,12 @@ export default function NuevoCurso() {
                 <label htmlFor="input-archivo">
                   <div className="upload-zone" style={{ cursor:'pointer' }}>
                     {subiendo ? (
-                      <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', fontSize:13, color:'#888' }}>Subiendo archivo...</div>
+                      <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', fontSize:13, color:'var(--texto-muted)' }}>Subiendo archivo...</div>
                     ) : (
                       <>
-                        <Icon icon="lucide:folder-open" width={28} style={{marginBottom:8,display:"block",color:"#888"}} />
+                        <Icon icon="lucide:folder-open" width={28} style={{marginBottom:8,display:"block",color:"var(--texto-muted)"}} />
                         <div style={{ fontSize:13, fontWeight:500, marginBottom:4 }}>Haz clic para seleccionar un archivo</div>
-                        <div style={{ fontSize:11, color:'#888', marginBottom:8 }}>PDF · MP4 · PPT · PPTX</div>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)', marginBottom:8 }}>PDF · MP4 · PPT · PPTX</div>
                         <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
                           <span className="format-tag tag-pdf">PDF</span>
                           <span className="format-tag tag-video">Video</span>
@@ -298,11 +298,11 @@ export default function NuevoCurso() {
                   Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} />
                 </button>
                 <button onClick={() => setPaso(1)}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
+                  style={{ background:'none', border:'0.5px solid var(--gris-borde)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--texto-muted)', cursor:'pointer' }}>
                   <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
                 </button>
                 <button onClick={handleGuardarBorrador}
-                  style={{ background:'none', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer' }}>
+                  style={{ background:'none', border:'0.5px solid var(--azul)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--azul)', cursor:'pointer' }}>
                   Guardar borrador
                 </button>
               </div>
@@ -314,19 +314,19 @@ export default function NuevoCurso() {
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <div className="card">
                 <div className="card-title" style={{ marginBottom:4 }}>Preguntas de evaluación</div>
-                <div style={{ fontSize:12, color:'#888', marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'var(--texto-muted)', marginBottom:16 }}>
                   Agrega las preguntas de alternativas. Marca cuál es la respuesta correcta.
                 </div>
 
                 {preguntas.map((p, pi) => (
-                  <div key={pi} style={{ border:'0.5px solid #E8E8E8', borderRadius:10, padding:16, marginBottom:12 }}>
+                  <div key={pi} style={{ border:'0.5px solid var(--gris-borde)', borderRadius:10, padding:16, marginBottom:12 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                      <div style={{ width:24, height:24, borderRadius:'50%', background:'#2B4BA0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:'#fff', flexShrink:0 }}>
+                      <div style={{ width:24, height:24, borderRadius:'50%', background:'var(--azul)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:'#fff', flexShrink:0 }}>
                         {pi + 1}
                       </div>
                       <input type="text" placeholder={`Pregunta ${pi + 1}...`}
                         value={p.texto} onChange={e => updatePregunta(pi, 'texto', e.target.value)}
-                        style={{ flex:1, border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 10px', fontSize:13, background:'#F4F5F7' }}
+                        style={{ flex:1, border:'0.5px solid var(--gris-borde)', borderRadius:8, padding:'8px 10px', fontSize:13, background:'var(--gris-fondo)' }}
                       />
                     </div>
                     <div style={{ paddingLeft:34, display:'flex', flexDirection:'column', gap:8 }}>
@@ -338,9 +338,9 @@ export default function NuevoCurso() {
                           />
                           <input type="text" placeholder={`Alternativa ${String.fromCharCode(65+ai)}...`}
                             value={alt.texto} onChange={e => updateAlternativa(pi, ai, 'texto', e.target.value)}
-                            style={{ flex:1, border:'0.5px solid #E8E8E8', borderRadius:8, padding:'6px 10px', fontSize:13, background: alt.correcta ? '#EDFAF3' : '#F4F5F7' }}
+                            style={{ flex:1, border:'0.5px solid var(--gris-borde)', borderRadius:8, padding:'6px 10px', fontSize:13, background: alt.correcta ? 'var(--success-bg)' : 'var(--gris-fondo)' }}
                           />
-                          {alt.correcta && <span style={{ fontSize:10, color:"#1A7A45", whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:2 }}><Icon icon="lucide:check" width={10} /> Correcta</span>}
+                          {alt.correcta && <span style={{ fontSize:10, color:"var(--success)", whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:2 }}><Icon icon="lucide:check" width={10} /> Correcta</span>}
                         </div>
                       ))}
                     </div>
@@ -350,7 +350,7 @@ export default function NuevoCurso() {
                 <button onClick={() => setPreguntas([...preguntas, {
                   texto:'', alternativas:[{texto:'',correcta:true},{texto:'',correcta:false},{texto:'',correcta:false},{texto:'',correcta:false}]
                 }])}
-                  style={{ background:'none', border:'0.5px dashed #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer', width:'100%' }}>
+                  style={{ background:'none', border:'0.5px dashed var(--azul)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--azul)', cursor:'pointer', width:'100%' }}>
                   + Agregar otra pregunta
                 </button>
               </div>
@@ -360,11 +360,11 @@ export default function NuevoCurso() {
                   Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:"middle"}} />
                 </button>
                 <button onClick={() => setPaso(2)}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
+                  style={{ background:'none', border:'0.5px solid var(--gris-borde)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--texto-muted)', cursor:'pointer' }}>
                   <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
                 </button>
                 <button onClick={handleGuardarBorrador}
-                  style={{ background:'none', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer' }}>
+                  style={{ background:'none', border:'0.5px solid var(--azul)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--azul)', cursor:'pointer' }}>
                   Guardar borrador
                 </button>
               </div>
@@ -376,7 +376,7 @@ export default function NuevoCurso() {
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <div className="card">
                 <div className="card-title" style={{ marginBottom:4 }}>¿A quién va dirigido este curso?</div>
-                <div style={{ fontSize:12, color:'#888', marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'var(--texto-muted)', marginBottom:16 }}>
                   Selecciona la sede y los estamentos destinatarios. Si no seleccionas estamentos, el curso será visible para todos (opcional).
                 </div>
 
@@ -390,39 +390,39 @@ export default function NuevoCurso() {
                   return (
                     <div key={String(op.value)} onClick={() => setSedeObjetivo(op.value)}
                       style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:4, cursor:'pointer',
-                        border: sel ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                        border: sel ? '2px solid var(--azul-oscuro)' : '1px solid var(--gris-borde)',
                         background: sel ? '#F0F4FF' : '#FAFAFA' }}>
-                      <div style={{ width:16, height:16, borderRadius:'50%', border: sel ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: sel ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <div style={{ width:16, height:16, borderRadius:'50%', border: sel ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: sel ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         {sel && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
                       </div>
                       <div>
                         <div style={{ fontSize:13, fontWeight: sel ? 600 : 400, color:'#222' }}>{op.label}</div>
-                        <div style={{ fontSize:11, color:'#888' }}>{op.sub}</div>
+                        <div style={{ fontSize:11, color:'var(--texto-muted)' }}>{op.sub}</div>
                       </div>
                     </div>
                   )
                 })}
 
-                <div style={{ height:1, background:'#E8E8E8', margin:'16px 0' }} />
+                <div style={{ height:1, background:'var(--gris-borde)', margin:'16px 0' }} />
 
                 {/* Estamentos */}
                 <div style={{ fontSize:12, fontWeight:600, color:'#333', marginBottom:8 }}>Estamentos</div>
                 {/* Opción Todos */}
                 <div onClick={() => setEstamentosObjetivo(null)}
                   style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:8, cursor:'pointer',
-                    border: estamentosObjetivo === null ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                    border: estamentosObjetivo === null ? '2px solid var(--azul-oscuro)' : '1px solid var(--gris-borde)',
                     background: estamentosObjetivo === null ? '#F0F4FF' : '#FAFAFA' }}>
-                  <div style={{ width:16, height:16, borderRadius:'50%', border: estamentosObjetivo === null ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: estamentosObjetivo === null ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <div style={{ width:16, height:16, borderRadius:'50%', border: estamentosObjetivo === null ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: estamentosObjetivo === null ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                     {estamentosObjetivo === null && <div style={{ width:7, height:7, borderRadius:'50%', background:'#fff' }} />}
                   </div>
                   <div>
                     <div style={{ fontSize:13, fontWeight: estamentosObjetivo === null ? 600 : 400, color:'#222' }}>Todos los colaboradores</div>
-                    <div style={{ fontSize:11, color:'#888' }}>Curso visible para todos los estamentos (opcional)</div>
+                    <div style={{ fontSize:11, color:'var(--texto-muted)' }}>Curso visible para todos los estamentos (opcional)</div>
                   </div>
                 </div>
 
                 {/* Estamentos específicos */}
-                <div style={{ fontSize:11, fontWeight:500, color:'#888', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
+                <div style={{ fontSize:11, fontWeight:500, color:'var(--texto-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
                   O selecciona estamentos específicos (obligatorio para ellos):
                 </div>
                 {ESTAMENTOS.map(est => {
@@ -430,9 +430,9 @@ export default function NuevoCurso() {
                   return (
                     <div key={est} onClick={() => toggleEstamento(est)}
                       style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:4, cursor:'pointer',
-                        border: sel ? '2px solid #1E3A6E' : '1px solid #E8E8E8',
+                        border: sel ? '2px solid var(--azul-oscuro)' : '1px solid var(--gris-borde)',
                         background: sel ? '#F0F4FF' : '#FAFAFA' }}>
-                      <div style={{ width:16, height:16, borderRadius:4, border: sel ? '2px solid #1E3A6E' : '1.5px solid #CCC', background: sel ? '#1E3A6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <div style={{ width:16, height:16, borderRadius:4, border: sel ? '2px solid var(--azul-oscuro)' : '1.5px solid #CCC', background: sel ? 'var(--azul-oscuro)' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         {sel && <Icon icon="lucide:check" color="white" width={10} />}
                       </div>
                       <span style={{ fontSize:13, fontWeight: sel ? 600 : 400, color:'#222' }}>{est}</span>
@@ -454,11 +454,11 @@ export default function NuevoCurso() {
                   <Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Publicar curso
                 </button>
                 <button onClick={() => setPaso(3)}
-                  style={{ background:'none', border:'0.5px solid #E8E8E8', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#888', cursor:'pointer' }}>
+                  style={{ background:'none', border:'0.5px solid var(--gris-borde)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--texto-muted)', cursor:'pointer' }}>
                   <Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:"middle"}} /> Atrás
                 </button>
                 <button onClick={handleGuardarBorrador}
-                  style={{ background:'none', border:'0.5px solid #2B4BA0', borderRadius:8, padding:'8px 14px', fontSize:12, color:'#2B4BA0', cursor:'pointer' }}>
+                  style={{ background:'none', border:'0.5px solid var(--azul)', borderRadius:8, padding:'8px 14px', fontSize:12, color:'var(--azul)', cursor:'pointer' }}>
                   Guardar borrador
                 </button>
               </div>

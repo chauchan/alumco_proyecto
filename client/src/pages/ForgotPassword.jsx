@@ -25,7 +25,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#F4F5F7' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--gris-fondo)' }}>
       <div style={{ background: '#fff', borderRadius: 14, padding: '2.5rem', width: '100%', maxWidth: 420, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
@@ -40,11 +40,11 @@ export default function ForgotPassword() {
             <div className="notice" style={{ marginBottom: 20 }}>
               Si el correo ingresado está registrado, recibirás un enlace para restablecer tu contraseña en los próximos minutos.
             </div>
-            <Link to="/login" style={{ fontSize: 13, color: '#2B4BA0' }}>← Volver al inicio de sesión</Link>
+            <Link to="/login" style={{ fontSize: 13, color: 'var(--azul)' }}>← Volver al inicio de sesión</Link>
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 24, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, color: 'var(--texto-muted)', marginBottom: 24, lineHeight: 1.6 }}>
               Ingresa tu correo electrónico y te enviaremos instrucciones para restablecer tu contraseña.
             </div>
             <form onSubmit={handleSubmit}>
@@ -59,14 +59,14 @@ export default function ForgotPassword() {
                 />
               </div>
               <button type="submit" disabled={cargando} style={{
-                width: '100%', height: 44, background: '#2B4BA0', color: '#fff',
+                width: '100%', height: 44, background: 'var(--azul)', color: '#fff',
                 border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500,
                 cursor: cargando ? 'not-allowed' : 'pointer', marginBottom: 16,
               }}>
                 {cargando ? 'Enviando...' : 'Enviar instrucciones'}
               </button>
             </form>
-            <Link to="/login" style={{ fontSize: 13, color: '#2B4BA0' }}>← Volver al inicio de sesión</Link>
+            <Link to="/login" style={{ fontSize: 13, color: 'var(--azul)' }}>← Volver al inicio de sesión</Link>
           </>
         )}
       </div>
