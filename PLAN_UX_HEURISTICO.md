@@ -1,6 +1,6 @@
 # Plan de acción — Análisis heurístico ALUMCO
 
-Deriva de `Analisis_heuristico_ALUMCO.xlsx` (10 pautas de Nielsen, 52 ítems, promedio general **1.37**).
+Deriva de dos fuentes: `Analisis_heuristico_ALUMCO.xlsx` (10 pautas de Nielsen, 52 ítems, promedio general **1.37**) y las sesiones de test de usuario registradas en `Script (guion) - ALUMCO.docx`.
 Mismas convenciones que `IMPLEMENTATION_PLAN.md`: cada tarea es autocontenida, con archivos, pasos y criterio de aceptación.
 
 > **Reglas heredadas del repo**
@@ -9,6 +9,8 @@ Mismas convenciones que `IMPLEMENTATION_PLAN.md`: cada tarea es autocontenida, c
 > - Los cambios de esquema van en `server/src/config/migrate.js` (idempotentes).
 
 **Orden sugerido:** Bloque A (una tarde, riesgo cero) → Bloque B (deuda que duele al usuario) → Bloque C (estructural).
+
+El **Bloque D** es aparte: son requerimientos de funcionalidad nueva levantados en las sesiones con la clienta, no defectos de usabilidad. Su prioridad la define ALUMCO, no este plan.
 
 ---
 
@@ -145,7 +147,7 @@ Cinco tareas de menos de una hora cada una. Todas tocan un archivo y ninguna cam
 
 ### B4 — Campos obligatorios y validación de formato
 
-**Por qué:** es el ítem peor evaluado de prevención de errores. El RUT es la credencial de acceso y no se valida su formato; el asterisco aparece en dos formularios de siete y sin leyenda que lo explique.
+**Por qué:** es el ítem peor evaluado de prevención de errores. El RUT es la credencial de acceso y no se valida su formato; el asterisco aparece en dos formularios de siete y sin leyenda que lo explique. En el test de usuario apareció además un caso que la revisión de código no había detectado, descrito en B4.1.
 
 **Archivos:** `client/src/pages/Login.jsx` (referencia correcta), `NuevoCurso.jsx:196`, `Practicos.jsx`, `GestionSedes.jsx`, `Protocolos.jsx`, `GestionUsuarios.jsx`, `MisDatos.jsx`
 
@@ -158,6 +160,37 @@ Cinco tareas de menos de una hora cada una. Todas tocan un archivo y ninguna cam
 - Aplicar `validarRut` en el alta de usuario de `GestionUsuarios.jsx` y en el login.
 
 **Aceptación:** los siete formularios marcan sus obligatorios igual; un RUT con dígito verificador incorrecto se rechaza en el cliente con mensaje específico.
+
+---
+
+### B4.1 — El estamento se guarda vacío y deja al colaborador sin capacitaciones
+
+> **Prioridad alta.** No es solo un problema de formulario: tiene consecuencias sobre los datos y sobre el cumplimiento de la capacitación obligatoria.
+
+**Por qué:** detectado en el test de usuario, sesión de Andrea, Tarea 2. Al crear un colaborador dejó el estamento sin seleccionar porque nada indicaba que fuera obligatorio, y el sistema guardó el usuario sin objetar. La cadena completa lo permite:
+
+- `client/src/pages/GestionUsuarios.jsx:145-147` valida solo `nombre`, `rut` y `rol`.
+- `client/src/pages/GestionUsuarios.jsx:361-362` el select arranca en `''` con la opción "Seleccionar estamento".
+- `server/src/routes/usuarios.js:229` pasa el valor por `resolveEstamentoId`, que devuelve `null` si viene vacío.
+- `server/src/config/migrate.js:59` la columna es `estamento_id INT DEFAULT NULL`, así que la base lo acepta.
+
+El efecto no se ve al crear el usuario, sino después: las capacitaciones obligatorias se reparten por estamento a través de `curso_estamentos`, y `NuevoCurso.jsx:98` marca un curso como obligatorio para los estamentos seleccionados. Un colaborador sin estamento **no entra en ningún reparto**. Nadie lo nota hasta que alguien pregunta por qué esa persona no tiene cursos pendientes, y para entonces lleva semanas sin capacitarse mientras los reportes de cobertura la cuentan como si estuviera al día.
+
+**Archivos:**
+
+- `client/src/pages/GestionUsuarios.jsx:145-147, 361-362`
+- `server/src/routes/usuarios.js:214-236` (alta individual) y `:186-200` (carga masiva)
+- `server/src/config/migrate.js`
+
+**Implementación:**
+
+- **Cliente:** marcar el estamento como obligatorio con el mismo patrón de B4 y agregarlo a la validación de `handleCrear`.
+- **Servidor:** rechazar el alta con 400 y mensaje explícito si `estamento` viene vacío. La validación de cliente sola no basta: la API queda igual de expuesta y la carga masiva no pasa por el formulario.
+- **Carga masiva:** en la importación por planilla, rechazar la fila con estamento vacío indicando número de fila, en vez de insertarla con `null`.
+- **Datos existentes:** antes de desplegar, correr un `SELECT` de usuarios con `estamento_id IS NULL` y resolverlos con ALUMCO. No poner la columna en `NOT NULL` hasta haberlos corregido, o la migración va a fallar en producción.
+- **Detección:** agregar a la vista de jefatura un contador de colaboradores sin estamento, para que el problema sea visible si vuelve a ocurrir por otra vía.
+
+**Aceptación:** crear un usuario sin estamento falla tanto desde el formulario como llamando directo a `POST /api/usuarios`; la consulta de usuarios con `estamento_id IS NULL` devuelve cero filas.
 
 ---
 
@@ -179,7 +212,7 @@ Cinco tareas de menos de una hora cada una. Todas tocan un archivo y ninguna cam
 
 ### B6 — Mensajes de error accionables
 
-**Por qué:** los mensajes escritos a mano son buenos (`Login.jsx:35`), pero los respaldos genéricos —`Error al crear el curso`, `Error al subir el archivo`— no le dicen nada a un cuidador.
+**Por qué:** los mensajes escritos a mano son buenos (`Login.jsx:35`), pero los respaldos genéricos (`Error al crear el curso`, `Error al subir el archivo`) no le dicen nada a un cuidador.
 
 **Archivos:** `NuevoCurso.jsx:46,65,86,105`, `GeneradorIA.jsx:531,562`, y el resto de los `catch` genéricos
 
@@ -198,7 +231,7 @@ Cinco tareas de menos de una hora cada una. Todas tocan un archivo y ninguna cam
 **Implementación:**
 
 - Exponer en el endpoint de sede el nombre y correo del administrador (ya están en la base).
-- En el pie del panel de ayuda, mostrar `¿Necesitas ayuda? Escribe a {nombre_admin} — {correo_admin}` con un `mailto:` prellenado con rol, sede y ruta actual en el asunto.
+- En el pie del panel de ayuda, mostrar `¿Necesitas ayuda? Escribe a {nombre_admin}: {correo_admin}` con un `mailto:` prellenado con rol, sede y ruta actual en el asunto.
 
 **Aceptación:** cualquier usuario autenticado ve, en dos clics, a quién escribir.
 
@@ -215,7 +248,7 @@ Cinco tareas de menos de una hora cada una. Todas tocan un archivo y ninguna cam
 **Implementación:**
 
 - Cambiar la clave del mapa de rol a ruta (`AYUDA_POR_RUTA`), con `useLocation()` para resolverla y el contenido por rol como respaldo.
-- Aplicar el componente `<Ayuda>` —que ya está bien construido: accesible por teclado, cierra con Escape— a cada aparición de "doble fallo", "cobertura" y "prácticos", no solo en `AdminSede` y `Jefatura`.
+- Aplicar el componente `<Ayuda>`, que ya está bien construido (accesible por teclado, cierra con Escape), a cada aparición de "doble fallo", "cobertura" y "prácticos", no solo en `AdminSede` y `Jefatura`.
 - Añadir dos o tres procedimientos numerados por rol ("Cómo completar un curso", "Cómo crear y publicar un curso"): la ayuda actual enuncia hechos, no pasos.
 - Etiquetar el botón de ayuda del topbar con la palabra "Ayuda"; hoy es un icono de 16 px entre otros cinco controles circulares.
 
@@ -309,6 +342,86 @@ Cinco tareas de menos de una hora cada una. Todas tocan un archivo y ninguna cam
 
 ---
 
+## Bloque D — Requerimientos nuevos levantados en las sesiones
+
+No son defectos de usabilidad: es funcionalidad que ALUMCO pidió durante el test y que hoy no existe. Se listan aquí para que no se pierdan, pero su prioridad la define la ONG.
+
+Las tres salieron de la sesión con Cecilia Riquelme, registrada en `Script (guion) - ALUMCO.docx`.
+
+### D1 — Escala de notas 1.0 a 7.0
+
+**Por qué:** las capacitaciones deben evaluarse con la escala chilena, no con el esquema de aprobado/reprobado usado hasta ahora. Es el requerimiento del que dependen D2 y buena parte de los reportes.
+
+**Situación actual:** `server/src/routes/evaluaciones.js:90-91` calcula la nota como porcentaje entero de respuestas correctas y aprueba con `nota >= 60`. La columna es `intentos.nota INT` (`migrate.js:184`). El cliente muestra el resultado como porcentaje (`evaluaciones.js:231`).
+
+**Archivos:** `server/src/routes/evaluaciones.js`, `server/src/config/migrate.js`, `client/src/pages/CursoDetalle.jsx`, `client/src/pages/Profesor.jsx`, `client/src/pages/Jefatura.jsx`
+
+**Implementación:**
+
+- Cambiar `intentos.nota` de `INT` a `DECIMAL(2,1)` para admitir un decimal. Migración idempotente y conversión de los datos existentes con la fórmula que se acuerde.
+- Centralizar la conversión de porcentaje a escala 1-7 en una sola función del servidor. No replicarla en el cliente.
+- Actualizar todos los puntos donde hoy se muestra un porcentaje: resultado de la evaluación, panel de validación del profesor y reportes de jefatura.
+
+**Bloqueado por:** la nota mínima de aprobación en la nueva escala. Ver "Pendientes de definición".
+
+**Aceptación:** una evaluación rendida muestra la nota en formato 1.0–7.0 en las cuatro vistas donde aparece, y el criterio de aprobación es el mismo en todas.
+
+---
+
+### D2 — Nota visible en el certificado
+
+**Por qué:** requerimiento de SENAMA (Servicio Nacional del Adulto Mayor). El certificado debe mostrar la nota obtenida.
+
+**Situación actual:** `server/src/utils/pdfCertificado.js:50` recibe `{ nombre, curso, fecha, estado, qrUrl }`. La nota no llega a la función, y la tabla `certificados` no la guarda: se deriva del `intento_id`.
+
+**Archivos:** `server/src/utils/pdfCertificado.js`, `server/src/routes/certificados.js:76, 199`
+
+**Implementación:**
+
+- Agregar `nota` a la firma de `buildCertificadoPDF` y `generarCertificadoPDF`, y pasarla desde las dos llamadas de `certificados.js`.
+- Tomarla del intento asociado, no duplicarla en la tabla `certificados`: la relación por `intento_id` ya existe y evita que las dos fuentes se desincronicen.
+- Ubicarla en el PDF según el formato que exija SENAMA.
+
+**Depende de:** D1, para no emitir certificados con la escala vieja y tener que reemitirlos.
+
+**Pendiente de confirmar con ALUMCO:** el formato exacto que exige SENAMA y si el mínimo de aprobación debe aparecer impreso junto a la nota.
+
+**Aceptación:** un certificado descargado muestra la nota en escala 1-7, y coincide con la del intento que lo originó.
+
+---
+
+### D3 — Logo de ALUMCO en el certificado
+
+**Por qué:** el certificado es el documento que sale de la organización y hoy no la identifica.
+
+**Situación actual:** `pdfCertificado.js` solo incrusta una imagen de firma (`getFirmaBytes`, línea 9). No hay logo. El certificado tampoco estaba incluido en el set de pantallas evaluado en el test, así que no tiene diseño revisado.
+
+**Archivos:** `server/src/utils/pdfCertificado.js`, `client/src/assets/logo.js` (fuente del isotipo)
+
+**Implementación:**
+
+- Incrustar el logo siguiendo el mismo patrón que ya usa la firma.
+- Usar una versión del isotipo en resolución suficiente para impresión. El SVG del cliente sirve como origen, pero conviene exportar un PNG a 300 ppp para el PDF.
+
+**Advertencia:** conviene resolver D3 junto con el diseño completo del certificado, no antes. Agregar el logo a una plantilla que igual va a rediseñarse es trabajo que se hace dos veces.
+
+**Aceptación:** el PDF incluye el logo, legible al imprimirlo en tamaño carta.
+
+---
+
+### Pendientes de definición
+
+Ninguno de estos se puede resolver desde el repo. Requieren decisión de ALUMCO antes de implementar el Bloque D.
+
+| # | Pendiente | Bloquea |
+|---|---|---|
+| 1 | Nota mínima de aprobación en la escala 1-7. Ya figuraba como dato faltante en `alumco_requisitos_v2.docx`. | D1, D2 |
+| 2 | Si la nota 1-7 reemplaza el esquema de máximo 2 intentos o convive con él. | D1 |
+| 3 | Diseño del certificado completo. No existe plantilla ni pantalla en el prototipo actual. | D2, D3 |
+| 4 | Formato exacto que exige SENAMA para la nota impresa. | D2 |
+
+---
+
 ## Lo que no hay que tocar
 
 Tres cosas salieron bien evaluadas y conviene protegerlas antes que mejorarlas:
@@ -323,8 +436,13 @@ Tres cosas salieron bien evaluadas y conviene protegerlas antes que mejorarlas:
 
 | Bloque | Tareas | Estimación | Impacto en la nota |
 |---|---|---|---|
-| A — Rápidos | A1–A5 | 1 día | Pautas 2, 4, 9 |
-| B — Usuario | B1–B7 | 1–2 semanas | Pautas 1, 3, 5, 9, 10 |
-| C — Estructural | C1–C7 | 3–4 semanas | Pautas 4, 6, 7, 8, 10 |
+| A. Rápidos | A1 a A5 | 1 día | Pautas 2, 4, 9 |
+| B. Usuario | B1 a B7, más B4.1 | 1 a 2 semanas | Pautas 1, 3, 5, 9, 10 |
+| C. Estructural | C1 a C7 | 3 a 4 semanas | Pautas 4, 6, 7, 8, 10 |
+| D. Requerimientos nuevos | D1 a D3 | Por definir | Ninguno: es funcionalidad, no usabilidad |
 
 Completado el Bloque B, las tres pautas por debajo de 2,0 (prevención de errores, recuperación de errores, visibilidad del estado) deberían bajar de 1,0.
+
+**B4.1 conviene adelantarla al Bloque A** aunque esté escrita dentro de B: la corrección en sí es corta, y mientras no esté, cada colaborador que se cree sin estamento queda fuera de las capacitaciones obligatorias sin que nadie lo note.
+
+El Bloque D no mueve la evaluación heurística porque no corrige defectos, pero D1 y D2 son compromisos con SENAMA y su plazo lo fija ALUMCO, no este plan.
