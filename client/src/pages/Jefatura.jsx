@@ -9,6 +9,7 @@ import {
 } from 'recharts'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Ayuda from '../components/Ayuda'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 
@@ -138,7 +139,7 @@ export default function Jefatura() {
               <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
                 <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>
               </button>
-              <button className="btn-primary" onClick={() => navigate('/jefatura/ia')}><><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Generador IA</></button>
+              <button className="btn-primary" onClick={() => navigate('/ia')}><><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Generador IA</></button>
             </div>
           </div>
 
@@ -146,17 +147,23 @@ export default function Jefatura() {
           <div className="stats-grid-4">
             {[
               { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores totales', sub:'ambas sedes', color:'#2B4BA0' },
-              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'#7BC67A' },
+              { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'#7BC67A', ayuda:'Colaboradores que completaron al menos un curso al 100%. No verifica que hayan completado todos los cursos que les corresponden según su estamento.' },
               { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este período', color:'#F5A623' },
-              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'#E8505B' },
+              { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'#E8505B', ayuda:'"Doble fallo": el colaborador reprobó una evaluación dos veces y quedó bloqueado 7 días. También cuenta a quienes tienen una capacitación con fecha límite vencida y sin completar.' },
             ].map(s => (
               <div key={s.label} className="stat-card">
-                <div className="stat-label">{s.label}</div>
+                <div className="stat-label">{s.label}{s.ayuda && <Ayuda texto={s.ayuda} />}</div>
                 <div className="stat-value" style={{ color:s.color }}>{s.val}</div>
                 <div className="stat-sub">{s.sub}</div>
               </div>
             ))}
           </div>
+
+          {resumen?.sin_estamento > 0 && (
+            <div style={{ marginTop: 12, background: '#FFF8E8', border: '1px solid #F5C842', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#7A5A00' }}>
+              ⚠ {resumen.sin_estamento} colaborador{resumen.sin_estamento !== 1 ? 'es' : ''} sin estamento asignado — no {resumen.sin_estamento !== 1 ? 'reciben' : 'recibe'} capacitaciones obligatorias por estamento. Revisar en Gestión de usuarios.
+            </div>
+          )}
 
           {/* Sedes */}
           <div>
@@ -259,7 +266,7 @@ export default function Jefatura() {
 
               {/* Barra: cobertura por sede */}
               <div className="card">
-                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Cobertura por sede (%)</div>
+                <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>Cobertura por sede (%)<Ayuda texto="Porcentaje de colaboradores activos de la sede que completaron al menos un curso (llegaron al 100% de progreso), sobre el total de colaboradores activos de esa sede." /></div>
                 {coberturaData.length === 0 && !cargandoGraficos
                   ? <div style={{ fontSize:11, color:'#AAA', textAlign:'center', padding:'24px 0' }}>Sin datos</div>
                   : (

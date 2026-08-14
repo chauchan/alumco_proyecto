@@ -18,15 +18,20 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    // Solo tratamos el 401 como "sesión expirada" si la petición llevaba un token
+    // (un 401 al hacer login con credenciales incorrectas no es una sesión que expiró).
+    const teniaToken = !!err.config?.headers?.Authorization
+    if (err.response?.status === 401 && teniaToken) {
+      const rutaActual = window.location.pathname + window.location.search
+      if (rutaActual !== '/login') sessionStorage.setItem('ruta_antes_de_expirar', rutaActual)
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      window.location.replace('/login?expirada=1')
     }
     return Promise.reject(err)
   }
 )
 
-export async function descargarCertificado(certId, nombreArchivo) {
+export async function descargarCertificado(certId, nombreArchivo, toast) {
   try {
     const res = await api.get(`/certificados/${certId}/descargar`, { responseType: 'blob' })
     const ct = res.headers?.['content-type'] || ''
@@ -43,21 +48,20 @@ export async function descargarCertificado(certId, nombreArchivo) {
     a.click()
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+    toast?.success('Certificado descargado')
   } catch (err) {
-    let msg = 'No se pudo descargar el certificado.'
+    let msg = 'No pudimos generar tu certificado. Inténtalo de nuevo; si el problema sigue, avisa a tu administrador de sede.'
     if (err.response?.data) {
       try {
         const text = err.response.data instanceof Blob
           ? await err.response.data.text()
           : JSON.stringify(err.response.data)
         const parsed = (() => { try { return JSON.parse(text) } catch { return null } })()
-        msg = parsed?.error || text || msg
+        if (parsed?.error) msg = parsed.error
       } catch {}
-    } else if (err.message) {
-      msg = err.message
     }
     console.error('[descargarCertificado]', err)
-    alert(`Error al descargar certificado: ${msg}`)
+    toast?.error(msg)
   }
 }
 

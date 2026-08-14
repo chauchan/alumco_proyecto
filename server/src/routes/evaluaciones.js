@@ -7,6 +7,7 @@ const { generarCertificadoPDF } = require('../utils/pdfCertificado');
 const { auditar } = require('../utils/audit');
 const { enviarBloqueo } = require('../config/mailer');
 const { parseIdParam } = require('../utils/validate');
+const { porcentajeANotaChilena } = require('../utils/notaChilena');
 
 // GET /api/evaluaciones/:curso_id/estado
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
@@ -35,7 +36,7 @@ router.get('/:curso_id/estado', verificarToken, async (req, res) => {
 // POST /api/evaluaciones/:curso_id/responder
 // Body: { respuestas: [{ pregunta_id, alternativa_id }] }
 // También acepta alternativa_idx para compatibilidad con el frontend anterior
-router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'), async (req, res) => {
+router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador', 'profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const curso_id = parseIdParam(req, 'curso_id');
   if (curso_id === null) return res.status(400).json({ error: 'curso_id inválido' });
   const usuario_id = req.usuario.id;
@@ -158,7 +159,8 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
             curso: cursoNombreRow?.nombre || '',
             fecha: new Date(),
             estado: 'aprobado',
-            qrUrl
+            qrUrl,
+            nota: porcentajeANotaChilena(nota)
           })
             .then(pdfUrl => {
               if (pdfUrl) pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id])
@@ -215,8 +217,11 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       }
     }
 
+    const notaChilena = porcentajeANotaChilena(nota);
+
     res.json({
       nota,
+      nota_chilena: notaChilena,
       aprobado: cursoAprobado,
       numero_intento,
       doble_fallo: !cursoAprobado && numero_intento === 2,
@@ -228,7 +233,7 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
             : 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.')
         : numero_intento === 2
           ? 'No aprobaste. Has alcanzado el máximo de intentos. Contacta a tu profesor para un refuerzo.'
-          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`,
+          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${notaChilena.toFixed(1)}`,
       ...(warnings.length ? { warnings } : {})
     });
   } catch (err) {

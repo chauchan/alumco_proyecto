@@ -6,6 +6,7 @@ const ToastContext = createContext(null);
 let _nextId = 0;
 const MAX_TOASTS = 3;
 const DURATION = 4000;
+const DURATION_UNDO = 5000;
 const FADE_MS  = 300;
 
 export function ToastProvider({ children }) {
@@ -16,10 +17,12 @@ export function ToastProvider({ children }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), FADE_MS);
   }, []);
 
-  const add = useCallback((message, type) => {
+  const add = useCallback((message, type, extra) => {
     const id = ++_nextId;
-    setToasts(prev => [...prev.slice(-(MAX_TOASTS - 1)), { id, message, type, leaving: false }]);
-    setTimeout(() => dismiss(id), DURATION);
+    setToasts(prev => [...prev.slice(-(MAX_TOASTS - 1)), { id, message, type, leaving: false, ...extra }]);
+    const duracion = type === 'undo' ? DURATION_UNDO : DURATION;
+    setTimeout(() => dismiss(id), duracion);
+    return id;
   }, [dismiss]);
 
   const toast = {
@@ -27,6 +30,12 @@ export function ToastProvider({ children }) {
     error:   (msg) => add(msg, 'error'),
     warn:    (msg) => add(msg, 'warn'),
     info:    (msg) => add(msg, 'info'),
+    // Muestra un toast con botón "Deshacer" que llama a onUndo dentro de la ventana de 5s.
+    undo:    (msg, onUndo) => {
+      const id = add(msg, 'undo', {
+        onUndo: () => { onUndo(); dismiss(id); }
+      });
+    },
   };
 
   return (

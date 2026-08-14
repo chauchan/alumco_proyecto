@@ -47,7 +47,7 @@ function drawCenteredText(page, text, { y, size, font, color }) {
  * Construye el PDF del certificado y devuelve un Buffer.
  * No depende de S3; ideal para servir al vuelo.
  */
-async function buildCertificadoPDF({ nombre, curso, fecha, estado = 'aprobado', qrUrl = null }) {
+async function buildCertificadoPDF({ nombre, curso, fecha, estado = 'aprobado', qrUrl = null, nota = null }) {
   const pdfDoc = await PDFDocument.create();
   // A4 landscape: 842 x 595 pt
   const page = pdfDoc.addPage([842, 595]);
@@ -87,7 +87,8 @@ async function buildCertificadoPDF({ nombre, curso, fecha, estado = 'aprobado', 
   const fechaStr = fechaDate.toLocaleDateString('es-CL', {
     year: 'numeric', month: 'long', day: 'numeric'
   });
-  drawCenteredText(page, `Hualpén, ${fechaStr}`, {
+  const notaStr = (nota !== null && nota !== undefined && !Number.isNaN(Number(nota))) ? ` · Nota: ${Number(nota).toFixed(1)}` : '';
+  drawCenteredText(page, `Hualpén, ${fechaStr}${notaStr}`, {
     y: H - 360, size: 12, font: helvetica, color: COLOR_GRIS
   });
 
@@ -152,8 +153,8 @@ async function buildCertificadoPDF({ nombre, curso, fecha, estado = 'aprobado', 
  * Genera el PDF y lo sube a S3. Devuelve la URL pública.
  * Si la subida falla, devuelve null (la descarga al vuelo igualmente funcionará).
  */
-async function generarCertificadoPDF({ certId, nombre, curso, fecha, estado = 'aprobado', qrUrl = null }) {
-  const buffer = await buildCertificadoPDF({ nombre, curso, fecha, estado, qrUrl });
+async function generarCertificadoPDF({ certId, nombre, curso, fecha, estado = 'aprobado', qrUrl = null, nota = null }) {
+  const buffer = await buildCertificadoPDF({ nombre, curso, fecha, estado, qrUrl, nota });
   try {
     const key = `certificados/cert_${certId}_${Date.now()}.pdf`;
     return await uploadBuffer(buffer, key, 'application/pdf');

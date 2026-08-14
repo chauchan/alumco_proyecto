@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
@@ -10,6 +10,8 @@ const RUTA = { colaborador:'/colaborador', profesor:'/profesor', admin_sede:'/ad
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sesionExpirada = searchParams.get('expirada') === '1'
   const [form, setForm] = useState({ identificador:'', password:'' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -22,7 +24,9 @@ export default function Login() {
     setCargando(true); setError('')
     try {
       const u = await login(form.identificador, form.password)
-      navigate(RUTA[u.rol] || '/')
+      const rutaGuardada = sessionStorage.getItem('ruta_antes_de_expirar')
+      sessionStorage.removeItem('ruta_antes_de_expirar')
+      navigate(rutaGuardada || RUTA[u.rol] || '/')
     } catch (err) {
       setError(err.response?.data?.error || 'Credenciales incorrectas')
     } finally { setCargando(false) }
@@ -105,6 +109,15 @@ export default function Login() {
           <div style={{ fontSize:13, color:'#888', marginBottom:32, lineHeight:1.6 }}>
             Ingresa con las credenciales entregadas<br/>por tu organización
           </div>
+
+          {sesionExpirada && (
+            <div style={{
+              background: '#FFF8E8', border: '1px solid #F5C842', borderRadius: 8,
+              padding: '10px 14px', fontSize: 13, color: '#7A5A00', marginBottom: 18,
+            }}>
+              Tu sesión expiró por inactividad. Vuelve a ingresar y te llevamos donde estabas.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="field">

@@ -1,11 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Icon } from '@iconify/react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import MascotaFoye from '../components/MascotaFoye'
+import AvisoModulosIA from '../components/AvisoModulosIA'
+
+const RUTA_INICIO = { admin_sede: '/admin', jefatura: '/jefatura' }
 
 // ── buildSlides: usa diapositivas IA si existen ──────────────────────────────
 function buildSlides(mod, pres) {
@@ -354,6 +359,7 @@ function guardarFormStorage(data) {
 export default function GeneradorIA() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
+  const toast = useToast()
   const [archivo, setArchivo] = useState(null)
   const [form, setForm] = useState(() => {
     const s = leerFormStorage()
@@ -365,6 +371,7 @@ export default function GeneradorIA() {
   const [protocoloSeleccionado, setProtocoloSeleccionado] = useState(null)
   const [resultado, setResultado] = useState(() => leerStorage())
   const [cargando, setCargando] = useState(false)
+  const [progreso, setProgreso] = useState(null) // { etapa, actual, total }
   const [error, setError] = useState('')
   const abortRef = useRef(null)   // controla la petición en curso
 
@@ -485,6 +492,7 @@ export default function GeneradorIA() {
     // Cancelar cualquier petición previa en curso
     if (abortRef.current) abortRef.current.abort()
     abortRef.current = new AbortController()
+    const { signal } = abortRef.current
 
     // Limpiar resultado anterior para evitar stacking visual
     setResultado(null)
@@ -494,6 +502,7 @@ export default function GeneradorIA() {
     setPresentaciones({})
     setCargando(true)
     setError('')
+    setProgreso({ etapa: 'extrayendo', actual: 0, total: 0 })
 
     try {
       const data = new FormData()
@@ -508,14 +517,31 @@ export default function GeneradorIA() {
       }
       if (form.profesor_id) data.append('profesor_id', form.profesor_id)
       if (usuario?.sede_id) data.append('sede_objetivo', usuario.sede_id)
-      const res = await api.post('/ia/generar-curso', data, {
+
+      const { data: { jobId } } = await api.post('/ia/generar-curso', data, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        signal: abortRef.current.signal
+        signal
       })
-      setResultado(res.data)
+
+      // El servidor ya respondió (202) y sigue trabajando en segundo plano.
+      // Consultamos el avance real cada 2s en vez de esperar a ciegas.
+      let job
+      while (true) {
+        if (signal.aborted) return
+        await new Promise(r => setTimeout(r, 2000))
+        if (signal.aborted) return
+        const resp = await api.get(`/ia/generar-curso/progreso/${jobId}`, { signal })
+        job = resp.data
+        setProgreso(job)
+        if (job.listo || job.error) break
+      }
+
+      if (job.error) { setError(job.error); return }
+
+      setResultado(job.curso)
       // Pre-cargar presentaciones desde la respuesta (ya generadas en el servidor)
       const presMap = {}
-      ;(res.data.modulos || []).forEach((mod, i) => {
+      ;(job.curso.modulos || []).forEach((mod, i) => {
         const pres = mod.presentacion || mod.contenido_presentacion
         if (!pres) return
         const diapositivas = Array.isArray(pres) ? pres : pres?.diapositivas || []
@@ -554,7 +580,7 @@ export default function GeneradorIA() {
       setResultado(prev => ({ ...prev, nombre: borradorEdit.nombre, descripcion: borradorEdit.descripcion, modulos: borradorEdit.modulos }))
       setModoEdicion(false)
     } catch {
-      alert('Error al guardar los cambios')
+      toast.error('No pudimos guardar los cambios del borrador. Inténtalo de nuevo.')
     } finally { setGuardando(false) }
   }
 
@@ -568,7 +594,7 @@ export default function GeneradorIA() {
       setModoEdicion(false)
       setEnviado(false)
     } catch {
-      alert('Error al descartar el borrador')
+      toast.error('No pudimos descartar el borrador. Inténtalo de nuevo.')
     }
   }
 
@@ -593,6 +619,8 @@ export default function GeneradorIA() {
 
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+          <Breadcrumb items={[{ label: 'Inicio', path: RUTA_INICIO[usuario?.rol] || '/' }, { label: 'Generador IA' }]} />
+
           <div className="three-col">
             {[
               { num: 1, color: '#2B4BA0', title: 'Sube el protocolo', desc: 'Selecciona el PDF del protocolo institucional a digitalizar.' },
@@ -608,54 +636,13 @@ export default function GeneradorIA() {
           </div>
 
           {/* ── BANNER DE AVISO ── */}
-          {resultado && form.num_modulos && (() => {
-            const pedidos  = parseInt(form.num_modulos)
-            const optimo   = resultado.modulosOptimo
-            const generados = resultado.modulos?.length
-
-            let tipo, titulo, mensaje
-            if (pedidos > optimo) {
-              tipo = 'menos'
-              titulo = 'Módulos solicitados superan el contenido'
-              mensaje = `Pediste ${pedidos} módulos pero el protocolo tiene información para ${optimo} como máximo. Algunos módulos pueden quedar con contenido escaso o repetido.`
-            } else if (pedidos < optimo - 1) {
-              tipo = 'mas'
-              titulo = 'Puedes aprovechar más el contenido'
-              mensaje = `El protocolo tiene información suficiente para hasta ${optimo} módulos. Genera nuevamente con ese número para cubrir mejor el material.`
-            } else {
-              tipo = 'ok'
-              titulo = 'Número de módulos adecuado'
-              mensaje = `El protocolo tiene contenido para ${optimo} módulos y generaste ${generados}. Buena elección.`
-            }
-
-            const colores = {
-              menos: { bg: '#FFF3F3', border: '#F5C6C6', text: '#C0392B' },
-              mas:   { bg: '#FFFBEA', border: '#E6C069', text: '#7D6000' },
-              ok:    { bg: '#F0FBF4', border: '#A8D8B0', text: '#1A7A45' },
-            }
-            const c = colores[tipo]
-            const icono = tipo === 'menos' ? <Icon icon="lucide:alert-triangle" width={20} style={{color:'#B45309',flexShrink:0}} /> : tipo === 'mas' ? <Icon icon="lucide:lightbulb" width={20} style={{color:'#B45309',flexShrink:0}} /> : <Icon icon="lucide:check-circle" width={20} style={{color:'#1A7A45',flexShrink:0}} />
-
-            return (
-              <div style={{
-                display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 18px',
-                borderRadius: 10, border: `1.5px solid ${c.border}`, background: c.bg,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-              }}>
-                <span style={{ flexShrink: 0, lineHeight: 1 }}>{icono}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: c.text, marginBottom: 2 }}>{titulo}</div>
-                  <div style={{ fontSize: 12, color: c.text, lineHeight: 1.55 }}>{mensaje}</div>
-                </div>
-              </div>
-            )
-          })()}
+          <AvisoModulosIA resultado={resultado} numModulosPedidos={form.num_modulos} />
 
           <div className="two-col">
             {/* Formulario */}
             <div className="card">
               <div className="card-title" style={{ marginBottom: 16 }}>Subir protocolo</div>
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
                 {/* Toggle fuente PDF */}
                 <div style={{ display: 'flex', background: '#F0F2F5', borderRadius: 8, padding: 3, gap: 2, marginBottom: 14 }}>
                   {[['subir', <><Icon icon="lucide:upload" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Subir PDF</>],['biblioteca', <><Icon icon="lucide:folder-open" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Desde biblioteca</>]].map(([val, lbl]) => (
@@ -684,7 +671,7 @@ export default function GeneradorIA() {
                   <div style={{ marginBottom: 16 }}>
                     {protocolos.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F4F5F7', borderRadius: 8, fontSize: 12, color: '#888' }}>
-                        No hay protocolos guardados. <a href="/jefatura/protocolos" style={{ color: '#1E3A6E' }}>Ir a la biblioteca <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></a>
+                        No hay protocolos guardados. <Link to="/protocolos" style={{ color: '#1E3A6E' }}>Ir a la biblioteca <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle",marginLeft:3}} /></Link>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
@@ -733,7 +720,7 @@ export default function GeneradorIA() {
                   </select>
                   {!form.profesor_id && (
                     <span style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'block' }}>
-                      Si no elegís, lo asignaremos automáticamente según sede y estamento
+                      Si no eliges, lo asignaremos automáticamente según sede y estamento
                     </span>
                   )}
                 </div>
@@ -768,13 +755,36 @@ export default function GeneradorIA() {
                 {resultado && <span className="preview-badge">Listo para revisar</span>}
               </div>
 
-              {cargando && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0' }}>
-                  <MascotaFoye size={80} estado="activo" animate />
-                  <div style={{ fontSize: 13, marginTop: 12, color: '#555', fontWeight: 500 }}>Analizando el protocolo...</div>
-                  <div style={{ fontSize: 11, marginTop: 6, color: '#888' }}>Esto puede tomar 30–60 segundos</div>
-                </div>
-              )}
+              {cargando && (() => {
+                const ETAPA_LABEL = {
+                  extrayendo:          'Analizando el protocolo...',
+                  generando_modulos:   'Definiendo los módulos del curso...',
+                  generando_contenido: progreso?.total
+                    ? `Generando módulo ${progreso.actual} de ${progreso.total}...`
+                    : 'Generando contenido de los módulos...',
+                }
+                const etapa = progreso?.etapa || 'extrayendo'
+                const pct = etapa === 'generando_contenido' && progreso?.total
+                  ? Math.round(20 + (progreso.actual / progreso.total) * 75)
+                  : etapa === 'generando_modulos' ? 15 : 5
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0' }}>
+                    <MascotaFoye size={80} estado="activo" animate />
+                    <div style={{ fontSize: 13, marginTop: 12, color: '#555', fontWeight: 500 }}>{ETAPA_LABEL[etapa] || ETAPA_LABEL.extrayendo}</div>
+                    <div className="progress-bar-wrap" style={{ width: 220, marginTop: 12 }}>
+                      <div className="progress-bar-fill" style={{ width: `${pct}%`, transition: 'width 0.4s ease' }} />
+                    </div>
+                    <div style={{ fontSize: 11, marginTop: 6, color: '#888' }}>Esto suele tomar entre 2 y 5 minutos. Puedes dejar esta pestaña abierta.</div>
+                    <button
+                      type="button"
+                      onClick={() => abortRef.current?.abort()}
+                      style={{ marginTop: 16, background: 'transparent', border: '1px solid #DDD', borderRadius: 8, padding: '6px 16px', fontSize: 12, color: '#666', cursor: 'pointer' }}
+                    >
+                      Cancelar generación
+                    </button>
+                  </div>
+                )
+              })()}
 
               {!resultado && !cargando && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '3rem 0', color: '#CCC' }}>
@@ -1254,7 +1264,7 @@ export default function GeneradorIA() {
                             guardarFormStorage(null)
                             setTimeout(() => navigate('/jefatura'), 1500)
                           } catch {
-                            alert('No se pudo enviar la notificación. Verifica la configuración de email.')
+                            toast.error('No pudimos enviar la notificación al profesor. Verifica la conexión e inténtalo de nuevo.')
                           } finally { setEnviando(false) }
                         }}>
                         {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}

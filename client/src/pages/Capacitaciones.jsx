@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useFiltrosUrl } from '../hooks/useFiltrosUrl'
 import api from '../services/api'
 
 const FORMATO_CLASS = { pdf: 'tag-pdf', video: 'tag-video', ppt: 'tag-ppt' }
@@ -14,8 +15,8 @@ export default function Capacitaciones() {
   const [cursos, setCursos] = useState([])
   const [misCursos, setMisCursos] = useState([])
   const [cargando, setCargando] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroArea, setFiltroArea] = useState('')
+  const [filtros, setFiltro] = useFiltrosUrl({ busqueda: '', filtroArea: '' })
+  const { busqueda, filtroArea } = filtros
 
 
   const esRolNoColaborador = usuario?.rol && usuario.rol !== 'colaborador'
@@ -137,11 +138,11 @@ export default function Capacitaciones() {
           <div className="card" style={{ padding: '12px 16px' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Buscar curso..."
-                value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                value={busqueda} onChange={e => setFiltro('busqueda', e.target.value)}
                 style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 13, background: '#F4F5F7' }}
               />
               {areas.length > 0 && (
-                <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)}
+                <select value={filtroArea} onChange={e => setFiltro('filtroArea', e.target.value)}
                   style={{ height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 10px', fontSize: 13, background: '#F4F5F7' }}>
                   <option value="">Todas las áreas</option>
                   {areas.map(a => <option key={a} value={a}>{a}</option>)}

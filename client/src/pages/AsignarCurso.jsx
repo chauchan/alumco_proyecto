@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
 
 const ESTAMENTOS = [
@@ -94,6 +95,7 @@ export default function AsignarCurso() {
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           <div>
+            <Breadcrumb items={[{ label: 'Mis cursos', path: '/profesor' }, { label: 'Asignar curso' }]} />
             <div className="page-title">Asignar curso</div>
             <div className="page-sub">{curso?.nombre}</div>
           </div>

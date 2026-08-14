@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
 import api from '../services/api'
 import { useAccesibilidad } from '../hooks/useAccesibilidad'
+import { resolverAyuda } from '../utils/ayudaPorRuta'
 
 const avatarColors = {
   colaborador: '#F5A623', profesor: '#E8505B',
@@ -20,7 +21,10 @@ const rutaInicio = {
 }
 
 function rutaPorTipo(n, rol) {
-  if (n.entidad === 'practico' || n.tipo === 'practico_asignado') return '/practicos';
+  const entidad = n.entidad || n.tipo;
+  if (entidad === 'practico' || entidad === 'practico_asignado') return '/practicos';
+  if (entidad === 'curso' || entidad === 'evaluacion') return n.entidad_id ? `/capacitaciones/${n.entidad_id}` : (rutaInicio[rol] || '/');
+  if (entidad === 'certificado') return '/mis-certificados';
   return rutaInicio[rol] || '/';
 }
 
@@ -34,12 +38,38 @@ const ROLES_VISTA = [
 export default function Topbar({ seccion }) {
   const { usuario, logout, simularRol } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [notifAbierto, setNotifAbierto] = useState(false)
   const [vistaAbierto, setVistaAbierto] = useState(false)
+  const [ayudaAbierto, setAyudaAbierto] = useState(false)
+  const [contactoSoporte, setContactoSoporte] = useState(undefined) // undefined = sin cargar, null = sin admin
   const [notificaciones, setNotificaciones] = useState([])
   const [noLeidas, setNoLeidas] = useState(0)
   const { acc, toggle } = useAccesibilidad()
+
+  const abrirAyuda = () => {
+    setAyudaAbierto(!ayudaAbierto)
+    setMenuAbierto(false); setNotifAbierto(false); setVistaAbierto(false)
+    if (contactoSoporte === undefined) {
+      api.get('/sedes/mi-admin')
+        .then(r => setContactoSoporte(r.data?.contacto || null))
+        .catch(() => setContactoSoporte(null))
+    }
+  }
+
+  useEffect(() => {
+    if (!ayudaAbierto) return
+    const onKey = e => { if (e.key === 'Escape') setAyudaAbierto(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [ayudaAbierto])
+
+  const mailtoSoporte = contactoSoporte
+    ? `mailto:${contactoSoporte.email}?subject=${encodeURIComponent(`[ALUMCO] Ayuda — ${rolesLabel[usuario?.rol] || usuario?.rol}`)}&body=${encodeURIComponent(`Hola ${contactoSoporte.nombre},\n\nNecesito ayuda con:\n\n---\nRol: ${usuario?.rol}\nSede: ${usuario?.sede_nombre || ''}\nPágina: ${location.pathname}`)}`
+    : null
+
+  const ayudaContenido = resolverAyuda(location.pathname, usuario?.rol)
 
   const iniciales = usuario?.nombre
     ? usuario.nombre.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -195,6 +225,62 @@ export default function Topbar({ seccion }) {
                     </div>
                   ))}
                 </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Ayuda / contacto de soporte */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={abrirAyuda}
+            title="Ayuda"
+            aria-label="Ayuda"
+            style={{
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 7, padding: '4px 10px', cursor: 'pointer', color: '#fff',
+              fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5,
+              letterSpacing: '0.03em'
+            }}>
+            <Icon icon="lucide:circle-help" width={14} /> Ayuda
+          </button>
+          {ayudaAbierto && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAyudaAbierto(false)} />
+              <div role="dialog" aria-label="Ayuda" style={{
+                position: 'absolute', top: 42, right: 0, zIndex: 100,
+                background: 'white', borderRadius: 10, border: '0.5px solid #E8E8E8',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.14)', width: 300, overflow: 'hidden', padding: 16
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#1a1a1a' }}>{ayudaContenido.titulo}</div>
+                {ayudaContenido.pasos.length > 0 ? (
+                  <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#555', lineHeight: 1.7 }}>
+                    {ayudaContenido.pasos.map((paso, i) => <li key={i}>{paso}</li>)}
+                  </ol>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#888' }}>Sin ayuda específica para esta pantalla todavía.</div>
+                )}
+
+                <div style={{ height: 1, background: '#EEE', margin: '14px 0' }} />
+
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#1a1a1a' }}>¿Necesitas más ayuda?</div>
+                {contactoSoporte === undefined ? (
+                  <div style={{ fontSize: 12, color: '#888' }}>Buscando a tu administrador de sede...</div>
+                ) : contactoSoporte ? (
+                  <>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 8, lineHeight: 1.5 }}>
+                      Escribe a <strong>{contactoSoporte.nombre}</strong>, administrador(a) de tu ELEAM.
+                    </div>
+                    <a href={mailtoSoporte}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2B4BA0', fontWeight: 500, textDecoration: 'none' }}>
+                      <Icon icon="lucide:mail" width={14} /> {contactoSoporte.email}
+                    </a>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+                    No encontramos un administrador de sede asociado a tu cuenta todavía. Contacta directamente a ALUMCO.
+                  </div>
+                )}
               </div>
             </>
           )}

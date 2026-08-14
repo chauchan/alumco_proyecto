@@ -3,8 +3,11 @@ import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
+import Ayuda from '../components/Ayuda'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -19,6 +22,7 @@ const ESTAMENTOS = [
 export default function NuevoCurso() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
+  const toast = useToast()
   const [paso, setPaso] = useState(1) // 1: info, 2: módulos, 3: evaluación, 4: audiencia
   const [cursoId, setCursoId] = useState(null)
   const [form, setForm] = useState({ nombre:'', descripcion:'', area:'', requiere_practico: false })
@@ -97,7 +101,7 @@ export default function NuevoCurso() {
       })
       // Publicar
       await api.patch(`/cursos/${cursoId}/publicar`, { publicado: true })
-      alert('¡Curso publicado exitosamente!')
+      toast.success('¡Curso publicado exitosamente!')
       navigate('/profesor')
     } catch (err) {
       setError('Error al publicar el curso')
@@ -113,7 +117,7 @@ export default function NuevoCurso() {
   }
 
   const handleGuardarBorrador = async () => {
-    alert('Curso guardado como borrador. Puedes publicarlo más tarde desde tu panel.')
+    toast.success('Curso guardado como borrador. Puedes publicarlo más tarde desde tu panel.')
     navigate('/profesor')
   }
 
@@ -149,6 +153,7 @@ export default function NuevoCurso() {
 
           {/* Header */}
           <div>
+            <Breadcrumb items={[{ label: 'Mis cursos', path: '/profesor' }, { label: 'Nuevo curso' }]} />
             <div className="page-title">Nuevo curso de capacitación</div>
             <div className="page-sub">Completa los pasos para crear y publicar el curso</div>
           </div>
@@ -188,8 +193,9 @@ export default function NuevoCurso() {
           {/* PASO 1: Información */}
           {paso === 1 && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom:16 }}>Información del curso</div>
-              <form onSubmit={handleCrearCurso}>
+              <div className="card-title" style={{ marginBottom:2 }}>Información del curso</div>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 14 }}>* campo obligatorio</div>
+              <form onSubmit={handleCrearCurso} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
                 <div className="field">
                   <label>Nombre del curso *</label>
                   <input type="text" placeholder="Ej: Alimentación del adulto mayor en cama"
@@ -404,7 +410,10 @@ export default function NuevoCurso() {
                 <div style={{ height:1, background:'#E8E8E8', margin:'16px 0' }} />
 
                 {/* Estamentos */}
-                <div style={{ fontSize:12, fontWeight:600, color:'#333', marginBottom:8 }}>Estamentos</div>
+                <div style={{ fontSize:12, fontWeight:600, color:'#333', marginBottom:8 }}>
+                  Estamentos
+                  <Ayuda texto="Si eliges uno o más estamentos específicos, el curso queda marcado como OBLIGATORIO para esas personas: les aparece destacado y cuenta en los reportes de cumplimiento. 'Todos los colaboradores' lo deja visible pero no obligatorio." />
+                </div>
                 {/* Opción Todos */}
                 <div onClick={() => setEstamentosObjetivo(null)}
                   style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, marginBottom:8, cursor:'pointer',

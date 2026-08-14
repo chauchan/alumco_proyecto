@@ -2,9 +2,16 @@ import { useState, useEffect, useRef } from 'react'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
+import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
+const RUTA_INICIO = { admin_sede: '/admin', jefatura: '/jefatura' }
+
 export default function Protocolos() {
+  const toast = useToast()
+  const { usuario } = useAuth()
   const [protocolos, setProtocolos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [subiendo, setSubiendo] = useState(false)
@@ -43,13 +50,13 @@ export default function Protocolos() {
     try {
       await api.put(`/protocolos/${editando.id}`, { nombre: editando.nombre, descripcion: editando.descripcion })
       setEditando(null); cargar()
-    } catch { alert('Error al guardar') }
+    } catch { toast.error('No pudimos guardar los cambios del protocolo. Inténtalo de nuevo.') }
   }
 
   const eliminar = async (id, nombre) => {
     if (!confirm(`¿Eliminar el protocolo "${nombre}"? Esta acción no se puede deshacer.`)) return
     try { await api.delete(`/protocolos/${id}`); cargar() }
-    catch { alert('Error al eliminar') }
+    catch { toast.error('No pudimos eliminar el protocolo. Inténtalo de nuevo.') }
   }
 
   return (
@@ -61,6 +68,7 @@ export default function Protocolos() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
+              <Breadcrumb items={[{ label: 'Inicio', path: RUTA_INICIO[usuario?.rol] || '/' }, { label: 'Protocolos' }]} />
               <div className="page-title">Biblioteca de protocolos</div>
               <div className="page-sub">Protocolos institucionales guardados para generar cursos con IA</div>
             </div>
@@ -72,8 +80,9 @@ export default function Protocolos() {
           {/* Formulario subir */}
           {mostrarForm && (
             <div className="card" style={{ border: '1.5px solid #1E3A6E' }}>
-              <div className="card-title" style={{ marginBottom: 14 }}>Nuevo protocolo</div>
-              <form onSubmit={subir}>
+              <div className="card-title" style={{ marginBottom: 2 }}>Nuevo protocolo</div>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 12 }}>* campo obligatorio</div>
+              <form onSubmit={subir} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
                 <div className="field">
                   <label>Nombre del protocolo *</label>
                   <input type="text" placeholder="Ej: Protocolo prevención LPP"

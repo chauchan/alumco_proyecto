@@ -205,7 +205,7 @@ export default function Profesor() {
         setVideoIntroUrl(res.data.video_intro_url)
       }
     } catch {
-      alert('Error al subir el video')
+      toast.error('No pudimos subir el video. Revisa tu conexión e inténtalo de nuevo.')
     } finally {
       setSubiendoVideo(false)
     }
@@ -219,7 +219,7 @@ export default function Profesor() {
       setVideoIntroUrl(null)
       setCursoDetalle(prev => ({ ...prev, video_intro_url: null }))
     } catch {
-      alert('Error al eliminar el video')
+      toast.error('No pudimos eliminar el video. Inténtalo de nuevo.')
     } finally {
       setEliminandoVideo(false)
     }
@@ -236,7 +236,7 @@ export default function Profesor() {
     try {
       await api.patch(`/cursos/${cursoDetalle.id}/targeting`, payload)
       setCursoDetalle(prev => ({ ...prev, ...payload }))
-    } catch (err) { alert('Error al guardar la configuración: ' + (err?.response?.data?.detalle || err?.message || 'sin detalle')) }
+    } catch (err) { toast.error('No pudimos guardar la configuración del curso: ' + (err?.response?.data?.detalle || 'inténtalo de nuevo.')) }
     finally { setGuardandoTargeting(false) }
   }
 
@@ -246,7 +246,7 @@ export default function Profesor() {
       await api.put(`/cursos/${cursoDetalle.id}`, { modulos: modulosEdit.map(m => ({ id: m.id, titulo: m.titulo, descripcion: m.descripcion })) })
       setCursoDetalle(prev => ({ ...prev, modulos: modulosEdit }))
       setEditandoModulos(false)
-    } catch { alert('Error al guardar módulos') }
+    } catch { toast.error('No pudimos guardar los módulos. Inténtalo de nuevo.') }
     finally { setGuardandoModulos(false) }
   }
 
@@ -261,14 +261,14 @@ export default function Profesor() {
         await api.delete(`/cursos/${cursoDetalle.id}/preguntas/${pid}`)
           .catch(e => {
             const msg = e?.response?.data?.error || ''
-            if (msg) alert(msg)
+            if (msg) toast.error(msg)
           })
       }
       const { data } = await api.get(`/cursos/${cursoDetalle.id}`)
       setCursoDetalle(prev => ({ ...prev, preguntas: data.preguntas }))
       setDeletedPregIds([])
       setEditandoPreguntas(false)
-    } catch { alert('Error al guardar preguntas') }
+    } catch { toast.error('No pudimos guardar las preguntas. Inténtalo de nuevo.') }
     finally { setGuardandoPreguntas(false) }
   }
 
@@ -302,7 +302,7 @@ export default function Profesor() {
       }))
       setPptEditando(false)
     } catch {
-      alert('Error al guardar los cambios')
+      toast.error('No pudimos guardar los cambios de la presentación. Inténtalo de nuevo.')
     } finally {
       setPptGuardando(false)
     }
@@ -318,7 +318,7 @@ export default function Profesor() {
       setModoSeleccion(false)
       recargar()
     } catch {
-      alert('Error al eliminar algunos cursos')
+      toast.error('No pudimos eliminar algunos de los cursos seleccionados. Revisa la lista e inténtalo de nuevo.')
     } finally {
       setEliminandoMasivo(false)
     }
@@ -813,7 +813,7 @@ export default function Profesor() {
                         onClick={async () => {
                           if (!confirm('¿Despublicar este curso? Los colaboradores ya no podrán acceder a él.')) return
                           try { await api.patch(`/cursos/${cursoDetalle.id}/publicar`, { publicado: false }); cerrarDetalle(); recargar() }
-                          catch { alert('Error al despublicar el curso') }
+                          catch { toast.error('No pudimos despublicar el curso. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:eye-off" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Despublicar</>
                       </button>
@@ -821,7 +821,7 @@ export default function Profesor() {
                         onClick={async () => {
                           if (!confirm('¿Eliminar este curso permanentemente? Esta acción no se puede deshacer.')) return
                           try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                          catch { alert('Error al eliminar el curso') }
+                          catch { toast.error('No pudimos eliminar el curso. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar</>
                       </button>
@@ -835,7 +835,7 @@ export default function Profesor() {
                       <button style={{ flex:1, height:40, background:'#1A7A45', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
-                          catch { alert('Error al aprobar el curso') }
+                          catch { toast.error('No pudimos aprobar el curso. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
                       </button>
@@ -843,7 +843,7 @@ export default function Profesor() {
                         onClick={async () => {
                           if (!confirm('¿Eliminar este borrador permanentemente?')) return
                           try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                          catch { alert('Error al eliminar el curso') }
+                          catch { toast.error('No pudimos eliminar el borrador. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar borrador</>
                       </button>
@@ -982,7 +982,14 @@ export default function Profesor() {
                   </div>
                   <div style={{ display:'flex', gap:6 }}>
                     <button className="btn-aprobar" onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado:'aprobado' }).then(() => window.location.reload())}>Aprobar</button>
-                    <button className="btn-rechazar" onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado:'rechazado' }).then(() => window.location.reload())}>Rechazar</button>
+                    <button className="btn-rechazar" onClick={async () => {
+                      await api.patch(`/certificados/${cert.id}/validar`, { estado:'rechazado' })
+                      recargar()
+                      toast.undo(`Certificado de ${cert.usuario_nombre} rechazado`, async () => {
+                        await api.patch(`/certificados/${cert.id}/validar`, { estado:'pendiente' })
+                        recargar()
+                      })
+                    }}>Rechazar</button>
                   </div>
                 </div>
               ))}

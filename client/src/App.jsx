@@ -23,6 +23,7 @@ import Practicos            from './pages/Practicos'
 import MisCertificados      from './pages/MisCertificados'
 import CertificadosGlobales from './pages/CertificadosGlobales'
 import MisDatos            from './pages/MisDatos'
+import NotFound             from './pages/NotFound'
 
 function ProtectedRoute({ children, roles }) {
   const { usuario, cargando } = useAuth()
@@ -68,8 +69,11 @@ export default function App() {
           <Route path="/jefatura"      element={<ProtectedRoute roles={['jefatura']}><Jefatura /></ProtectedRoute>} />
           <Route path="/jefatura/usuarios" element={<ProtectedRoute roles={['jefatura']}><GestionUsuarios /></ProtectedRoute>} />
           <Route path="/jefatura/sedes"   element={<ProtectedRoute roles={['jefatura']}><GestionSedes /></ProtectedRoute>} />
-          <Route path="/jefatura/ia"          element={<ProtectedRoute roles={['jefatura','admin_sede']}><GeneradorIA /></ProtectedRoute>} />
-          <Route path="/jefatura/protocolos"  element={<ProtectedRoute roles={['jefatura','admin_sede']}><Protocolos /></ProtectedRoute>} />
+          <Route path="/ia"          element={<ProtectedRoute roles={['jefatura','admin_sede']}><GeneradorIA /></ProtectedRoute>} />
+          <Route path="/protocolos"  element={<ProtectedRoute roles={['jefatura','admin_sede']}><Protocolos /></ProtectedRoute>} />
+          {/* Rutas viejas — redirect por si hay enlaces guardados */}
+          <Route path="/jefatura/ia"          element={<Navigate to="/ia" replace />} />
+          <Route path="/jefatura/protocolos"  element={<Navigate to="/protocolos" replace />} />
 
           <Route path="/capacitaciones"        element={<ProtectedRoute roles={TODOS}><Capacitaciones /></ProtectedRoute>} />
           <Route path="/capacitaciones/:id"   element={<ProtectedRoute roles={TODOS}><CursoDetalle /></ProtectedRoute>} />
@@ -79,7 +83,7 @@ export default function App() {
           <Route path="/cambiar-password"      element={<ProtectedRoute roles={TODOS}><CambiarPassword /></ProtectedRoute>} />
           <Route path="/mis-datos"              element={<ProtectedRoute roles={TODOS}><MisDatos /></ProtectedRoute>} />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

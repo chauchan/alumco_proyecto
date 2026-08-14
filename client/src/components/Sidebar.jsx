@@ -13,6 +13,7 @@ const NAV_ITEMS = {
   profesor: [
     { label: 'Mis cursos',        path: '/profesor' },
     { label: 'Capacitaciones',    path: '/capacitaciones' },
+    { label: 'Certificados',      path: '/certificados-globales' },
     { label: 'Mis certificados',  path: '/mis-certificados' },
     { label: 'Prácticos',         path: '/practicos' },
     { label: 'Nuevo curso',       path: '/profesor/nuevo-curso' },
@@ -23,8 +24,8 @@ const NAV_ITEMS = {
     { label: 'Mis certificados',  path: '/mis-certificados' },
     { label: 'Certificados sede', path: '/certificados-globales' },
     { label: 'Prácticos',         path: '/practicos' },
-    { label: 'Generador IA',      path: '/jefatura/ia'},
-    { label: 'Protocolos',        path: '/jefatura/protocolos' },
+    { label: 'Generador IA',      path: '/ia'},
+    { label: 'Protocolos',        path: '/protocolos' },
   ],
   jefatura: [
     { label: 'Resumen global',    path: '/jefatura' },
@@ -34,8 +35,8 @@ const NAV_ITEMS = {
     { label: 'Mis certificados',  path: '/mis-certificados' },
     { label: 'Certificados ONG',  path: '/certificados-globales' },
     { label: 'Prácticos',         path: '/practicos' },
-    { label: 'Generador IA',      path: '/jefatura/ia'},
-    { label: 'Protocolos',        path: '/jefatura/protocolos' },
+    { label: 'Generador IA',      path: '/ia'},
+    { label: 'Protocolos',        path: '/protocolos' },
   ],
 }
 
