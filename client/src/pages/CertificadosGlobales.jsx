@@ -4,6 +4,8 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import Paginacion from '../components/Paginacion'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { useFiltrosUrl } from '../hooks/useFiltrosUrl'
 import api, { descargarCertificado } from '../services/api'
 
 const ESTAMENTOS = [
@@ -21,15 +23,15 @@ const LIMIT = 20
 
 export default function CertificadosGlobales() {
   const { usuario } = useAuth()
+  const toast = useToast()
+  const [filtros, setFiltro] = useFiltrosUrl({ busqueda: '', filtroSede: '', filtroEstamento: '', filtroEstado: '', pagina: '1' })
+  const { busqueda, filtroSede, filtroEstamento, filtroEstado } = filtros
+  const pagina = parseInt(filtros.pagina) || 1
+
   const [certificados, setCertificados] = useState([])
   const [total, setTotal] = useState(0)
-  const [pagina, setPagina] = useState(1)
   const [sedes, setSedes] = useState([])
   const [cargando, setCargando] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroSede, setFiltroSede] = useState('')
-  const [filtroEstamento, setFiltroEstamento] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState('')
 
   const busquedaRef = useRef(busqueda)
   busquedaRef.current = busqueda
@@ -47,14 +49,20 @@ export default function CertificadosGlobales() {
       .then(([c, s]) => {
         setCertificados(c.data.rows)
         setTotal(c.data.total)
-        setPagina(c.data.page)
+        setFiltro('pagina', String(c.data.page))
         setSedes(s.data)
       })
       .catch(() => {})
       .finally(() => setCargando(false))
   }, [filtroSede, filtroEstamento, filtroEstado])
 
+  const montadoRef = useRef(false)
   useEffect(() => {
+    if (!montadoRef.current) {
+      montadoRef.current = true
+      cargar(pagina)
+      return
+    }
     const delay = busqueda !== prevBusquedaRef.current ? 300 : 0
     prevBusquedaRef.current = busqueda
     const t = setTimeout(() => cargar(1), delay)
@@ -64,7 +72,9 @@ export default function CertificadosGlobales() {
   const aprobados = certificados.filter(c => c.estado === 'aprobado').length
   const pendientes = certificados.filter(c => c.estado === 'pendiente').length
 
-  const titulo = usuario?.rol === 'jefatura' ? 'Certificados ONG' : 'Certificados de la sede'
+  const titulo = usuario?.rol === 'jefatura' ? 'Certificados ONG'
+    : usuario?.rol === 'profesor' ? 'Certificados de mis cursos'
+    : 'Certificados de la sede'
 
   return (
     <div className="app-shell">
@@ -79,6 +89,8 @@ export default function CertificadosGlobales() {
             <div className="page-sub">
               {usuario?.rol === 'jefatura'
                 ? 'Certificados de todos los colaboradores de la ONG'
+                : usuario?.rol === 'profesor'
+                ? 'Certificados de los colaboradores en los cursos que dictas'
                 : `Certificados de los colaboradores de ${usuario?.sede_nombre || 'tu sede'}`}
             </div>
           </div>
@@ -104,22 +116,22 @@ export default function CertificadosGlobales() {
                 type="text"
                 placeholder="Buscar por nombre, RUT o curso..."
                 value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
+                onChange={e => setFiltro('busqueda', e.target.value)}
                 style={{ flex: 1, minWidth: 220, height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 13, background: 'var(--gris-fondo)' }}
               />
               {usuario?.rol === 'jefatura' && (
-                <select value={filtroSede} onChange={e => setFiltroSede(e.target.value)}
+                <select value={filtroSede} onChange={e => setFiltro('filtroSede', e.target.value)}
                   style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                   <option value="">Todas las sedes</option>
                   {sedes.map(s => <option key={s.id} value={String(s.id)}>{s.nombre}</option>)}
                 </select>
               )}
-              <select value={filtroEstamento} onChange={e => setFiltroEstamento(e.target.value)}
+              <select value={filtroEstamento} onChange={e => setFiltro('filtroEstamento', e.target.value)}
                 style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                 <option value="">Todos los estamentos</option>
                 {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
               </select>
-              <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
+              <select value={filtroEstado} onChange={e => setFiltro('filtroEstado', e.target.value)}
                 style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                 <option value="">Todos los estados</option>
                 <option value="aprobado">Aprobado</option>
@@ -128,7 +140,7 @@ export default function CertificadosGlobales() {
               </select>
               {(busqueda || filtroSede || filtroEstamento || filtroEstado) && (
                 <button
-                  onClick={() => { setBusqueda(''); setFiltroSede(''); setFiltroEstamento(''); setFiltroEstado(''); setPagina(1) }}
+                  onClick={() => setFiltro.multiple({ busqueda: '', filtroSede: '', filtroEstamento: '', filtroEstado: '', pagina: '1' })}
                   style={{ height: 36, background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 12, color: 'var(--texto-muted)', cursor: 'pointer' }}
                 >
                   Limpiar
@@ -189,7 +201,7 @@ export default function CertificadosGlobales() {
                           {cert.estado === 'aprobado' ? (
                             <button
                               type="button"
-                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`)}
+                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`, toast)}
                               style={{ fontSize: 11, color: 'var(--azul)', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer' }}
                             >
                               <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar

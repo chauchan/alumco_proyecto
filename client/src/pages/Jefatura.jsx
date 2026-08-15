@@ -131,7 +131,7 @@ export default function Jefatura() {
               <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
                 <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>
               </button>
-              <button className="btn-primary" onClick={() => navigate('/jefatura/ia')}><><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Generador IA</></button>
+              <button className="btn-primary" onClick={() => navigate('/ia')}><><Icon icon="lucide:sparkles" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Generador IA</></button>
             </div>
           </div>
 
@@ -140,10 +140,10 @@ export default function Jefatura() {
             {[
               { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores totales', sub:'ambas sedes', color:'var(--azul)' },
               { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'var(--success)',
-                ayuda:'Colaboradores que tienen aprobadas todas sus capacitaciones obligatorias y ninguna vencida. Es la cobertura de capacitación de la organización.' },
+                ayuda:'Colaboradores que completaron al menos un curso al 100%. No verifica que hayan completado todos los cursos que les corresponden según su estamento.' },
               { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este período', color:'var(--warning)' },
               { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'var(--danger)',
-                ayuda:'Suma de dos casos: quienes reprobaron dos veces seguidas la evaluación de un curso (doble fallo) y quienes tienen una certificación vencida.' },
+                ayuda:'"Doble fallo": el colaborador reprobó una evaluación dos veces y quedó bloqueado 7 días. También cuenta a quienes tienen una capacitación con fecha límite vencida y sin completar.' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">
@@ -155,6 +155,12 @@ export default function Jefatura() {
               </div>
             ))}
           </div>
+
+          {resumen?.sin_estamento > 0 && (
+            <div style={{ marginTop: 12, background: 'var(--warning-bg)', border: '1px solid var(--warning-graphic)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--warning)' }}>
+              ⚠ {resumen.sin_estamento} colaborador{resumen.sin_estamento !== 1 ? 'es' : ''} sin estamento asignado — no {resumen.sin_estamento !== 1 ? 'reciben' : 'recibe'} capacitaciones obligatorias por estamento. Revisar en Gestión de usuarios.
+            </div>
+          )}
 
           {/* Sedes */}
           <div>
@@ -262,7 +268,7 @@ export default function Jefatura() {
                 <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>
                   Cobertura por sede (%)
                   <Ayuda
-                    texto="Porcentaje de colaboradores de la sede que tienen al día todas sus capacitaciones obligatorias. No incluye los cursos optativos."
+                    texto="Porcentaje de colaboradores activos de la sede que completaron al menos un curso (llegaron al 100% de progreso), sobre el total de colaboradores activos de esa sede."
                     etiqueta="Qué significa: cobertura por sede"
                   />
                 </div>
@@ -278,7 +284,7 @@ export default function Jefatura() {
                           formatter={(v, n, p) => [`${v}% (${p.payload.completaron}/${p.payload.total})`, 'Cobertura']}
                           contentStyle={{ fontSize:11 }}
                         />
-                        <Bar dataKey="pct_completado" name="Cobertura" fill="#2B4BA0" radius={[3,3,0,0]} maxBarSize={60} />
+                        <Bar dataKey="pct_completado" name="Cobertura" fill="var(--azul)" radius={[3,3,0,0]} maxBarSize={60} />
                       </BarChart>
                     </ResponsiveContainer>
                   )
@@ -301,7 +307,7 @@ export default function Jefatura() {
                           type="monotone"
                           dataKey="total"
                           name="Certificaciones"
-                          stroke="#7BC67A"
+                          stroke="var(--success-graphic)"
                           strokeWidth={2}
                           dot={{ r:3 }}
                           activeDot={{ r:5 }}

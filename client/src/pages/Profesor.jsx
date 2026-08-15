@@ -208,7 +208,7 @@ export default function Profesor() {
         setVideoIntroUrl(res.data.video_intro_url)
       }
     } catch {
-      toast.error('Error al subir el video')
+      toast.error('No pudimos subir el video. Revisa tu conexión e inténtalo de nuevo.')
     } finally {
       setSubiendoVideo(false)
     }
@@ -229,7 +229,7 @@ export default function Profesor() {
       setVideoIntroUrl(null)
       setCursoDetalle(prev => ({ ...prev, video_intro_url: null }))
     } catch {
-      toast.error('Error al eliminar el video')
+      toast.error('No pudimos eliminar el video. Inténtalo de nuevo.')
     } finally {
       setEliminandoVideo(false)
     }
@@ -246,7 +246,7 @@ export default function Profesor() {
     try {
       await api.patch(`/cursos/${cursoDetalle.id}/targeting`, payload)
       setCursoDetalle(prev => ({ ...prev, ...payload }))
-    } catch (err) { toast.error('Error al guardar la configuración: ' + (err?.response?.data?.detalle || err?.message || 'sin detalle')) }
+    } catch (err) { toast.error('No pudimos guardar la configuración del curso: ' + (err?.response?.data?.detalle || 'inténtalo de nuevo.')) }
     finally { setGuardandoTargeting(false) }
   }
 
@@ -256,7 +256,7 @@ export default function Profesor() {
       await api.put(`/cursos/${cursoDetalle.id}`, { modulos: modulosEdit.map(m => ({ id: m.id, titulo: m.titulo, descripcion: m.descripcion })) })
       setCursoDetalle(prev => ({ ...prev, modulos: modulosEdit }))
       setEditandoModulos(false)
-    } catch { toast.error('Error al guardar módulos') }
+    } catch { toast.error('No pudimos guardar los módulos. Inténtalo de nuevo.') }
     finally { setGuardandoModulos(false) }
   }
 
@@ -278,7 +278,7 @@ export default function Profesor() {
       setCursoDetalle(prev => ({ ...prev, preguntas: data.preguntas }))
       setDeletedPregIds([])
       setEditandoPreguntas(false)
-    } catch { toast.error('Error al guardar preguntas') }
+    } catch { toast.error('No pudimos guardar las preguntas. Inténtalo de nuevo.') }
     finally { setGuardandoPreguntas(false) }
   }
 
@@ -312,7 +312,7 @@ export default function Profesor() {
       }))
       setPptEditando(false)
     } catch {
-      toast.error('Error al guardar los cambios')
+      toast.error('No pudimos guardar los cambios de la presentación. Inténtalo de nuevo.')
     } finally {
       setPptGuardando(false)
     }
@@ -334,7 +334,7 @@ export default function Profesor() {
       setModoSeleccion(false)
       recargar()
     } catch {
-      toast.error('Error al eliminar algunos cursos')
+      toast.error('No pudimos eliminar algunos de los cursos seleccionados. Revisa la lista e inténtalo de nuevo.')
     } finally {
       setEliminandoMasivo(false)
     }
@@ -373,12 +373,20 @@ export default function Profesor() {
     }
     try {
       await api.patch(`/certificados/${cert.id}/validar`, { estado })
-      toast.success(estado === 'aprobado'
-        ? `Certificado de ${cert.usuario_nombre} aprobado`
-        : `Certificado de ${cert.usuario_nombre} rechazado`)
       recargar()
+      if (estado === 'rechazado') {
+        // Rechazar obliga al colaborador a rendir de nuevo la evaluación: es la
+        // acción más cara de deshacer a mano, así que además del diálogo de
+        // confirmación se ofrecen 5 s para revertirla.
+        toast.undo(`Certificado de ${cert.usuario_nombre} rechazado`, async () => {
+          await api.patch(`/certificados/${cert.id}/validar`, { estado: 'pendiente' })
+          recargar()
+        })
+      } else {
+        toast.success(`Certificado de ${cert.usuario_nombre} aprobado`)
+      }
     } catch {
-      toast.error('No se pudo actualizar el certificado')
+      toast.error('No pudimos actualizar el certificado. Inténtalo de nuevo; si el problema sigue, avisa a tu administrador de sede.')
     }
   }
 
@@ -867,7 +875,7 @@ export default function Profesor() {
                           })
                           if (!ok) return
                           try { await api.patch(`/cursos/${cursoDetalle.id}/publicar`, { publicado: false }); cerrarDetalle(); recargar() }
-                          catch { toast.error('Error al despublicar el curso') }
+                          catch { toast.error('No pudimos despublicar el curso. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:eye-off" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Despublicar</>
                       </button>
@@ -881,7 +889,7 @@ export default function Profesor() {
                           })
                           if (!ok) return
                           try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                          catch { toast.error('Error al eliminar el curso') }
+                          catch { toast.error('No pudimos eliminar el curso. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar</>
                       </button>
@@ -895,7 +903,7 @@ export default function Profesor() {
                       <button style={{ flex:1, height:40, background:'var(--success)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer' }}
                         onClick={async () => {
                           try { await api.patch(`/cursos/${cursoDetalle.id}/aprobar`); cerrarDetalle(); recargar() }
-                          catch { toast.error('Error al aprobar el curso') }
+                          catch { toast.error('No pudimos aprobar el curso. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:check" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Aprobar y publicar</>
                       </button>
@@ -909,7 +917,7 @@ export default function Profesor() {
                           })
                           if (!ok) return
                           try { await api.delete(`/cursos/${cursoDetalle.id}`); cerrarDetalle(); recargar() }
-                          catch { toast.error('Error al eliminar el curso') }
+                          catch { toast.error('No pudimos eliminar el borrador. Inténtalo de nuevo.') }
                         }}>
                         <><Icon icon="lucide:trash-2" width={13} style={{verticalAlign:"middle",marginRight:3}} /> Eliminar borrador</>
                       </button>
@@ -925,13 +933,13 @@ export default function Profesor() {
             <div className="card" style={{ borderLeft: '3px solid var(--amarillo)' }}>
               <div className="card-header" style={{ marginBottom: 12 }}>
                 <span className="card-title">Borradores IA pendientes de validación</span>
-                <span style={{ fontSize: 11, background: '#FFF8E8', color: '#B8860B', borderRadius: 20, padding: '2px 10px', border: '1px solid #F5C842' }}>
+                <span style={{ fontSize: 11, background: 'var(--warning-bg)', color: 'var(--warning)', borderRadius: 20, padding: '2px 10px', border: '1px solid var(--warning-graphic)' }}>
                   {borradoresIA.length} pendiente{borradoresIA.length > 1 ? 's' : ''}
                 </span>
               </div>
               {borradoresIA.map(curso => (
                 <div key={curso.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '0.5px solid #F0F0F0' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: '#FFF8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon icon="lucide:sparkles" width={18} style={{color:'var(--amarillo)'}} /></div>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--warning-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon icon="lucide:sparkles" width={18} style={{color:'var(--amarillo)'}} /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#222' }}>{curso.nombre}</div>
                     <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 2 }}>

@@ -4,6 +4,9 @@ import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import Ayuda from '../components/Ayuda'
+import CursoBloqueado from '../components/CursoBloqueado'
 import api, { descargarCertificado } from '../services/api'
 import { Slide } from './GeneradorIA'
 
@@ -14,6 +17,7 @@ export default function CursoDetalle() {
   const navigate = useNavigate()
   const { usuario } = useAuth()
   const userId = usuario?.id
+  const toast = useToast()
 
   const [curso, setCurso] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -134,7 +138,7 @@ export default function CursoDetalle() {
             setVideoVisto(true)
             if (yaCompletado) {
               const totalPreg = c.preguntas?.length || 0
-              setResultado({ score: 100, correctas: totalPreg, total: totalPreg, aprobado: true })
+              setResultado({ score: 100, notaChilena: 7, correctas: totalPreg, total: totalPreg, aprobado: true })
               setPaso('evaluacion')
             } else {
               setPaso('modulos')
@@ -146,7 +150,7 @@ export default function CursoDetalle() {
             }
             if (yaCompletado) {
               const totalPreg = c.preguntas?.length || 0
-              setResultado({ score: 100, correctas: totalPreg, total: totalPreg, aprobado: true })
+              setResultado({ score: 100, notaChilena: 7, correctas: totalPreg, total: totalPreg, aprobado: true })
               setPaso('evaluacion')
             } else if (pctGuardado >= 70 && c.preguntas?.length > 0) {
               setPaso('evaluacion')
@@ -274,7 +278,7 @@ export default function CursoDetalle() {
     setEnviando(true)
     try {
       const { data } = await api.post(`/evaluaciones/${cursoId}/responder`, { respuestas: respuestasFormateadas })
-      const { nota: score, aprobado, numero_intento, doble_fallo, bloqueado_hasta: bh, esperando_practico } = data
+      const { nota: score, nota_chilena: notaChilena, aprobado, numero_intento, doble_fallo, bloqueado_hasta: bh, esperando_practico } = data
 
       if (doble_fallo && bh && new Date(bh) > new Date()) {
         setBloqueadoHasta(new Date(bh))
@@ -292,7 +296,7 @@ export default function CursoDetalle() {
         setEsperandoPractico(!!esperando_practico)
       }
 
-      setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
+      setResultado({ score, notaChilena, correctas, total: curso.preguntas.length, aprobado })
     } catch (err) {
       if (err?.response?.status === 400) {
         // Already passed or max attempts reached — refresh state from server
@@ -303,8 +307,11 @@ export default function CursoDetalle() {
             setIntentosRestantes(Math.max(0, 2 - (r.data?.intentos_fallidos || 0)))
           })
           .catch(() => {})
+      } else if (err?.response?.status === 403) {
+        toast.error('No tienes permisos para rendir esta evaluación.')
       } else {
         console.error('[evaluacion]', err?.response?.data || err?.message)
+        toast.error('No pudimos enviar tu evaluación. Revisa tu conexión e inténtalo otra vez; si el problema sigue, avisa a tu administrador de sede.')
       }
     } finally {
       setEnviando(false)
@@ -479,7 +486,7 @@ export default function CursoDetalle() {
 
           {/* Encabezado con botón volver */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <button onClick={() => navigate(-1)}
+            <button onClick={() => navigate('/capacitaciones')}
               style={{ background: 'var(--cd-card-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--cd-text-sec)' }}>
               <Icon icon="lucide:arrow-left" width={14} /> Volver
             </button>
@@ -493,23 +500,7 @@ export default function CursoDetalle() {
             <div style={{ textAlign: 'center', color: 'var(--cd-text-muted)', padding: 60 }}>Cargando curso...</div>
           ) : bloqueadoHasta ? (
             /* ── CURSO BLOQUEADO ── */
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <div style={{ background: 'var(--cd-card-bg)', borderRadius: 16, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <Icon icon="lucide:lock" width={56} style={{color:'var(--rojo)'}} />
-                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--cd-text)' }}>Curso temporalmente bloqueado</div>
-                <div style={{ fontSize: 14, color: 'var(--cd-text-sec)', lineHeight: 1.6 }}>
-                  Has fallado este curso 2 veces. Podrás intentarlo nuevamente el{' '}
-                  <strong>{bloqueadoHasta.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
-                </div>
-                <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12, padding: '14px 24px', fontSize: 13, color: 'var(--danger)', maxWidth: 360 }}>
-                  Tu administrador de sede ha sido notificado. Aprovecha este tiempo para repasar los contenidos.
-                </div>
-                <button onClick={() => navigate(-1)}
-                  style={{ background: 'var(--azul-oscuro)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
-                  Volver
-                </button>
-              </div>
-            </div>
+            <CursoBloqueado fechaDesbloqueo={bloqueadoHasta} />
           ) : (
             <div className="curso-layout">
 
@@ -867,9 +858,9 @@ export default function CursoDetalle() {
                                 borderRadius: 16, padding: '24px 40px', color: '#fff', width: '100%', maxWidth: 340
                               }}>
                                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7, marginBottom: 8 }}>
-                                  Puntaje obtenido
+                                  Nota obtenida
                                 </div>
-                                <div style={{ fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{resultado.score}%</div>
+                                <div style={{ fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{resultado.notaChilena?.toFixed(1) ?? resultado.score}</div>
                                 <div style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
                                   {resultado.correctas} de {resultado.total} preguntas correctas
                                 </div>
@@ -883,9 +874,9 @@ export default function CursoDetalle() {
                                   }} />
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--cd-text-muted)', marginTop: 4 }}>
-                                  <span>0%</span>
-                                  <span style={{ color: 'var(--cd-text-muted)' }}>Mínimo aprobación: 60%</span>
-                                  <span>100%</span>
+                                  <span>1.0</span>
+                                  <span style={{ color: 'var(--cd-text-muted)' }}>Mínimo aprobación: 4.0</span>
+                                  <span>7.0</span>
                                 </div>
                               </div>
                               <div style={{ fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--verde)', borderRadius: 10, padding: '10px 20px' }}>
@@ -946,10 +937,10 @@ export default function CursoDetalle() {
                               <Icon icon="lucide:frown" width={56} style={{color:'var(--rojo)'}} />
                               <div style={{ fontSize: 18, fontWeight: 600 }}>No aprobaste esta vez</div>
                               <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 14, padding: '20px 32px', width: '100%', maxWidth: 320 }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--danger)', letterSpacing: '0.08em', marginBottom: 6 }}>Tu puntaje</div>
-                                <div style={{ fontSize: 44, fontWeight: 800, color: 'var(--danger)', lineHeight: 1 }}>{resultado.score}%</div>
+                                <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: 'var(--danger)', letterSpacing: '0.08em', marginBottom: 6 }}>Tu nota</div>
+                                <div style={{ fontSize: 44, fontWeight: 800, color: 'var(--danger)', lineHeight: 1 }}>{resultado.notaChilena?.toFixed(1) ?? resultado.score}</div>
                                 <div style={{ fontSize: 13, color: 'var(--cd-text-muted)', marginTop: 6 }}>
-                                  {resultado.correctas} de {resultado.total} correctas · Necesitas 60% para aprobar
+                                  {resultado.correctas} de {resultado.total} correctas · Necesitas nota 4.0 para aprobar
                                 </div>
                               </div>
                               <div style={{
@@ -962,6 +953,7 @@ export default function CursoDetalle() {
                                 <span style={{ color: intentosRestantes <= 0 ? 'var(--rojo)' : 'var(--cd-text-sec)', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
                                   Intentos restantes: <strong>{intentosRestantes}/2</strong>
                                 </span>
+                                <Ayuda texto="Tienes un máximo de 2 intentos para aprobar la evaluación (nota mínima 60%). Si fallas ambos, quedas bloqueado 7 días antes de poder reintentar." />
                               </div>
                               {intentosRestantes <= 0 ? (
                                 <div style={{ fontSize: 13, color: 'var(--danger)', textAlign: 'center', maxWidth: 300 }}>

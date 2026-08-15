@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
@@ -109,6 +110,7 @@ export default function GestionSedes() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
+              <Breadcrumb items={[{ label: 'Resumen global', path: '/jefatura' }, { label: 'Sedes' }]} />
               <div className="page-title">Gestión de sedes</div>
               <div className="page-sub">
                 Administrar sedes de la organización · {sedes.filter(s => s.activa).length} activas
@@ -125,7 +127,7 @@ export default function GestionSedes() {
               <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando...</div>
             ) : sedes.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 40, fontSize: 13 }}>
-                No hay sedes registradas. Creá la primera con el botón de arriba.
+                No hay sedes registradas. Crea la primera con el botón de arriba.
               </div>
             ) : (
               <div className="tabla-scroll">
@@ -200,10 +202,11 @@ export default function GestionSedes() {
             background: 'white', borderRadius: 12, padding: 28, width: 420, zIndex: 301,
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)'
           }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 18 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>
               {modal.modo === 'crear' ? 'Nueva sede' : `Editar "${modal.sede.nombre}"`}
             </div>
-            <form onSubmit={handleGuardar}>
+            <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginBottom: 16 }}>* campo obligatorio</div>
+            <form onSubmit={handleGuardar} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                 <div className="field">
                   <label>Nombre *</label>

@@ -6,7 +6,7 @@ const ToastContext = createContext(null);
 let _nextId = 0;
 const MAX_TOASTS = 3;
 const DURATION = 4000;
-const UNDO_DURATION = 5000;   // §4 del plan: "Deshacer" visible por 5 segundos
+const UNDO_DURATION = 5000;   // "Deshacer" visible por 5 segundos
 const FADE_MS  = 300;
 
 export function ToastProvider({ children }) {

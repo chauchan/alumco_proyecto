@@ -4,15 +4,19 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { useFiltrosUrl } from '../hooks/useFiltrosUrl'
 import api, { descargarCertificado } from '../services/api'
 
 
 export default function MisCertificados() {
   const { usuario } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const [certificados, setCertificados] = useState([])
   const [cargando, setCargando] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
+  const [filtros, setFiltro] = useFiltrosUrl({ busqueda: '' })
+  const { busqueda } = filtros
 
   useEffect(() => {
     api.get('/certificados')
@@ -61,7 +65,7 @@ export default function MisCertificados() {
               type="text"
               placeholder="Buscar por nombre de curso..."
               value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
+              onChange={e => setFiltro('busqueda', e.target.value)}
               style={{
                 width: '100%', height: 36, border: '0.5px solid var(--gris-borde)',
                 borderRadius: 8, padding: '0 12px', fontSize: 13, background: 'var(--gris-fondo)'
@@ -123,7 +127,7 @@ export default function MisCertificados() {
                           {cert.estado === 'aprobado' ? (
                             <button
                               type="button"
-                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.curso_nombre || 'curso').replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`)}
+                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.curso_nombre || 'curso').replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`, toast)}
                               style={{
                                 fontSize: 11, color: 'var(--azul)',
                                 border: '0.5px solid var(--gris-borde)', borderRadius: 8,

@@ -5,9 +5,13 @@ import * as XLSX from 'xlsx'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import Paginacion from '../components/Paginacion'
+import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
+import { validarRut } from '../utils/validacion'
+import { useFiltrosUrl } from '../hooks/useFiltrosUrl'
+import Ayuda from '../components/Ayuda'
 
 const ESTAMENTOS = [
   'Profesional de Atención Directa',
@@ -45,7 +49,7 @@ function ContratoPill({ tipo }) {
   if (tipo === 'fijo')
     return <span style={{ fontSize: 10, background: 'var(--success-bg)', color: 'var(--success)', borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>Fijo</span>
   if (tipo === 'reemplazo')
-    return <span style={{ fontSize: 10, background: '#FFF4E5', color: '#C06000', borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>Reemplazo</span>
+    return <span style={{ fontSize: 10, background: 'var(--warning-bg)', color: 'var(--warning)', borderRadius: 20, padding: '2px 8px', fontWeight: 500 }}>Reemplazo</span>
   return <span style={{ color: 'var(--texto-muted)', fontSize: 12 }}>—</span>
 }
 
@@ -61,19 +65,17 @@ export default function GestionUsuarios() {
   const selectAllRef = useRef(null)
   const fileInputRef = useRef(null)
 
+  const [filtros, setFiltro] = useFiltrosUrl({ busqueda: '', filtroRol: '', filtroSede: '', filtroContrato: '', pagina: '1' })
+  const { busqueda, filtroRol, filtroSede, filtroContrato } = filtros
+  const pagina = parseInt(filtros.pagina) || 1
+
   const [usuarios, setUsuarios] = useState([])
   const [total, setTotal] = useState(0)
-  const [pagina, setPagina] = useState(1)
   const LIMIT = 20
   const [sedes, setSedes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState(FORM_INICIAL)
-
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroRol, setFiltroRol] = useState('')
-  const [filtroSede, setFiltroSede] = useState('')
-  const [filtroContrato, setFiltroContrato] = useState('')
 
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [confirmarBulk, setConfirmarBulk] = useState(null)
@@ -100,15 +102,22 @@ export default function GestionUsuarios() {
       .then(([u, s]) => {
         setUsuarios(u.data.rows)
         setTotal(u.data.total)
-        setPagina(u.data.page)
+        setFiltro('pagina', String(u.data.page))
         setSedes(s.data)
       })
       .catch(() => {})
       .finally(() => setCargando(false))
   }, [filtroRol, filtroSede, filtroContrato])
 
-  // Único efecto: debounce corto para texto, inmediato para selects
+  // Primera carga: respeta la página guardada en la URL (recargar no la pierde).
+  // Cambios posteriores de filtro/búsqueda sí resetean a la página 1.
+  const montadoRef = useRef(false)
   useEffect(() => {
+    if (!montadoRef.current) {
+      montadoRef.current = true
+      cargar(pagina)
+      return
+    }
     const delay = busqueda !== prevBusquedaRef.current ? 300 : 0
     prevBusquedaRef.current = busqueda
     const t = setTimeout(() => cargar(1), delay)
@@ -149,6 +158,10 @@ export default function GestionUsuarios() {
     e.preventDefault()
     if (!form.nombre || !form.rut || !form.rol)
       return toast.error('Nombre, RUT y rol son obligatorios')
+    if (!validarRut(form.rut))
+      return toast.error('El RUT ingresado no es válido. Revisa el dígito verificador.')
+    if (!form.estamento)
+      return toast.error('El estamento es obligatorio: sin él, el colaborador no recibe capacitaciones obligatorias')
     try {
       await api.post('/usuarios', { ...form, password: 'alumco2026' })
       const username = limpiarRut(form.rut)
@@ -225,7 +238,7 @@ export default function GestionUsuarios() {
     const ws = XLSX.utils.aoa_to_sheet([
       ['nombre', 'rut', 'correo', 'rol', 'tipo_contrato', 'sede', 'estamento'],
       ['María González', '12.345.678-9', 'maria@ejemplo.cl', 'colaborador', 'fijo', 'Sede Central', 'Técnico de Atención Directa'],
-      ['Juan Pérez', '11.111.111-1', '', 'colaborador', 'reemplazo', 'Sede Norte', ''],
+      ['Juan Pérez', '11.111.111-1', '', 'colaborador', 'reemplazo', 'Sede Norte', 'Auxiliares de Servicio'],
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Usuarios')
@@ -280,7 +293,7 @@ export default function GestionUsuarios() {
   }
 
   const limpiarFiltros = () => {
-    setBusqueda(''); setFiltroRol(''); setFiltroSede(''); setFiltroContrato(''); setPagina(1)
+    setFiltro.multiple({ busqueda: '', filtroRol: '', filtroSede: '', filtroContrato: '', pagina: '1' })
   }
 
   const hayFiltros = busqueda || filtroRol || filtroSede || filtroContrato
@@ -301,6 +314,7 @@ export default function GestionUsuarios() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
+              <Breadcrumb items={[{ label: 'Resumen global', path: '/jefatura' }, { label: 'Gestión de usuarios' }]} />
               <div className="page-title">Gestión de usuarios</div>
               <div className="page-sub">Crear y administrar usuarios de todas las sedes · {total} en total</div>
             </div>
@@ -320,8 +334,9 @@ export default function GestionUsuarios() {
           {/* Formulario */}
           {mostrarForm && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom: 16 }}>Nuevo usuario</div>
-              <form onSubmit={handleCrear}>
+              <div className="card-title" style={{ marginBottom: 2 }}>Nuevo usuario</div>
+              <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginBottom: 14 }}>* campo obligatorio</div>
+              <form onSubmit={handleCrear} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="field">
                     <label>Nombre completo *</label>
@@ -332,8 +347,12 @@ export default function GestionUsuarios() {
                     <label>RUT *</label>
                     <input type="text" placeholder="Ej: 12.345.678-9"
                       value={form.rut} onChange={e => setForm({ ...form, rut: e.target.value })} />
-                    {form.rut && (
-                      <span style={{ fontSize: 11, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
+                    {form.rut && !validarRut(form.rut) ? (
+                      <span style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4, display: 'block' }}>
+                        RUT inválido — revisa el dígito verificador
+                      </span>
+                    ) : form.rut && (
+                      <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
                         Usuario de ingreso: <strong>{limpiarRut(form.rut)}</strong>
                       </span>
                     )}
@@ -357,8 +376,8 @@ export default function GestionUsuarios() {
                     </select>
                   </div>
                   <div className="field">
-                    <label>Estamento</label>
-                    <select value={form.estamento} onChange={e => setForm({ ...form, estamento: e.target.value })}>
+                    <label>Estamento *<Ayuda texto="Determina qué cursos obligatorios recibe este usuario. Sin estamento, no se le asigna ninguna capacitación obligatoria aunque el curso esté publicado." /></label>
+                    <select value={form.estamento} onChange={e => setForm({ ...form, estamento: e.target.value })} required>
                       <option value="">Seleccionar estamento</option>
                       {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
                     </select>
@@ -385,18 +404,18 @@ export default function GestionUsuarios() {
           <div className="card" style={{ padding: '12px 16px' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input type="text" placeholder="Buscar por nombre o RUT..."
-                value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                value={busqueda} onChange={e => setFiltro('busqueda', e.target.value)}
                 style={{ flex: 1, minWidth: 200, height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 13, background: 'var(--gris-fondo)' }}
               />
-              <select value={filtroRol} onChange={e => setFiltroRol(e.target.value)} style={SELECT_STYLE}>
+              <select value={filtroRol} onChange={e => setFiltro('filtroRol', e.target.value)} style={SELECT_STYLE}>
                 <option value="">Todos los roles</option>
                 {ROLES.map(r => <option key={r} value={r}>{ROL_LABEL[r]}</option>)}
               </select>
-              <select value={filtroSede} onChange={e => setFiltroSede(e.target.value)} style={SELECT_STYLE}>
+              <select value={filtroSede} onChange={e => setFiltro('filtroSede', e.target.value)} style={SELECT_STYLE}>
                 <option value="">Todas las sedes</option>
                 {sedes.map(s => <option key={s.id} value={String(s.id)}>{s.nombre}</option>)}
               </select>
-              <select value={filtroContrato} onChange={e => setFiltroContrato(e.target.value)} style={SELECT_STYLE}>
+              <select value={filtroContrato} onChange={e => setFiltro('filtroContrato', e.target.value)} style={SELECT_STYLE}>
                 <option value="">Todos los contratos</option>
                 <option value="fijo">Fijo</option>
                 <option value="reemplazo">Reemplazo</option>
@@ -409,7 +428,7 @@ export default function GestionUsuarios() {
               {filtroContrato === 'reemplazo' && activosVisibles.length > 0 && (
                 <button
                   onClick={() => setConfirmarBulk({ tipo: 'desactivar', ids: activosVisibles.map(u => u.id) })}
-                  style={{ ...BTN_GHOST, color: 'var(--danger)', borderColor: '#E8505B' }}
+                  style={{ ...BTN_GHOST, color: 'var(--danger)', borderColor: 'var(--danger)' }}
                 >
                   Desactivar todos los reemplazos visibles ({activosVisibles.length})
                 </button>

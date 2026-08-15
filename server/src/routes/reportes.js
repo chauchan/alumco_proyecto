@@ -41,11 +41,16 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
           AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
       ) as alertas`, [...p, ...p]);
 
+    const { rows: [{ total: sinEstamento }] } = await pool.query(
+      `SELECT COUNT(*) as total FROM usuarios u
+       WHERE u.estamento_id IS NULL AND u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}`, p);
+
     res.json({
       total_colaboradores: parseInt(totalUsuarios),
       capacitados_al_dia:  parseInt(capacitados),
       certificados_emitidos: parseInt(certificados),
-      requieren_atencion:  parseInt(alertas)
+      requieren_atencion:  parseInt(alertas),
+      sin_estamento:       parseInt(sinEstamento)
     });
   } catch (err) {
     console.error('[reportes/resumen]', err.message);

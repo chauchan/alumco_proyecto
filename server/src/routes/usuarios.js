@@ -170,6 +170,7 @@ router.post('/bulk', verificarToken, SOLO_ADMIN, async (req, res) => {
 
     if (!fila.nombre?.toString().trim()) { errores.push({ fila: numFila, motivo: 'Nombre requerido' }); continue; }
     if (!fila.rut?.toString().trim())    { errores.push({ fila: numFila, motivo: 'RUT requerido' }); continue; }
+    if (!fila.estamento?.toString().trim()) { errores.push({ fila: numFila, motivo: 'Estamento requerido' }); continue; }
 
     const identificador = String(fila.rut).replace(/\./g, '').replace(/-/g, '');
     const rolFila = fila.rol?.toString().trim() || 'colaborador';
@@ -214,6 +215,8 @@ router.post('/', verificarToken, SOLO_ADMIN, async (req, res) => {
   const { nombre, rut, correo, password, rol, tipo_contrato, sede_id, estamento } = req.body;
   if (!nombre || !rut || !password || !rol)
     return res.status(400).json({ error: 'Nombre, RUT, contraseña y rol son requeridos' });
+  if (!estamento || !estamento.toString().trim())
+    return res.status(400).json({ error: 'El estamento es obligatorio: sin él, el colaborador no recibe capacitaciones obligatorias' });
 
   const rolesValidos = ['colaborador', 'profesor', 'admin_sede', 'jefatura'];
   if (!rolesValidos.includes(rol))

@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
+import Ayuda from '../components/Ayuda'
 import api from '../services/api'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -220,7 +221,7 @@ export default function Practicos() {
           {/* Header */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
             <div>
-              <div className="page-title">Prácticos programados</div>
+              <div className="page-title">Prácticos programados<Ayuda texto="Actividades presenciales obligatorias para ciertos cursos. Si un curso 'requiere práctico', aprobar la evaluación no alcanza: el colaborador también debe registrar asistencia a un práctico de ese curso para obtener el certificado." /></div>
               <div className="page-sub">Calendario de actividades prácticas por sede</div>
             </div>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -253,8 +254,9 @@ export default function Practicos() {
           {/* Formulario crear práctico */}
           {mostrarForm && puedeCrear && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom:16 }}>Nuevo práctico</div>
-              <form onSubmit={handleCrear}>
+              <div className="card-title" style={{ marginBottom:2 }}>Nuevo práctico</div>
+              <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginBottom: 14 }}>* campo obligatorio</div>
+              <form onSubmit={handleCrear} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                   <div className="field" style={{ gridColumn:'1/-1' }}>
                     <label>Curso *</label>
@@ -535,7 +537,7 @@ export default function Practicos() {
                 style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'var(--texto-muted)', lineHeight:1 }}><Icon icon="lucide:x" width={18} /></button>
             </div>
 
-            <form onSubmit={handleCrearEvento} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <form onSubmit={handleCrearEvento} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }} style={{ display:'flex', flexDirection:'column', gap:14 }}>
               <div className="field">
                 <label style={{ fontSize:12, fontWeight:500, color:'var(--texto-sec)', marginBottom:4, display:'block' }}>Título *</label>
                 <input type="text" placeholder="Añadir título"

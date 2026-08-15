@@ -545,3 +545,10 @@ svg { vertical-align: middle; }
   .two-col, .three-col { grid-template-columns: 1fr; }
 }
 
+/* ── Tablet: el sidebar fijo de 210px + grillas de 3-4 columnas no entran ──── */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .stats-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .three-col    { grid-template-columns: repeat(2, 1fr); }
+}
+

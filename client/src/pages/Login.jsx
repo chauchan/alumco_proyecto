@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
@@ -10,6 +10,8 @@ const RUTA = { colaborador:'/colaborador', profesor:'/profesor', admin_sede:'/ad
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sesionExpirada = searchParams.get('expirada') === '1'
   const [form, setForm] = useState({ identificador:'', password:'' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
@@ -29,7 +31,9 @@ export default function Login() {
     setCargando(true); setError(''); setCampoError(null)
     try {
       const u = await login(form.identificador, form.password)
-      navigate(RUTA[u.rol] || '/')
+      const rutaGuardada = sessionStorage.getItem('ruta_antes_de_expirar')
+      sessionStorage.removeItem('ruta_antes_de_expirar')
+      navigate(rutaGuardada || RUTA[u.rol] || '/')
     } catch (err) {
       setCampoError('ambos')
       setError(err.response?.data?.error || 'El RUT o la contraseña no coinciden. Revisa los datos e inténtalo de nuevo.')
@@ -86,6 +90,15 @@ export default function Login() {
           <div style={{ fontSize:13, color:'var(--texto-muted)', marginBottom:32, lineHeight:1.6 }}>
             Ingresa con las credenciales entregadas<br/>por tu organización
           </div>
+
+          {sesionExpirada && (
+            <div role="status" style={{
+              background: 'var(--warning-bg)', border: '1px solid var(--warning)', borderRadius: 8,
+              padding: '10px 14px', fontSize: 13, color: 'var(--warning)', marginBottom: 18,
+            }}>
+              Tu sesión expiró por inactividad. Vuelve a ingresar y te llevamos donde estabas.
+            </div>
+          )}
 
           {/* noValidate: los campos siguen marcados como required para el lector
               de pantalla, pero la validación la hacemos nosotros para mostrar el
