@@ -518,6 +518,32 @@ svg { vertical-align: middle; }
 @media (max-width: 767px) {
   .hamburger-btn { display: flex; }
 
+  /* El topbar de escritorio junta logo + sección + rol + nombre + accesibilidad
+     + campana + ayuda + avatar en una sola fila: a 375px eso mide ~725px y se
+     desborda, arrastrando toda la página al scroll horizontal (el header
+     "sticky" se corre junto con el resto). Se esconde lo secundario (sección,
+     rol, nombre) y se recorta a ícono lo que puede vivir sin su etiqueta. */
+  .topbar { padding: 0 0.75rem; gap: 8px; }
+  .topbar-left { gap: 8px; min-width: 0; }
+  .topbar-right { gap: 6px; }
+  .topbar-hide-mobile { display: none; }
+  .topbar-a11y { margin-right: 0 !important; }
+
+  /* Los paneles (notificaciones, ayuda, vista, avatar) se anclan con
+     right:0 relativo a su propio botón — con menos controles en la fila,
+     la campana y ayuda quedaron más a la izquierda y el panel se salía por
+     el borde izquierdo de la pantalla. position:fixed los desacopla del
+     botón que los abre y los centra en el viewport en cualquier caso. */
+  .topbar-dropdown {
+    position: fixed !important;
+    top: 56px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
   .sidebar {
     position: fixed;
     top: 56px;
@@ -543,6 +569,11 @@ svg { vertical-align: middle; }
   .stats-grid-4 { grid-template-columns: repeat(2, 1fr); }
   .stats-grid-3 { grid-template-columns: repeat(2, 1fr); }
   .two-col, .three-col { grid-template-columns: 1fr; }
+  /* Un ítem de grid no encoge por debajo de su ancho intrínseco a menos que
+     se le fije min-width:0 (mismo problema que .curso-layout más arriba) —
+     sin esto, una fila con un botón "Editar" empuja la card entera más
+     ancha que su columna y el contenido queda cortado sin scroll visible. */
+  .two-col > *, .three-col > * { min-width: 0; }
 }
 
 /* ── Tablet: el sidebar fijo de 210px + grillas de 3-4 columnas no entran ──── */

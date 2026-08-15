@@ -278,7 +278,7 @@ router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sed
       JOIN usuarios u ON p.usuario_id = u.id
       JOIN cursos c   ON p.curso_id   = c.id
       LEFT JOIN sedes s ON u.sede_id = s.id
-      WHERE p.intentos_fallidos >= 2 AND u.activo = 1${whereExtra}
+      WHERE p.intentos_fallidos >= 2 AND p.bloqueado_hasta > NOW() AND u.activo = 1${whereExtra}
       ORDER BY ultimo_intento DESC
     `, params);
     res.json(rows);

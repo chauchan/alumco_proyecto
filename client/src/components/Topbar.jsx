@@ -115,16 +115,16 @@ export default function Topbar({ seccion }) {
         <img src={LOGO_LETRAS} alt="alumco"
           style={{ height: 18, filter: 'brightness(0) invert(1)', cursor: 'pointer' }}
           onClick={() => navigate(rutaInicio[usuario?.rol] || '/')} />
-        <div className="topbar-divider" />
-        <span className="topbar-section">{seccion}</span>
+        <div className="topbar-divider topbar-hide-mobile" />
+        <span className="topbar-section topbar-hide-mobile">{seccion}</span>
       </div>
 
       <div className="topbar-right" style={{ position: 'relative' }}>
-        {rolesLabel[usuario?.rol] && <span className="role-badge">{rolesLabel[usuario?.rol]}</span>}
-        <span className="topbar-name">{usuario?.nombre}</span>
+        {rolesLabel[usuario?.rol] && <span className="role-badge topbar-hide-mobile">{rolesLabel[usuario?.rol]}</span>}
+        <span className="topbar-name topbar-hide-mobile">{usuario?.nombre}</span>
 
         {/* Botones accesibilidad */}
-        <div style={{ display:'flex', gap:4, marginRight:2 }}>
+        <div className="topbar-a11y" style={{ display:'flex', gap:4, marginRight:2 }}>
           <button
             onClick={() => toggle('textoGrande')}
             title="Texto grande"
@@ -149,7 +149,7 @@ export default function Topbar({ seccion }) {
               display: 'flex', alignItems: 'center', gap: 3,
             }}>
             <Icon icon="lucide:eye" width={13} />
-            {acc.altoContraste ? 'ON' : 'contraste'}
+            <span className="topbar-hide-mobile">{acc.altoContraste ? 'ON' : 'contraste'}</span>
           </button>
         </div>
 
@@ -177,7 +177,7 @@ export default function Topbar({ seccion }) {
           {notifAbierto && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setNotifAbierto(false)} />
-              <div style={{
+              <div className="topbar-dropdown" style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
                 background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.12)', width: 320, overflow: 'hidden'
@@ -240,12 +240,12 @@ export default function Topbar({ seccion }) {
               fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5,
               letterSpacing: '0.03em'
             }}>
-            <Icon icon="lucide:circle-help" width={14} /> Ayuda
+            <Icon icon="lucide:circle-help" width={14} /> <span className="topbar-hide-mobile">Ayuda</span>
           </button>
           {ayudaAbierto && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setAyudaAbierto(false)} />
-              <div role="dialog" aria-label="Ayuda" style={{
+              <div role="dialog" aria-label="Ayuda" className="topbar-dropdown" style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
                 background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.14)', width: 300, overflow: 'hidden', padding: 16
@@ -308,7 +308,7 @@ export default function Topbar({ seccion }) {
           {vistaAbierto && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setVistaAbierto(false)} />
-              <div style={{
+              <div className="topbar-dropdown" style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
                 background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.14)', minWidth: 170, overflow: 'hidden'
@@ -353,7 +353,7 @@ export default function Topbar({ seccion }) {
           {menuAbierto && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setMenuAbierto(false)} />
-              <div style={{
+              <div className="topbar-dropdown" style={{
                 position: 'absolute', top: 42, right: 0, zIndex: 100,
                 background: 'white', borderRadius: 10, border: '0.5px solid var(--gris-borde)',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.12)', minWidth: 200, overflow: 'hidden'

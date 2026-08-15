@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import { useNavigate } from 'react-router-dom'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line,
@@ -78,37 +78,70 @@ export default function Jefatura() {
     }
   }
 
-  const exportarExcel = () => {
-    const wb = XLSX.utils.book_new()
+  const exportarExcel = async () => {
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'ALUMCO'
+    wb.created = new Date()
+
+    const TABLE_STYLE = { theme: 'TableStyleMedium9', showRowStripes: true }
 
     // Hoja 1: Resumen global
-    const wsResumen = XLSX.utils.aoa_to_sheet([
-      ['Resumen Global ALUMCO'],
-      ['Generado el', new Date().toLocaleDateString('es-CL')],
-      [],
-      ['Indicador', 'Valor'],
-      ['Colaboradores totales', resumen?.total_colaboradores ?? 0],
-      ['Capacitados al día', resumen?.capacitados_al_dia ?? 0],
-      ['Certificados emitidos', resumen?.certificados_emitidos ?? 0],
-      ['Requieren atención', resumen?.requieren_atencion ?? 0],
-    ])
-    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen global')
+    const wsResumen = wb.addWorksheet('Resumen global')
+    wsResumen.columns = [{ width: 26 }, { width: 16 }]
+    wsResumen.mergeCells('A1:B1')
+    wsResumen.getCell('A1').value = 'Resumen Global ALUMCO'
+    wsResumen.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF2B4BA0' } }
+    wsResumen.getCell('A2').value = 'Generado el'
+    wsResumen.getCell('A2').font = { bold: true }
+    wsResumen.getCell('B2').value = new Date().toLocaleDateString('es-CL')
+    wsResumen.addTable({
+      name: 'ResumenIndicadores',
+      ref: 'A4',
+      headerRow: true,
+      style: TABLE_STYLE,
+      columns: [{ name: 'Indicador' }, { name: 'Valor' }],
+      rows: [
+        ['Colaboradores totales', resumen?.total_colaboradores ?? 0],
+        ['Capacitados al día', resumen?.capacitados_al_dia ?? 0],
+        ['Certificados emitidos', resumen?.certificados_emitidos ?? 0],
+        ['Requieren atención', resumen?.requieren_atencion ?? 0],
+      ]
+    })
 
     // Hoja 2: Sedes
-    const wsSedes = XLSX.utils.aoa_to_sheet([
-      ['Sede', 'Colaboradores', 'Certificados', 'Cobertura (%)'],
-      ...sedes.map(s => [s.nombre, s.colaboradores, s.certificados, s.cobertura_pct || 0])
-    ])
-    XLSX.utils.book_append_sheet(wb, wsSedes, 'Sedes')
+    const wsSedes = wb.addWorksheet('Sedes')
+    wsSedes.columns = [{ width: 24 }, { width: 16 }, { width: 14 }, { width: 14 }]
+    wsSedes.addTable({
+      name: 'TablaSedes',
+      ref: 'A1',
+      headerRow: true,
+      style: TABLE_STYLE,
+      columns: [{ name: 'Sede' }, { name: 'Colaboradores' }, { name: 'Certificados' }, { name: 'Cobertura (%)' }],
+      rows: sedes.map(s => [s.nombre, s.colaboradores, s.certificados, s.cobertura_pct || 0])
+    })
 
     // Hoja 3: Cursos
-    const wsCursos = XLSX.utils.aoa_to_sheet([
-      ['Curso', 'Inscritos', 'Completaron', 'Cobertura (%)'],
-      ...cursos.map(c => [c.nombre, c.inscritos, c.completaron, c.pct_completado || 0])
-    ])
-    XLSX.utils.book_append_sheet(wb, wsCursos, 'Cursos')
+    const wsCursos = wb.addWorksheet('Cursos')
+    wsCursos.columns = [{ width: 38 }, { width: 12 }, { width: 13 }, { width: 14 }]
+    wsCursos.addTable({
+      name: 'TablaCursos',
+      ref: 'A1',
+      headerRow: true,
+      style: TABLE_STYLE,
+      columns: [{ name: 'Curso' }, { name: 'Inscritos' }, { name: 'Completaron' }, { name: 'Cobertura (%)' }],
+      rows: cursos.map(c => [c.nombre, c.inscritos, c.completaron, c.pct_completado || 0])
+    })
 
-    XLSX.writeFile(wb, `reporte_alumco_${new Date().toISOString().slice(0,10)}.xlsx`)
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `reporte_alumco_${new Date().toISOString().slice(0,10)}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   return (

@@ -4,6 +4,7 @@ const { PDFDocument, StandardFonts, rgb, degrees } = require('pdf-lib');
 const { uploadBuffer } = require('../config/s3');
 
 const FIRMA_PATH = path.join(__dirname, '..', 'assets', 'firma.pdf');
+const LOGO_PATH = path.join(__dirname, '..', 'assets', 'logo.png');
 
 let firmaBytesCache = null;
 function getFirmaBytes() {
@@ -14,6 +15,17 @@ function getFirmaBytes() {
     firmaBytesCache = null;
   }
   return firmaBytesCache;
+}
+
+let logoBytesCache = null;
+function getLogoBytes() {
+  if (logoBytesCache) return logoBytesCache;
+  try {
+    logoBytesCache = fs.readFileSync(LOGO_PATH);
+  } catch {
+    logoBytesCache = null;
+  }
+  return logoBytesCache;
 }
 
 const COLOR_AZUL = rgb(0x2B / 255, 0x4B / 255, 0xA0 / 255);
@@ -64,6 +76,19 @@ async function buildCertificadoPDF({ nombre, curso, fecha, estado = 'aprobado', 
     x: 20, y: 20, width: W - 40, height: H - 40,
     borderColor: COLOR_AZUL, borderWidth: 1
   });
+
+  // Logo ALUMCO, centrado arriba del título
+  const logoBytes = getLogoBytes();
+  if (logoBytes) {
+    try {
+      const logoImg = await pdfDoc.embedPng(logoBytes);
+      const logoH = 40;
+      const logoW = logoImg.width * (logoH / logoImg.height);
+      page.drawImage(logoImg, { x: (W - logoW) / 2, y: H - 70, width: logoW, height: logoH });
+    } catch (err) {
+      console.warn('No se pudo embeber logo.png:', err.message);
+    }
+  }
 
   // Título
   drawCenteredText(page, 'CERTIFICADO DE CAPACITACIÓN', {
