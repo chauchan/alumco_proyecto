@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { auditar } = require('../utils/audit');
-const { parseIdParam } = require('../utils/validate');
+const { parseIdParam, validarRut, validarEmail } = require('../utils/validate');
 
 const SOLO_ADMIN = verificarRol('admin_sede', 'jefatura');
 
@@ -53,7 +53,7 @@ router.get('/', verificarToken, SOLO_ADMIN, async (req, res) => {
     }
 
     const selectCols = `
-      SELECT u.id, u.nombre, u.identificador, u.rol, u.tipo_contrato,
+      SELECT u.id, u.nombre, u.identificador, u.rut, u.email, u.rol, u.tipo_contrato,
              e.nombre AS estamento, u.estamento_id, u.activo,
              u.sede_id, s.nombre AS sede_nombre, u.created_at
       FROM usuarios u
@@ -253,22 +253,74 @@ router.post('/', verificarToken, SOLO_ADMIN, async (req, res) => {
   }
 });
 
-const CAMPOS_PERMITIDOS_USUARIO = ['nombre', 'tipo_contrato', 'sede_id', 'activo', 'estamento_id'];
-
 // PATCH /api/usuarios/:id
 router.patch('/:id', verificarToken, SOLO_ADMIN, async (req, res) => {
   const id = parseIdParam(req, 'id');
   if (id === null) return res.status(400).json({ error: 'id inválido' });
-  const { nombre, tipo_contrato, sede_id, activo, estamento } = req.body;
+  const { nombre, correo, rut, rol, tipo_contrato, sede_id, activo, estamento } = req.body;
   try {
+    // Se carga primero el usuario objetivo: sin esto, un admin_sede podía editar
+    // a cualquiera por id, incluida gente de otra sede. El GET sí filtraba por
+    // sede, así que el listado nunca lo mostraba, pero la API quedaba abierta.
+    const { rows: destino } = await pool.query(
+      'SELECT id, sede_id, rol FROM usuarios WHERE id = ?', [id]
+    );
+    if (!destino.length) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const esJefatura = req.usuario.rol === 'jefatura';
+    if (!esJefatura && destino[0].sede_id !== req.usuario.sede_id)
+      return res.status(403).json({ error: 'Solo puedes editar colaboradores de tu propia sede' });
+
+    // Cambiar el rol o mover a alguien de sede son decisiones de alcance
+    // organizacional: un admin_sede que pudiera hacerlo se promovería a jefatura.
+    if (rol !== undefined && rol !== destino[0].rol && !esJefatura)
+      return res.status(403).json({ error: 'Solo jefatura puede cambiar el rol de un usuario' });
+    if (sede_id !== undefined && !esJefatura)
+      return res.status(403).json({ error: 'Solo jefatura puede cambiar a un usuario de sede' });
+
     const sets = [];
     const params = [];
 
-    if (nombre !== undefined)        { sets.push('nombre = ?');        params.push(nombre); }
-    if (tipo_contrato !== undefined) { sets.push('tipo_contrato = ?'); params.push(tipo_contrato); }
-    if (sede_id !== undefined)       { sets.push('sede_id = ?');       params.push(sede_id); }
+    if (nombre !== undefined) {
+      if (!nombre.toString().trim()) return res.status(400).json({ error: 'El nombre no puede quedar vacío' });
+      sets.push('nombre = ?'); params.push(nombre.trim());
+    }
+
+    if (correo !== undefined) {
+      if (correo && !validarEmail(correo))
+        return res.status(400).json({ error: 'El correo no tiene un formato válido' });
+      sets.push('email = ?'); params.push(correo || null);
+    }
+
+    // El RUT es la credencial de acceso: cambiarlo cambia con qué usuario entra
+    // la persona, así que se valida el dígito verificador y se comprueba que no
+    // choque con otra cuenta antes de tocar `identificador`.
+    if (rut !== undefined) {
+      if (!validarRut(rut))
+        return res.status(400).json({ error: 'El RUT no es válido. Revisa el dígito verificador.' });
+      const identificador = rut.replace(/\./g, '').replace(/-/g, '');
+      const { rows: choca } = await pool.query(
+        'SELECT id FROM usuarios WHERE identificador = ? AND id <> ?', [identificador, id]
+      );
+      if (choca.length) return res.status(409).json({ error: 'Ese RUT ya pertenece a otra cuenta' });
+      sets.push('rut = ?', 'identificador = ?'); params.push(rut, identificador);
+    }
+
+    if (rol !== undefined) {
+      const rolesValidos = ['colaborador', 'profesor', 'admin_sede', 'jefatura'];
+      if (!rolesValidos.includes(rol)) return res.status(400).json({ error: 'Rol no válido' });
+      sets.push('rol = ?'); params.push(rol);
+    }
+
+    if (tipo_contrato !== undefined) { sets.push('tipo_contrato = ?'); params.push(tipo_contrato || null); }
+    if (sede_id !== undefined)       { sets.push('sede_id = ?');       params.push(sede_id || null); }
     if (activo !== undefined)        { sets.push('activo = ?');        params.push(activo ? 1 : 0); }
+
+    // Mismo criterio que el alta: dejarlo vacío saca al colaborador del reparto
+    // de capacitaciones obligatorias sin que nadie lo note.
     if (estamento !== undefined) {
+      if (!estamento || !estamento.toString().trim())
+        return res.status(400).json({ error: 'El estamento es obligatorio: sin él, el colaborador no recibe capacitaciones obligatorias' });
       const estamento_id = await resolveEstamentoId(estamento);
       sets.push('estamento_id = ?');
       params.push(estamento_id);
@@ -280,17 +332,27 @@ router.patch('/:id', verificarToken, SOLO_ADMIN, async (req, res) => {
     params.push(id);
     await pool.query(`UPDATE usuarios SET ${sets.join(', ')} WHERE id = ?`, params);
 
+    // Se registran los nombres de los campos tocados, no sus valores: para la
+    // trazabilidad de la ONG importa quién cambió qué, sin duplicar datos
+    // personales en el log.
+    const EDITABLES = ['nombre', 'correo', 'rut', 'rol', 'tipo_contrato', 'sede_id', 'activo', 'estamento'];
+    await auditar(req, 'usuario.edicion', 'usuarios', id, {
+      campos: EDITABLES.filter(k => req.body[k] !== undefined)
+    });
+
     const { rows } = await pool.query(
-      `SELECT u.id, u.nombre, u.identificador, u.rol, u.tipo_contrato,
-              e.nombre AS estamento, u.estamento_id, u.sede_id, u.activo
+      `SELECT u.id, u.nombre, u.identificador, u.rut, u.email, u.rol, u.tipo_contrato,
+              e.nombre AS estamento, u.estamento_id, u.sede_id, s.nombre AS sede_nombre, u.activo
        FROM usuarios u
        LEFT JOIN estamentos e ON u.estamento_id = e.id
+       LEFT JOIN sedes      s ON u.sede_id      = s.id
        WHERE u.id = ?`,
       [id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json(rows[0]);
   } catch (err) {
+    console.error('[PATCH /usuarios/:id]', err);
     res.status(500).json({ error: 'Error al actualizar usuario' });
   }
 });

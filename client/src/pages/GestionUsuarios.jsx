@@ -7,6 +7,7 @@ import Sidebar from '../components/Sidebar'
 import Paginacion from '../components/Paginacion'
 import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
 import { validarRut } from '../utils/validacion'
@@ -60,8 +61,12 @@ const BTN_GHOST = {
 
 export default function GestionUsuarios() {
   const navigate = useNavigate()
+  const { usuario: usuarioActual } = useAuth()
   const toast = useToast()
   const confirm = useConfirm()
+  // Rol y sede solo los mueve jefatura: para admin_sede son campos de solo
+  // lectura, no ocultos, para que se entienda por qué no puede cambiarlos.
+  const esJefatura = usuarioActual?.rol === 'jefatura'
   const selectAllRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -76,6 +81,7 @@ export default function GestionUsuarios() {
   const [cargando, setCargando] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState(FORM_INICIAL)
+  const [editando, setEditando] = useState(null)   // id del usuario en edición, o null si es alta
 
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [confirmarBulk, setConfirmarBulk] = useState(null)
@@ -154,7 +160,30 @@ export default function GestionUsuarios() {
     })
   }
 
-  const handleCrear = async (e) => {
+  const cerrarForm = () => {
+    setForm(FORM_INICIAL)
+    setEditando(null)
+    setMostrarForm(false)
+  }
+
+  const abrirEdicion = (u) => {
+    setForm({
+      nombre: u.nombre || '',
+      rut: u.rut || u.identificador || '',
+      correo: u.email || '',
+      rol: u.rol || 'colaborador',
+      tipo_contrato: u.tipo_contrato || 'fijo',
+      sede_id: u.sede_id ? String(u.sede_id) : '',
+      estamento: u.estamento || '',
+    })
+    setEditando(u.id)
+    setMostrarForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Alta y edición comparten formulario y validaciones: la única diferencia es
+  // el verbo y que al editar no se toca la contraseña.
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.nombre || !form.rut || !form.rol)
       return toast.error('Nombre, RUT y rol son obligatorios')
@@ -162,12 +191,37 @@ export default function GestionUsuarios() {
       return toast.error('El RUT ingresado no es válido. Revisa el dígito verificador.')
     if (!form.estamento)
       return toast.error('El estamento es obligatorio: sin él, el colaborador no recibe capacitaciones obligatorias')
+
+    if (editando) {
+      // Solo se envía lo que jefatura puede mover; si un admin_sede mandara rol
+      // o sede el servidor responde 403, así que ni se incluyen.
+      const cambios = {
+        nombre: form.nombre,
+        rut: form.rut,
+        correo: form.correo,
+        tipo_contrato: form.tipo_contrato,
+        estamento: form.estamento,
+      }
+      if (esJefatura) {
+        cambios.rol = form.rol
+        cambios.sede_id = form.sede_id || null
+      }
+      try {
+        await api.patch(`/usuarios/${editando}`, cambios)
+        toast.success(`Cambios guardados en "${form.nombre}"`)
+        cerrarForm()
+        cargar(pagina)
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'No pudimos guardar los cambios. Inténtalo de nuevo.')
+      }
+      return
+    }
+
     try {
       await api.post('/usuarios', { ...form, password: 'alumco2026' })
       const username = limpiarRut(form.rut)
       toast.success(`Usuario "${form.nombre}" creado. Usuario: ${username} · Contraseña: alumco2026`)
-      setForm(FORM_INICIAL)
-      setMostrarForm(false)
+      cerrarForm()
       cargar(1)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear usuario')
@@ -325,7 +379,12 @@ export default function GestionUsuarios() {
               >
                 <Icon icon="lucide:upload" width={13} /> Importar XLSX
               </button>
-              <button className="btn-primary" onClick={() => { setMostrarForm(!mostrarForm) }}>
+              <button className="btn-primary" onClick={() => {
+                // Si estaba abierto en modo edición, este botón vuelve al alta
+                // en blanco en vez de cerrar y dejar el formulario contaminado.
+                if (mostrarForm) cerrarForm()
+                else { setForm(FORM_INICIAL); setEditando(null); setMostrarForm(true) }
+              }}>
                 {mostrarForm ? <><Icon icon="lucide:x" width={13} /> Cancelar</> : '+ Nuevo usuario'}
               </button>
             </div>
@@ -334,9 +393,11 @@ export default function GestionUsuarios() {
           {/* Formulario */}
           {mostrarForm && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom: 2 }}>Nuevo usuario</div>
-              <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginBottom: 14 }}>* campo obligatorio</div>
-              <form onSubmit={handleCrear} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
+              <div className="card-title" style={{ marginBottom: 2 }}>
+                {editando ? 'Editar usuario' : 'Nuevo usuario'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--texto-muted)', marginBottom: 14 }}>* campo obligatorio</div>
+              <form onSubmit={handleSubmit} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div className="field">
                     <label>Nombre completo *</label>
@@ -354,6 +415,7 @@ export default function GestionUsuarios() {
                     ) : form.rut && (
                       <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
                         Usuario de ingreso: <strong>{limpiarRut(form.rut)}</strong>
+                        {editando && ' — corregir el RUT cambia con qué usuario ingresa esta persona.'}
                       </span>
                     )}
                   </div>
@@ -364,16 +426,28 @@ export default function GestionUsuarios() {
                   </div>
                   <div className="field">
                     <label>Rol *</label>
-                    <select value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })}>
+                    <select value={form.rol} disabled={editando && !esJefatura}
+                      onChange={e => setForm({ ...form, rol: e.target.value })}>
                       {ROLES.map(r => <option key={r} value={r}>{ROL_LABEL[r]}</option>)}
                     </select>
+                    {editando && !esJefatura && (
+                      <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
+                        Solo jefatura puede cambiar el rol.
+                      </span>
+                    )}
                   </div>
                   <div className="field">
                     <label>Sede</label>
-                    <select value={form.sede_id} onChange={e => setForm({ ...form, sede_id: e.target.value })}>
+                    <select value={form.sede_id} disabled={editando && !esJefatura}
+                      onChange={e => setForm({ ...form, sede_id: e.target.value })}>
                       <option value="">Sin sede asignada</option>
                       {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                     </select>
+                    {editando && !esJefatura && (
+                      <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginTop: 4, display: 'block' }}>
+                        Solo jefatura puede mover a alguien de sede.
+                      </span>
+                    )}
                   </div>
                   <div className="field">
                     <label>Estamento *<Ayuda texto="Determina qué cursos obligatorios recibe este usuario. Sin estamento, no se le asigna ninguna capacitación obligatoria aunque el curso esté publicado." /></label>
@@ -392,10 +466,21 @@ export default function GestionUsuarios() {
                     </div>
                   )}
                 </div>
-                <div className="notice" style={{ marginBottom: 12 }}>
-                  La contraseña inicial será <strong>alumco2026</strong>. El usuario podrá cambiarla después de su primer ingreso.
+                {!editando && (
+                  <div className="notice" style={{ marginBottom: 12 }}>
+                    La contraseña inicial será <strong>alumco2026</strong>. El usuario podrá cambiarla después de su primer ingreso.
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="submit" className="btn-primary">
+                    {editando ? 'Guardar cambios' : 'Crear usuario'}
+                  </button>
+                  {editando && (
+                    <button type="button" className="btn-outline-dark" onClick={cerrarForm}>
+                      Cancelar
+                    </button>
+                  )}
                 </div>
-                <button type="submit" className="btn-primary">Crear usuario</button>
               </form>
             </div>
           )}
@@ -482,7 +567,17 @@ export default function GestionUsuarios() {
                             {ROL_LABEL[u.rol]}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{u.estamento || '—'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--texto-sec)' }}>
+                          {u.estamento || (
+                            // Sin estamento el colaborador no entra en el reparto de
+                            // capacitaciones obligatorias, así que se marca en vez de
+                            // mostrar un guion como si fuera un dato opcional más.
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--warning)', fontWeight: 600 }}>
+                              <Icon icon="lucide:alert-triangle" width={13} />
+                              Sin estamento
+                            </span>
+                          )}
+                        </td>
                         <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{u.sede_nombre || '—'}</td>
                         <td style={{ padding: '10px 14px' }}><ContratoPill tipo={u.tipo_contrato} /></td>
                         <td style={{ padding: '10px 14px' }}>
@@ -500,6 +595,14 @@ export default function GestionUsuarios() {
                               Reactivar
                             </button>
                           )}
+                          <button
+                            className="btn-outline-dark"
+                            style={{ display: 'inline-flex', padding: '4px 10px', fontSize: 12, marginLeft: 6 }}
+                            onClick={() => abrirEdicion(u)}
+                            aria-label={`Editar a ${u.nombre}`}
+                          >
+                            <Icon icon="lucide:pencil" width={12} /> Editar
+                          </button>
                         </td>
                       </tr>
                     ))}
