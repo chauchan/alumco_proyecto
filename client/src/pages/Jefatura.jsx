@@ -140,7 +140,7 @@ export default function Jefatura() {
             {[
               { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores totales', sub:'ambas sedes', color:'var(--azul)' },
               { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'meta: 100%', color:'var(--success)',
-                ayuda:'Colaboradores que completaron al menos un curso al 100%. No verifica que hayan completado todos los cursos que les corresponden según su estamento.' },
+                ayuda:'Colaboradores que tienen al 100% todos los cursos obligatorios que les corresponden, sea por su estamento o porque se los asignaron. Quien no tenga estamento no se cuenta aquí: sin estamento no recibe obligatorios, así que no hay nada contra qué medirlo.' },
               { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este período', color:'var(--warning)' },
               { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o alerta', color:'var(--danger)',
                 ayuda:'"Doble fallo": el colaborador reprobó una evaluación dos veces y quedó bloqueado 7 días. También cuenta a quienes tienen una capacitación con fecha límite vencida y sin completar.' },
@@ -268,7 +268,7 @@ export default function Jefatura() {
                 <div style={{ fontSize:12, fontWeight:500, marginBottom:12 }}>
                   Cobertura por sede (%)
                   <Ayuda
-                    texto="Porcentaje de colaboradores activos de la sede que completaron al menos un curso (llegaron al 100% de progreso), sobre el total de colaboradores activos de esa sede."
+                    texto="Porcentaje de colaboradores activos de la sede que tienen al día todos sus cursos obligatorios, sobre el total de colaboradores activos de esa sede. Es el estado de hoy: no depende del rango de fechas seleccionado arriba."
                     etiqueta="Qué significa: cobertura por sede"
                   />
                 </div>

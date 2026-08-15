@@ -255,17 +255,30 @@ router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sed
       whereExtra = ' AND c.profesor_id = ?';
       params.push(userId);
     }
+    // La lista se arma desde `progreso`, no desde `intentos`.
+    //
+    // `intentos` es historial inmutable: contar ahí las filas con aprobado = 0
+    // hacía que el botón "Desbloquear" no tuviera ningún efecto visible. El
+    // desbloqueo limpia `progreso` (que es lo que realmente bloquea al
+    // colaborador), pero los dos intentos fallidos siguen existiendo para
+    // siempre, así que al recargar la persona reaparecía en la lista y parecía
+    // que la acción había fallado.
+    //
+    // `progreso.intentos_fallidos` es además la misma fuente que usa
+    // `requieren_atencion` en reportes.js, con lo que el panel y el contador
+    // dejan de contradecirse.
     const { rows } = await pool.query(`
       SELECT u.id as usuario_id, u.nombre as usuario_nombre, u.sede_id,
              s.nombre as sede_nombre, c.id as curso_id, c.nombre as curso_nombre,
-             MAX(i.fecha) as ultimo_intento
-      FROM intentos i
-      JOIN usuarios u ON i.usuario_id = u.id
-      JOIN cursos c ON i.curso_id = c.id
+             p.intentos_fallidos, p.bloqueado_hasta,
+             (SELECT MAX(i.fecha) FROM intentos i
+               WHERE i.usuario_id = u.id AND i.curso_id = c.id AND i.aprobado = 0
+             ) as ultimo_intento
+      FROM progreso p
+      JOIN usuarios u ON p.usuario_id = u.id
+      JOIN cursos c   ON p.curso_id   = c.id
       LEFT JOIN sedes s ON u.sede_id = s.id
-      WHERE i.aprobado = 0${whereExtra}
-      GROUP BY u.id, u.nombre, u.sede_id, s.nombre, c.id, c.nombre
-      HAVING COUNT(i.id) >= 2
+      WHERE p.intentos_fallidos >= 2 AND u.activo = 1${whereExtra}
       ORDER BY ultimo_intento DESC
     `, params);
     res.json(rows);

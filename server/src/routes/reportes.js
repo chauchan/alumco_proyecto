@@ -6,6 +6,51 @@ const { enviarRecordatorios } = require('../jobs/recordatoriosCertificados');
 
 const ROLES_REPORTE = verificarRol('admin_sede', 'jefatura');
 
+/**
+ * Condición SQL de "capacitado al día", correlacionada con un alias `u` de
+ * usuarios que ya esté en el FROM.
+ *
+ * Antes esto se calculaba como COUNT(DISTINCT usuario) sobre progreso con
+ * porcentaje >= 100, es decir: cualquiera con **al menos un** curso completo
+ * contaba como al día, sin mirar cuántos le correspondían. Alguien con cinco
+ * obligatorios y uno terminado aparecía igual que alguien con todo listo, y el
+ * error iba en la dirección peligrosa: sobreestimaba el cumplimiento, así que
+ * nadie tenía motivo para revisarlo.
+ *
+ * Un curso es obligatorio para una persona si:
+ *   - está publicado y marcado obligatorio, va a su sede (o a todas) y su
+ *     estamento está entre los destinatarios (o el curso no restringe), o
+ *   - se le asignó explícitamente como obligatorio.
+ *
+ * Nota sobre el estamento: quien no lo tenga NO se cuenta al día. Sin estamento
+ * no recibe ningún obligatorio, así que la condición se cumpliría de forma
+ * vacía y volveríamos a contarlo como capacitado sin haber hecho nada — que es
+ * justo el problema que el contador `sin_estamento` existe para hacer visible.
+ */
+const SIN_OBLIGATORIOS_PENDIENTES = `
+  u.estamento_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM cursos c
+    LEFT JOIN progreso pr ON pr.curso_id = c.id AND pr.usuario_id = u.id
+    WHERE c.publicado = 1
+      AND (
+        (
+          c.obligatorio = 1
+          AND (c.sede_objetivo IS NULL OR c.sede_objetivo = COALESCE(u.sede_id, 0))
+          AND (
+            NOT EXISTS (SELECT 1 FROM curso_estamentos ce WHERE ce.curso_id = c.id)
+            OR EXISTS (SELECT 1 FROM curso_estamentos ce
+                        WHERE ce.curso_id = c.id AND ce.estamento_id = u.estamento_id)
+          )
+        )
+        OR EXISTS (
+          SELECT 1 FROM asignaciones a
+          WHERE a.curso_id = c.id AND a.usuario_id = u.id AND a.obligatorio = 1
+        )
+      )
+      AND (pr.porcentaje IS NULL OR pr.porcentaje < 100)
+  )`;
+
 // GET /api/reportes/resumen — resumen general por sede o global
 router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
   const { rol, sede_id } = req.usuario;
@@ -16,9 +61,9 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
       `SELECT COUNT(*) as total FROM usuarios u WHERE u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}`, p);
 
     const { rows: [{ total: capacitados }] } = await pool.query(
-      `SELECT COUNT(DISTINCT p.usuario_id) as total FROM progreso p
-       JOIN usuarios u ON p.usuario_id = u.id
-       WHERE p.porcentaje >= 100 AND u.activo = 1 AND u.rol = 'colaborador' ${filtroSede}`, p);
+      `SELECT COUNT(*) as total FROM usuarios u
+       WHERE u.rol = 'colaborador' AND u.activo = 1 ${filtroSede}
+         AND ${SIN_OBLIGATORIOS_PENDIENTES}`, p);
 
     const { rows: [{ total: certificados }] } = await pool.query(
       `SELECT COUNT(*) as total FROM certificados cert
@@ -61,20 +106,28 @@ router.get('/resumen', verificarToken, ROLES_REPORTE, async (req, res) => {
 // GET /api/reportes/sedes — métricas por sede (jefatura)
 router.get('/sedes', verificarToken, verificarRol('jefatura'), async (req, res) => {
   try {
+    // Subconsultas en vez de LEFT JOIN + GROUP BY: al cruzar usuarios, intentos,
+    // certificados y progreso en una sola pasada, cada fila se multiplicaba por
+    // todas las combinaciones y el cálculo dependía de acertar con COUNT(DISTINCT)
+    // en cada columna. Así cada cifra se cuenta contra su propia tabla.
     const { rows } = await pool.query(`
       SELECT s.id, s.nombre, s.ciudad,
-        COUNT(DISTINCT CASE WHEN u.rol = 'colaborador' AND u.activo = 1 THEN u.id END) as colaboradores,
-        COUNT(DISTINCT CASE WHEN cert.estado = 'aprobado' THEN cert.id END) as certificados,
-        ROUND(
-          100.0 * COUNT(DISTINCT CASE WHEN p.porcentaje >= 100 THEN p.usuario_id END) /
-          NULLIF(COUNT(DISTINCT CASE WHEN u.rol = 'colaborador' AND u.activo = 1 THEN u.id END), 0)
-        ) as cobertura_pct
+        (SELECT COUNT(*) FROM usuarios u
+          WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1
+        ) as colaboradores,
+        (SELECT COUNT(*) FROM certificados cert
+          JOIN intentos it ON cert.intento_id = it.id
+          JOIN usuarios u  ON it.usuario_id   = u.id
+          WHERE u.sede_id = s.id AND cert.estado = 'aprobado'
+        ) as certificados,
+        COALESCE(ROUND(
+          100.0 * (SELECT COUNT(*) FROM usuarios u
+                    WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1
+                      AND ${SIN_OBLIGATORIOS_PENDIENTES})
+          / NULLIF((SELECT COUNT(*) FROM usuarios u
+                     WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1), 0)
+        ), 0) as cobertura_pct
       FROM sedes s
-      LEFT JOIN usuarios u ON u.sede_id = s.id
-      LEFT JOIN intentos it ON it.usuario_id = u.id
-      LEFT JOIN certificados cert ON cert.intento_id = it.id
-      LEFT JOIN progreso p ON p.usuario_id = u.id
-      GROUP BY s.id, s.nombre, s.ciudad
       ORDER BY s.nombre`);
     res.json(rows);
   } catch (err) {
@@ -165,26 +218,32 @@ router.get('/graficos/cobertura-sede', verificarToken, verificarRol('jefatura'),
   if (desde && !isValidDate(desde)) return res.status(400).json({ error: 'Fecha desde inválida' });
   if (hasta && !isValidDate(hasta)) return res.status(400).json({ error: 'Fecha hasta inválida' });
 
-  const hasFiltro = desde && hasta;
-  // filtro aplicado dentro de CASE, aparece dos veces → params duplicados
-  const fechaFilter = hasFiltro ? 'AND p.ultimo_acceso BETWEEN ? AND ?' : '';
-  const params = hasFiltro ? [desde, hasta, desde, hasta] : [];
-
+  // El rango de fechas se sigue aceptando y validando, pero ya no filtra este
+  // gráfico: la cobertura es un estado presente ("¿quién tiene hoy sus
+  // obligatorios al día?"), no un conteo de eventos dentro de una ventana.
+  // Filtrar por ultimo_acceso hacía que alguien al día desapareciera del
+  // numerador solo por no haber entrado en esas fechas. El selector sí tiene
+  // sentido en certificaciones-mes, que es una serie temporal de verdad.
   try {
     const { rows } = await pool.query(`
       SELECT s.id, s.nombre,
-        COUNT(DISTINCT CASE WHEN u.rol = 'colaborador' AND u.activo = 1 THEN u.id END) AS total,
-        COUNT(DISTINCT CASE WHEN p.porcentaje >= 100 ${fechaFilter} THEN p.usuario_id END) AS completaron,
+        (SELECT COUNT(*) FROM usuarios u
+          WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1
+        ) AS total,
+        (SELECT COUNT(*) FROM usuarios u
+          WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1
+            AND ${SIN_OBLIGATORIOS_PENDIENTES}
+        ) AS completaron,
         COALESCE(ROUND(
-          100.0 * COUNT(DISTINCT CASE WHEN p.porcentaje >= 100 ${fechaFilter} THEN p.usuario_id END) /
-          NULLIF(COUNT(DISTINCT CASE WHEN u.rol = 'colaborador' AND u.activo = 1 THEN u.id END), 0)
+          100.0 * (SELECT COUNT(*) FROM usuarios u
+                    WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1
+                      AND ${SIN_OBLIGATORIOS_PENDIENTES})
+          / NULLIF((SELECT COUNT(*) FROM usuarios u
+                     WHERE u.sede_id = s.id AND u.rol = 'colaborador' AND u.activo = 1), 0)
         ), 0) AS pct_completado
       FROM sedes s
-      LEFT JOIN usuarios u ON u.sede_id = s.id
-      LEFT JOIN progreso p ON p.usuario_id = u.id
-      GROUP BY s.id, s.nombre
       ORDER BY s.nombre
-    `, params);
+    `);
     res.json(rows.map(r => ({
       id: r.id,
       nombre: r.nombre,

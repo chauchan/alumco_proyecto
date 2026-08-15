@@ -109,17 +109,30 @@ export default function CursoDetalle() {
         const c = { ...cursoRes.data, preguntas, modulos }
         setCurso(c)
 
-        const localBloqueoRaw = localStorage.getItem(`curso_${userId}_${cursoId}_bloqueo`)
-        const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
+        const claveBloqueo = `curso_${userId}_${cursoId}_bloqueo`
+        const localBloqueoRaw = localStorage.getItem(claveBloqueo)
+        let localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
 
         setEsperandoPractico(!!progresoRes.data?.esperando_practico)
 
         const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
+        const bhDB = progresoRes.data?.bloqueado_hasta || null
+
+        // La base manda. Antes se tomaba el máximo entre servidor y localStorage,
+        // así que cuando un profesor desbloqueaba a alguien el bloqueo seguía vivo
+        // en el navegador del colaborador y no había forma de sacarlo: el máximo
+        // de "0 intentos" y "2 intentos" siempre da 2. El cache local solo sirve
+        // para que el bloqueo no se pierda si falla la escritura al servidor,
+        // nunca para resucitar uno que el servidor ya levantó.
+        if (progresoRes.data && !bhDB && intentosFallidosDB === 0) {
+          localStorage.removeItem(claveBloqueo)
+          localBloqueo = null
+        }
+
         const intentosFallidosLocal = parseInt(localBloqueo?.intentos_fallidos || 0, 10)
         const intentosFallidos = Math.max(intentosFallidosDB, intentosFallidosLocal)
         setIntentosRestantes(Math.max(0, 2 - intentosFallidos))
 
-        const bhDB = progresoRes.data?.bloqueado_hasta || null
         const bhLocal = localBloqueo?.bloqueado_hasta || null
         const bh = [bhDB, bhLocal].filter(Boolean).sort().reverse()[0] || null
 

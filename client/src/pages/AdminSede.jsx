@@ -124,11 +124,8 @@ export default function AdminSede() {
           <div className="stats-grid-4">
             {[
               { val: resumen?.total_colaboradores ?? '—', label:'Colaboradores activos', sub:'en esta sede', color:'var(--success)' },
-              // El texto describe lo que la consulta realmente calcula, no lo que
-              // sugiere la etiqueta: hoy cuenta un curso al 100%, no la cobertura
-              // completa del estamento.
               { val: resumen?.capacitados_al_dia ?? '—', label:'Capacitados al día', sub:'con todos sus cursos', color:'var(--warning)',
-                ayuda:'Colaboradores que completaron al menos un curso al 100%. No verifica que hayan completado todos los cursos que les corresponden según su estamento.' },
+                ayuda:'Colaboradores que tienen al 100% todos los cursos obligatorios que les corresponden, sea por su estamento o porque se los asignaron. Quien no tenga estamento no se cuenta aquí: sin estamento no recibe obligatorios, así que no hay nada contra qué medirlo.' },
               { val: resumen?.certificados_emitidos ?? '—', label:'Certificados emitidos', sub:'este trimestre', color:'var(--azul)' },
               { val: resumen?.requieren_atencion ?? '—', label:'Requieren atención', sub:'doble fallo o vencidos', color:'var(--danger)',
                 ayuda:'"Doble fallo": el colaborador reprobó una evaluación dos veces y quedó bloqueado 7 días. También cuenta a quienes tienen una capacitación con fecha límite vencida y sin completar.' },

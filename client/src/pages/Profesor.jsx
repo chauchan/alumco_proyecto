@@ -77,13 +77,17 @@ export default function Profesor() {
   const [busquedaCert, setBusquedaCert] = useState('')
 
   useEffect(() => {
-    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
+    // /certificados son los del propio usuario; esta pantalla necesita los de
+    // sus alumnos, que es lo que devuelve /por-validar.
+    Promise.all([api.get('/cursos'), api.get('/certificados/por-validar'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
       .then(([c, cert, bIA, bl]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data); setBloqueados(bl.data || []) })
       .catch(() => {})
   }, [])
 
   const recargar = () => {
-    Promise.all([api.get('/cursos'), api.get('/certificados'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
+    // /certificados son los del propio usuario; esta pantalla necesita los de
+    // sus alumnos, que es lo que devuelve /por-validar.
+    Promise.all([api.get('/cursos'), api.get('/certificados/por-validar'), api.get('/cursos/pendientes-ia'), api.get('/evaluaciones/dobles-fallos')])
       .then(([c, cert, bIA, bl]) => { setCursos(c.data); setCertificados(cert.data); setBorradoresIA(bIA.data); setBloqueados(bl.data || []) })
       .catch(() => {})
   }
