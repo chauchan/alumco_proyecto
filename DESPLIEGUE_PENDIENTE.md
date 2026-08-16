@@ -1,8 +1,17 @@
 # Para Renato — desplegar `ux-ui` en la EC2
 
-Todo está commiteado y pusheado en la rama **`ux-ui`**. Nada de esto se ha probado
-contra una base de datos real: el entorno local no llegó a levantarse y la EC2
-estaba apagada. **El despliegue es la primera prueba de verdad.**
+> **Actualizado el 16-08-2026.** Encima de lo que describía este documento
+> entraron dos commits más (`64e81f9a` y `dc45933a`, ambos del 15-08), que **sí**
+> se probaron en la EC2. Van resumidos en `PARA_ELISA.md`: logo en el
+> certificado, Excel exportado con tabla estructurada real, dos bugs de mobile,
+> buscador global con Ctrl+K y la división de las tres pantallas grandes. La
+> tabla del final se corrigió: varias tareas que figuraban pendientes ya están
+> hechas.
+
+Todo está commiteado y pusheado en la rama **`ux-ui`**. Lo que describe la sección
+"Qué verificar después" no se ha probado contra una base de datos real: el entorno
+local no llegó a levantarse y la EC2 estaba apagada cuando se escribió. **El
+despliegue es la primera prueba de verdad para esa parte.**
 
 ---
 
@@ -32,6 +41,10 @@ git checkout ux-ui
 git pull
 cd client && npm install && npm run build && cd ..
 ```
+
+El `npm install` no es opcional aunque ya tengas `node_modules`: el commit
+`64e81f9a` agregó **`exceljs`**. Si lo salteás, el build muere con un
+`Rollup failed to resolve import "exceljs"` que no dice que falte instalar nada.
 
 **2. Subir a la EC2** (reemplazá la IP y la ruta del `.pem` si cambiaron)
 
@@ -164,17 +177,26 @@ poder entrar.
 
 ---
 
-## Decisión pendiente
+## Decisión pendiente — ya resuelta
 
-En la tarjeta **"Colaboradores bloqueados"** aparece gente cuyo bloqueo ya venció.
-En las capturas salía Valentina Rojas con fecha 10-04-2026, o sea vencido hacía
-cuatro meses, con un botón "Desbloquear" que no hace nada útil.
+> Quedó implementada tal como se proponía acá. Se deja escrito el razonamiento
+> porque explica por qué los dos números no coinciden, y eso va a llamar la
+> atención de alguien tarde o temprano.
 
-Son dos listas mezcladas: *"bloqueados ahora"* (`bloqueado_hasta > NOW()`) y *"doble
-fallo / requieren atención"* (`intentos_fallidos >= 2`). La tarjeta se llama lo
-primero pero muestra lo segundo. Hay que decidir cuál debe ser — lo razonable
-parece que "Colaboradores bloqueados" liste solo a los que realmente lo están, y
-que los de doble fallo vencido sigan contándose en "Requieren atención".
+En la tarjeta **"Colaboradores bloqueados"** aparecía gente cuyo bloqueo ya había
+vencido. En las capturas salía Valentina Rojas con fecha 10-04-2026, o sea vencido
+hacía cuatro meses, con un botón "Desbloquear" que no hacía nada útil.
+
+Eran dos listas mezcladas: *"bloqueados ahora"* (`bloqueado_hasta > NOW()`) y *"doble
+fallo / requieren atención"* (`intentos_fallidos >= 2`). La tarjeta se llamaba lo
+primero pero mostraba lo segundo.
+
+**Ahora:** `GET /evaluaciones/dobles-fallos` filtra por
+`p.intentos_fallidos >= 2 AND p.bloqueado_hasta > NOW()`, así que la tarjeta lista
+solo a quienes están bloqueados de verdad. `requieren_atencion` en `reportes.js`
+sigue contando todos los `>= 2`, vencidos incluidos. **La diferencia entre los dos
+números es intencional:** el contador dice "a esta gente hay que mirarla", la
+tarjeta dice "a esta gente hay que desbloquearla".
 
 ---
 
@@ -201,15 +223,29 @@ que los de doble fallo vencido sigan contándose en "Requieren atención".
 
 ## Lo que queda del plan heurístico
 
+*(Verificado contra el código el 16-08-2026.)*
+
 De `PLAN_UX_HEURISTICO.md` sigue pendiente:
 
 | Tarea | Estado |
 |---|---|
-| **C5** — repartir las 3 pantallas grandes | Sin hacer. GeneradorIA 1.304 líneas, Profesor 1.135, CursoDetalle 1.064 (meta: <600) |
-| **C7** — Enter para buscar en listados, buscador global | A medias. El breakpoint de tablet sí está |
-| **B4.1** — datos existentes | `migrate.js` sin tocar; los `estamento_id IS NULL` que ya existen siguen ahí (ahora son visibles y editables) |
-| **D1–D3** | Bloqueados por las cuatro decisiones de ALUMCO: nota mínima en escala 1–7, si reemplaza el esquema de 2 intentos, diseño del certificado, formato SENAMA |
+| **B2** — deshacer en acciones caras | A medias. Está en Gestión de usuarios y en el rechazo de certificados; falta desasignar curso. Protocolos se dejó con `confirm()` a propósito, como marca el plan |
+| **B4.1** — datos existentes | Lo único que falta de la tarea. El alta sin estamento ya se rechaza desde el formulario, desde la API y desde la carga masiva, y jefatura tiene el contador. Pero los `estamento_id IS NULL` que ya existen siguen ahí, y `migrate.js` no pone la columna en `NOT NULL` hasta que se limpien |
+| **B6** — mensajes accionables | A medias. Quedan ~15 que empiezan con "Error al…" en Gestión de sedes, Gestión de usuarios, Admin sede y Asignar curso |
+| **C5** — segundo criterio | Las tres pantallas bajaron de 600 (GeneradorIA 578, Profesor 379, CursoDetalle 483), pero quedan 13 tamaños de 10-11 px en GeneradorIA y 2 en Profesor |
+| **D1–D3** | **Los tres están implementados**, no bloqueados. `server/src/utils/notaChilena.js` convierte el porcentaje a la escala 1.0–7.0, la nota sale en el certificado y el logo también. Lo que falta es *confirmación*, no código: ALUMCO tiene que validar que 60% de exigencia → 4.0 es el umbral correcto, y SENAMA el formato de la nota impresa. Si cualquiera de los dos cambia, se toca una constante y una línea |
 
-Y la brecha más grande, que el propio `TEST_USABILIDAD_ALUMCO.md` marca: **nunca se
-probó en móvil**, pese a que hay un commit entero de responsive sin validar con
-usuarias.
+Ya no está pendiente: **C1, C2, C3, C4, C6, C7** y el resto de **A** y **B**.
+C5 partió las tres pantallas en ~15 componentes, y C7 sumó el buscador global con
+Ctrl+K además del breakpoint de tablet.
+
+Apareció una deuda nueva al hacerlo: `GestionUsuarios.jsx` quedó en 854 líneas y
+pasó a ser la pantalla más grande del proyecto. No estaba en el alcance de C5,
+pero cruza el mismo umbral.
+
+Y la brecha más grande sigue siendo la misma, la que marca
+`TEST_USABILIDAD_ALUMCO.md`: **nunca se probó en móvil con usuarias**. Se
+corrigieron dos bugs reales de mobile encontrados revisando (el topbar se
+desbordaba a 375 px y los botones se cortaban en las listas de dos columnas), pero
+eso es revisión de código, no test con gente. Del recorrido quedaron sin cubrir el
+flujo post-generación de Generador IA y algunos modales puntuales.

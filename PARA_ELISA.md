@@ -1,8 +1,12 @@
-# Para Elisa — resumen de hoy (15-08-2026)
+# Para Elisa — resumen del 15-08-2026
 
-Todo lo de abajo está **desplegado y probado en la EC2** (`http://44.217.200.211`),
-pero **nada está commiteado a `ux-ui` todavía**. Antes de subirlo lo revisamos
-juntos.
+> **Actualizado el 16-08-2026.** Cuando escribí esto nada estaba commiteado; ya
+> sí lo está. Todo lo de abajo entró en `dc45933a` y `64e81f9a` y está pusheado
+> a `origin/ux-ui`. La sección final ("Qué falta por ver") se reescribió con el
+> estado verificado contra el código.
+
+Todo lo de abajo está **desplegado y probado en la EC2** (`http://44.217.200.211`)
+y **commiteado en `ux-ui`**.
 
 ---
 
@@ -97,12 +101,94 @@ regresiones.
 
 ## Qué falta por ver
 
-- **Nada está commiteado.** Son ~20 archivos nuevos/modificados en `ux-ui`
-  (client y server). Hay que revisarlo y subirlo.
+*(Revisado contra el código el 16-08-2026.)*
+
+**Antes de compilar:** `npm install` en `client/` es obligatorio. `exceljs` (la
+dependencia nueva del Excel) está en `package.json` pero no en el `node_modules`
+de nadie que no haya instalado después del 15-08. Sin ese paso, `npm run build`
+falla con un error de Rollup que no explica la causa. Los comandos de
+`DESPLIEGUE_PENDIENTE.md` ya lo incluyen. Con la instalación hecha, el build
+compila limpio.
+
+**Verificaciones que siguen abiertas:**
+
 - **Confirmar el Excel** abriéndolo en Numbers o Excel de verdad.
 - **Mobile:** el flujo post-generación de Generador IA y algunos modales
   puntuales quedaron sin probar. El test en un celular real sigue siendo la
   brecha más grande, como marca `TEST_USABILIDAD_ALUMCO.md`.
-- **Merge `ux-ui` → `main`** — no se hizo, queda a decidir cuándo.
+- **Los `estamento_id IS NULL` que ya existen en producción.** El agujero está
+  cerrado hacia adelante (formulario, API y carga masiva rechazan el alta sin
+  estamento) y el panel de jefatura ahora los cuenta, pero los que ya estaban
+  siguen ahí y hay que resolverlos con ALUMCO uno por uno.
+
+**Decisiones:**
+
+- **Merge `ux-ui` → `main`** — no se hizo. Son 14 commits de diferencia.
 - **Pendiente externo:** pedirle a Valentina el excel de ejemplo, la firma y
   el excel de carga masiva.
+- **Avisarle a ALUMCO** que "Capacitados al día" va a bajar antes de que lo
+  vean en el panel. El detalle está en `DESPLIEGUE_PENDIENTE.md`.
+
+**Deuda que quedó anotada, ninguna urgente:**
+
+- `GestionUsuarios.jsx` quedó en 854 líneas — al partir las otras tres, pasó a
+  ser la pantalla más grande del proyecto. Cruza el umbral de 600 que fijó el
+  plan, aunque no estaba en el alcance de C5.
+- Quedan ~15 mensajes que le dicen "Error al…" al usuario (Gestión de sedes,
+  Gestión de usuarios, Admin sede, Asignar curso). Es lo que falta de B6.
+- Desasignar un curso todavía no tiene "Deshacer" (lo que falta de B2).
+- 13 tamaños de letra de 10-11 px en Generador IA y 2 en Profesor, por debajo
+  del piso de legibilidad que declara el propio CSS.
+- El bundle pesa 2,3 MB sin dividir; Vite avisa en cada build.
+
+---
+
+## Agregado el 16-08-2026
+
+Sin desplegar todavía. Son dos archivos de código, ninguno tocado en la EC2.
+
+### Excel — los porcentajes iban como texto
+
+Lo de las filas y columnas fantasma sí había quedado resuelto. Lo que seguía mal
+eran las columnas de cobertura: llegaban como texto, no como número, así que
+Excel las alineaba a la izquierda, les ponía el triangulito verde de "número
+guardado como texto" y no dejaba ordenarlas ni promediarlas.
+
+La cadena: en SQL, `ROUND(100.0 * ...)` da un `DECIMAL`, y mysql2 devuelve los
+`DECIMAL` como string salvo que se le pida lo contrario. `/reportes/resumen` y
+`/reportes/graficos/cobertura-sede` ya lo convertían con `parseInt`/`parseFloat`;
+`/reportes/sedes` y `/reportes/cursos` no — y son justo los dos que alimentan el
+Excel.
+
+Se convierte ahora en el backend, y además el export coacciona todo valor
+numérico por su cuenta para no depender de que la API acierte. De paso: la fecha
+"Generado el" es una fecha de verdad y no texto, y las columnas de porcentaje
+llevan formato `0"%"`, así que se ven como `39%` sin dejar de ser el número 39.
+
+### Certificado — fondo blanco y tres defectos de maquetado
+
+El recuadro raro alrededor de la firma era eso: `firma.pdf` es un escaneo con
+fondo blanco opaco, y la hoja era gris claro (`#F4F5F7`). El papel pasa a blanco
+puro, que es lo que hace desaparecer el recuadro, y un marco doble reemplaza al
+gris para que la hoja no quede desnuda.
+
+Midiendo el layout con las métricas reales de las fuentes aparecieron tres cosas
+que no se veían en un certificado de ejemplo corto:
+
+1. La caja de la firma invadía 109pt la línea de la fecha. No chocaba a la vista
+   porque el escaneo tiene aire interno, pero el recuadro blanco llegaba pegado
+   al texto.
+2. El logo se salía 2pt por arriba del marco.
+3. **Nombres y cursos largos se salían de la hoja.** Un curso de los que genera
+   la IA medía 1.190pt de ancho en una página de 842. Ahora el nombre y el curso
+   se ajustan solos: primero bajan de cuerpo, y antes de quedar ridículamente
+   chicos parten en dos líneas.
+
+También: la nota dejó de ir colgada de la ciudad detrás de un `·` y tiene su
+propia línea etiquetada (`Calificación obtenida: 7.0`). Es un requisito de
+SENAMA, no un dato al pasar.
+
+**Ojo:** el plan advierte que conviene no rediseñar el certificado antes de que
+ALUMCO defina el diseño completo, porque es trabajo que se hace dos veces. Esto
+son arreglos de maquetado y de color, no una plantilla nueva — pero si SENAMA
+pide otro formato para la nota, esa parte se rehace.

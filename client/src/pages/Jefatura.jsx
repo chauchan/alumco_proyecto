@@ -85,6 +85,13 @@ export default function Jefatura() {
 
     const TABLE_STYLE = { theme: 'TableStyleMedium9', showRowStripes: true }
 
+    // Todo lo que va a una celda numérica pasa por acá. La API ya convierte,
+    // pero un solo valor que llegue como string ("39" en vez de 39) hace que
+    // Excel y Numbers traten la columna entera como texto: se alinea a la
+    // izquierda, no se ordena por valor y no se puede promediar.
+    const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+    const FMT_PCT = '0"%"'   // muestra 39% sin dejar de ser el número 39
+
     // Hoja 1: Resumen global
     const wsResumen = wb.addWorksheet('Resumen global')
     wsResumen.columns = [{ width: 26 }, { width: 16 }]
@@ -93,7 +100,10 @@ export default function Jefatura() {
     wsResumen.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF2B4BA0' } }
     wsResumen.getCell('A2').value = 'Generado el'
     wsResumen.getCell('A2').font = { bold: true }
-    wsResumen.getCell('B2').value = new Date().toLocaleDateString('es-CL')
+    // Fecha real, no el texto de toLocaleDateString: así se ordena y se puede
+    // usar en fórmulas, y cada quien la ve en el formato de su configuración.
+    wsResumen.getCell('B2').value = new Date()
+    wsResumen.getCell('B2').numFmt = 'dd-mm-yyyy'
     wsResumen.addTable({
       name: 'ResumenIndicadores',
       ref: 'A4',
@@ -101,10 +111,10 @@ export default function Jefatura() {
       style: TABLE_STYLE,
       columns: [{ name: 'Indicador' }, { name: 'Valor' }],
       rows: [
-        ['Colaboradores totales', resumen?.total_colaboradores ?? 0],
-        ['Capacitados al día', resumen?.capacitados_al_dia ?? 0],
-        ['Certificados emitidos', resumen?.certificados_emitidos ?? 0],
-        ['Requieren atención', resumen?.requieren_atencion ?? 0],
+        ['Colaboradores totales', num(resumen?.total_colaboradores)],
+        ['Capacitados al día', num(resumen?.capacitados_al_dia)],
+        ['Certificados emitidos', num(resumen?.certificados_emitidos)],
+        ['Requieren atención', num(resumen?.requieren_atencion)],
       ]
     })
 
@@ -116,9 +126,10 @@ export default function Jefatura() {
       ref: 'A1',
       headerRow: true,
       style: TABLE_STYLE,
-      columns: [{ name: 'Sede' }, { name: 'Colaboradores' }, { name: 'Certificados' }, { name: 'Cobertura (%)' }],
-      rows: sedes.map(s => [s.nombre, s.colaboradores, s.certificados, s.cobertura_pct || 0])
+      columns: [{ name: 'Sede' }, { name: 'Colaboradores' }, { name: 'Certificados' }, { name: 'Cobertura' }],
+      rows: sedes.map(s => [s.nombre, num(s.colaboradores), num(s.certificados), num(s.cobertura_pct)])
     })
+    wsSedes.getColumn(4).numFmt = FMT_PCT
 
     // Hoja 3: Cursos
     const wsCursos = wb.addWorksheet('Cursos')
@@ -128,9 +139,10 @@ export default function Jefatura() {
       ref: 'A1',
       headerRow: true,
       style: TABLE_STYLE,
-      columns: [{ name: 'Curso' }, { name: 'Inscritos' }, { name: 'Completaron' }, { name: 'Cobertura (%)' }],
-      rows: cursos.map(c => [c.nombre, c.inscritos, c.completaron, c.pct_completado || 0])
+      columns: [{ name: 'Curso' }, { name: 'Inscritos' }, { name: 'Completaron' }, { name: 'Cobertura' }],
+      rows: cursos.map(c => [c.nombre, num(c.inscritos), num(c.completaron), num(c.pct_completado)])
     })
+    wsCursos.getColumn(4).numFmt = FMT_PCT
 
     const buffer = await wb.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })

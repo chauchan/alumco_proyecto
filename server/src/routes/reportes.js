@@ -129,7 +129,17 @@ router.get('/sedes', verificarToken, verificarRol('jefatura'), async (req, res) 
         ), 0) as cobertura_pct
       FROM sedes s
       ORDER BY s.nombre`);
-    res.json(rows);
+    // `cobertura_pct` sale de un ROUND(100.0 * ...), o sea NEWDECIMAL, y mysql2
+    // devuelve los DECIMAL como string salvo que se le pase `decimalNumbers`.
+    // Sin esta conversión el porcentaje viaja como "39" y termina siendo texto
+    // en el Excel exportado: no se puede ordenar ni promediar. Mismo criterio
+    // que /reportes/resumen y /reportes/graficos/cobertura-sede.
+    res.json(rows.map(r => ({
+      ...r,
+      colaboradores: parseInt(r.colaboradores) || 0,
+      certificados:  parseInt(r.certificados)  || 0,
+      cobertura_pct: parseFloat(r.cobertura_pct) || 0
+    })));
   } catch (err) {
     console.error('[reportes/sedes]', err.message);
     res.status(500).json({ error: 'Error al obtener métricas por sede' });
@@ -154,7 +164,14 @@ router.get('/cursos', verificarToken, ROLES_REPORTE, async (req, res) => {
       LEFT JOIN progreso p ON p.curso_id = c.id AND p.usuario_id = a.usuario_id
       WHERE c.publicado = 1
       GROUP BY c.id, c.nombre, ar.nombre ORDER BY c.nombre`, p);
-    res.json(rows);
+    // `pct_completado` es NEWDECIMAL y mysql2 lo entrega como string. Ver la
+    // nota en /reportes/sedes: sin convertirlo llega como texto al Excel.
+    res.json(rows.map(r => ({
+      ...r,
+      inscritos:      parseInt(r.inscritos)   || 0,
+      completaron:    parseInt(r.completaron) || 0,
+      pct_completado: parseFloat(r.pct_completado) || 0
+    })));
   } catch (err) {
     console.error('[reportes/cursos]', err.message);
     res.status(500).json({ error: 'Error al obtener reporte de cursos' });
