@@ -6,6 +6,7 @@ import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
 import api from '../services/api'
 import { useAccesibilidad } from '../hooks/useAccesibilidad'
 import { resolverAyuda } from '../utils/ayudaPorRuta'
+import BuscadorGlobal from './BuscadorGlobal'
 
 const avatarColors = {
   colaborador: 'var(--amarillo)', profesor: 'var(--rojo)',
@@ -152,6 +153,8 @@ export default function Topbar({ seccion }) {
             <span className="topbar-hide-mobile">{acc.altoContraste ? 'ON' : 'contraste'}</span>
           </button>
         </div>
+
+        <BuscadorGlobal />
 
         {/* Campana de notificaciones */}
         <div style={{ position: 'relative' }}>
