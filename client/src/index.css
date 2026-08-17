@@ -45,6 +45,21 @@
   --warning-graphic: #B8720A;  /* 3.53 sobre --gris-fondo */
   --danger-graphic:  #D2453A;  /* 4.14 sobre --gris-fondo */
 
+  /* ── Áreas de capacitación ────────────────────────────────────────────────
+     Un color por área para que el ícono de cada curso sea reconocible de un
+     vistazo (ver client/src/utils/areaVisual.js). No son estados: no
+     significan éxito ni error, solo categoría. Todos ≥4.5:1 sobre blanco,
+     porque el ícono va acompañado del nombre del área en texto muted. */
+  --area-salud:            #B23A48;  --area-salud-bg:            #FCEEF0;
+  --area-seguridad:        #9A5B00;  --area-seguridad-bg:        #FFF4E3;
+  --area-nutricion:        #1A7A45;  --area-nutricion-bg:        #EDFAF3;
+  --area-servicios:        #0F7B8A;  --area-servicios-bg:        #E6F6F8;
+  --area-clinico:          #2B4BA0;  --area-clinico-bg:          #EEF2FF;
+  --area-personal:         #A03E7A;  --area-personal-bg:         #FCEDF6;
+  --area-movilizacion:     #6B4DC4;  --area-movilizacion-bg:     #F4F0FF;
+  --area-administracion:   #4A5568;  --area-administracion-bg:   #EEF0F4;
+  --area-general:          #5A6069;  --area-general-bg:          #F1F2F4;
+
   /* ── Escala de radios y espaciado (§3.2) ─────────────────────────────────── */
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -92,6 +107,30 @@ html.alto-contraste {
   --success-graphic: #14572F;
   --warning-graphic: #6B4200;
   --danger-graphic:  #8E1F14;
+
+  /* Áreas en alto contraste: se conserva el matiz para que sigan siendo
+     distinguibles entre sí, pero oscurecido a 8:1+ sobre el crema. Los fondos
+     de la placa se aplanan al tema, igual que el resto de fondos tintados; la
+     diferencia entre áreas la carga sobre todo la forma del ícono. */
+  --area-salud:          #7A1C28;
+  --area-seguridad:      #6B4200;
+  --area-nutricion:      #14572F;
+  --area-servicios:      #0A4A55;
+  --area-clinico:        #14306B;
+  --area-personal:       #6E1B4E;
+  --area-movilizacion:   #3D2A7A;
+  --area-administracion: #2C333F;
+  --area-general:        #3A2A00;
+
+  --area-salud-bg:          #FFF3C4;
+  --area-seguridad-bg:      #FFF3C4;
+  --area-nutricion-bg:      #FFF3C4;
+  --area-servicios-bg:      #FFF3C4;
+  --area-clinico-bg:        #FFF3C4;
+  --area-personal-bg:       #FFF3C4;
+  --area-movilizacion-bg:   #FFF3C4;
+  --area-administracion-bg: #FFF3C4;
+  --area-general-bg:        #FFF3C4;
 
   /* Curso detalle alto contraste */
   --cd-page-bg:     #FFFBEF;

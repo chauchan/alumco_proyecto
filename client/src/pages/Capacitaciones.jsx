@@ -5,6 +5,7 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import { useFiltrosUrl } from '../hooks/useFiltrosUrl'
+import { visualDeArea } from '../utils/areaVisual'
 import api from '../services/api'
 
 const FORMATO_CLASS = { pdf: 'tag-pdf', video: 'tag-video', ppt: 'tag-ppt' }
@@ -88,13 +89,15 @@ export default function Capacitaciones() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {misCursos.map(curso => (
+                  {misCursos.map(curso => {
+                    const area = visualDeArea(curso.area)
+                    return (
                     <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <div style={{
+                      <div title={curso.area || 'General'} style={{
                         width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                        background: 'var(--azul-claro)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        background: area.fondo, display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
-                        <Icon icon="lucide:clipboard-list" width={22} style={{ color: 'var(--azul)' }} />
+                        <Icon icon={area.icon} width={22} style={{ color: area.color }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -121,7 +124,8 @@ export default function Capacitaciones() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -169,16 +173,18 @@ export default function Capacitaciones() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {cursosFiltrados.map(curso => (
+              {cursosFiltrados.map(curso => {
+                const area = visualDeArea(curso.area)
+                return (
                 <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
 
                   {/* Ícono área */}
-                  <div style={{
+                  <div title={curso.area || 'General'} style={{
                     width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                    background: 'var(--azul-claro)', display: 'flex', alignItems: 'center',
+                    background: area.fondo, display: 'flex', alignItems: 'center',
                     justifyContent: 'center'
                   }}>
-                    <Icon icon="lucide:clipboard-list" width={22} style={{color:'var(--azul)'}} />
+                    <Icon icon={area.icon} width={22} style={{color:area.color}} />
                   </div>
 
                   {/* Info */}
@@ -234,7 +240,8 @@ export default function Capacitaciones() {
                     )}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </main>

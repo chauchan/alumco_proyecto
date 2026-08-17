@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { visualDeArea } from '../utils/areaVisual'
 import api from '../services/api'
 
 const NavIcon = ({ d }) => (
@@ -93,10 +94,12 @@ export default function Colaborador() {
               <div className="card" style={{ textAlign:'center', color:'var(--texto-muted)', padding:24 }}>
                 ¡Estás al día con todos tus cursos!
               </div>
-            ) : pendientes.map(curso => (
+            ) : pendientes.map(curso => {
+              const area = visualDeArea(curso.area)
+              return (
               <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
-                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Icon icon="lucide:book-open" width={18} style={{ color:'var(--rojo)' }} />
+                <div title={curso.area || 'General'} style={{ width:36, height:36, borderRadius:8, background:area.fondo, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon={area.icon} width={18} style={{ color:area.color }} />
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
@@ -117,7 +120,8 @@ export default function Colaborador() {
                   {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Certificados */}
