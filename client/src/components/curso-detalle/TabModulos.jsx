@@ -67,7 +67,10 @@ export default function TabModulos({
         const completo = completados.has(mod.id)
         return (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            {/* flexWrap + minWidth:0 en el bloque de texto: sin esto, en un
+                móvil la píldora "Completado" no encoge y comprimía el título y
+                la descripción hasta dejarlos en una palabra por línea. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 8, flexShrink: 0,
                 background: completo ? '#DCFCE7' : 'var(--azul-claro)',
@@ -81,7 +84,7 @@ export default function TabModulos({
                       ? <Icon icon="lucide:file-text" width={16} style={{color:'var(--rojo)'}} />
                       : <Icon icon="lucide:presentation" width={16} style={{color:'var(--cd-text-muted)'}} />}
               </div>
-              <div>
+              <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: completo ? 'var(--success)' : 'var(--cd-text)' }}>{idx + 1}. {mod.titulo}</div>
                 {mod.descripcion && <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginTop: 2 }}>{mod.descripcion}</div>}
               </div>

@@ -61,7 +61,7 @@ export default function Capacitaciones() {
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="page-header">
             <div>
               <div className="page-title">Capacitaciones</div>
               <div className="page-sub">
@@ -92,14 +92,14 @@ export default function Capacitaciones() {
                   {misCursos.map(curso => {
                     const area = visualDeArea(curso.area)
                     return (
-                    <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div key={curso.id} className="card fila-card">
                       <div title={curso.area || 'General'} style={{
                         width: 44, height: 44, borderRadius: 10, flexShrink: 0,
                         background: area.fondo, display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
                         <Icon icon={area.icon} width={22} style={{ color: area.color }} />
                       </div>
-                      <div style={{ flex: 1 }}>
+                      <div className="fila-card-info">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <span style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</span>
                           {curso.obligatorio === 1 && (
@@ -117,7 +117,7 @@ export default function Capacitaciones() {
                           <span style={{ fontSize: 10, color: 'var(--texto-muted)' }}>{curso.progreso || 0}% completado</span>
                         </div>
                       </div>
-                      <div style={{ flexShrink: 0 }}>
+                      <div className="fila-card-acciones">
                         <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
                           onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
                           {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
@@ -176,7 +176,7 @@ export default function Capacitaciones() {
               {cursosFiltrados.map(curso => {
                 const area = visualDeArea(curso.area)
                 return (
-                <div key={curso.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div key={curso.id} className="card fila-card">
 
                   {/* Ícono área */}
                   <div title={curso.area || 'General'} style={{
@@ -188,7 +188,7 @@ export default function Capacitaciones() {
                   </div>
 
                   {/* Info */}
-                  <div style={{ flex: 1 }}>
+                  <div className="fila-card-info">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 13, fontWeight: 500 }}>{curso.nombre}</span>
                       {!curso.publicado && <span className="format-tag tag-borrador">Borrador</span>}
@@ -211,7 +211,7 @@ export default function Capacitaciones() {
                   </div>
 
                   {/* Acciones según rol */}
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <div className="fila-card-acciones">
                     {usuario?.rol === 'colaborador' && (
                       <button className="btn-primary" style={{ fontSize: 12, padding: '7px 14px' }}
                         onClick={() => navigate(`/capacitaciones/${curso.id}`)}>

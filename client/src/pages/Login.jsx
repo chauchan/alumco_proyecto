@@ -64,15 +64,14 @@ export default function Login() {
           <img className="login-simbolo" src={LOGO_SIMBOLO} alt="ALUMCO" />
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <img src={LOGO_LETRAS} alt="alumco" style={{ height: 32, filter: 'brightness(0) invert(1)' }} />
-              <div style={{
-                width: 1, height: 28, background: 'rgba(255,255,255,0.35)'
-              }} />
-              <span style={{
-                fontSize: 18, fontWeight: 300, color: '#fff',
-                letterSpacing: '0.18em', textTransform: 'uppercase'
-              }}>Capacitaciones</span>
+            {/* Los tamaños viven en index.css porque en móvil esta fila mide
+                338px y se recortaba por ambos lados dentro de .login-brand
+                (que tiene overflow:hidden); un media query no puede
+                sobreescribir un style inline. */}
+            <div className="login-marca-row">
+              <img className="login-letras" src={LOGO_LETRAS} alt="alumco" />
+              <div className="login-marca-sep" />
+              <span className="login-capacitaciones">Capacitaciones</span>
             </div>
           </div>
 

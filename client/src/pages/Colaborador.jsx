@@ -97,11 +97,11 @@ export default function Colaborador() {
             ) : pendientes.map(curso => {
               const area = visualDeArea(curso.area)
               return (
-              <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
+              <div key={curso.id} className="card fila-card" style={{ gap:14, marginBottom:8 }}>
                 <div title={curso.area || 'General'} style={{ width:36, height:36, borderRadius:8, background:area.fondo, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <Icon icon={area.icon} width={18} style={{ color:area.color }} />
                 </div>
-                <div style={{ flex:1 }}>
+                <div className="fila-card-info">
                   <div style={{ fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {curso.nombre}
                     {curso.obligatorio ? (
@@ -115,10 +115,12 @@ export default function Colaborador() {
                     <div className="progress-bar-fill" style={{ width:`${curso.progreso||0}%` }} />
                   </div>
                 </div>
-                <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}
-                  onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
-                  {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
-                </button>
+                <div className="fila-card-acciones">
+                  <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}
+                    onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
+                    {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
+                  </button>
+                </div>
               </div>
               )
             })}
@@ -131,20 +133,22 @@ export default function Colaborador() {
               <span className="card-link" onClick={() => navigate('/mis-certificados')} style={{ cursor:'pointer' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {certAprobados.slice(0,3).map(cert => (
-              <div key={cert.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
+              <div key={cert.id} className="card fila-card" style={{ gap:12, marginBottom:8 }}>
                 <div style={{ width:32, height:32, background:'var(--azul-claro)', borderRadius:8, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <Icon icon="lucide:award" width={16} style={{ color:'var(--azul)' }} />
                 </div>
-                <span style={{ flex:1, fontSize:13 }}>{cert.curso_nombre}</span>
-                <span style={{ fontSize:11, color:'var(--texto-muted)' }}>
-                  {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
-                </span>
-                <a href={`/api/certificados/${cert.id}/descargar`} style={{
-                  fontSize:11, color:'var(--azul)', border:'0.5px solid var(--gris-borde)',
-                  borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:4
-                }}>
-                  <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
-                </a>
+                <span className="fila-card-info" style={{ fontSize:13 }}>{cert.curso_nombre}</span>
+                <div className="fila-card-acciones">
+                  <span style={{ fontSize:11, color:'var(--texto-muted)' }}>
+                    {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
+                  </span>
+                  <a href={`/api/certificados/${cert.id}/descargar`} style={{
+                    fontSize:11, color:'var(--azul)', border:'0.5px solid var(--gris-borde)',
+                    borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:4
+                  }}>
+                    <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
+                  </a>
+                </div>
               </div>
             ))}
           </div>

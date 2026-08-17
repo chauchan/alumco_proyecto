@@ -74,7 +74,7 @@ export default function Protocolos() {
         <Sidebar />
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="page-header">
             <div>
               <Breadcrumb items={[{ label: 'Inicio', path: RUTA_INICIO[usuario?.rol] || '/' }, { label: 'Protocolos' }]} />
               <div className="page-title">Biblioteca de protocolos</div>

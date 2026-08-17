@@ -221,8 +221,13 @@ a { color: var(--azul); text-decoration: none; }
 
 /* App shell */
 .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
-.app-body  { display: flex; flex: 1; }
-.main-content { flex: 1; padding: 1.5rem; overflow-y: auto; background: var(--gris-fondo); }
+.app-body  { display: flex; flex: 1; min-width: 0; }
+/* min-width:0 no es decorativo: sin él el ancho mínimo de .main-content es su
+   contenido (min-width:auto de un ítem flex), así que cualquier fila que no
+   sepa encogerse —una cabecera con tres botones, una tarjeta con acciones—
+   estira la columna más allá del viewport y arrastra TODA la página al scroll
+   horizontal. Con esto, el desbordamiento queda contenido en quien lo causa. */
+.main-content { flex: 1; min-width: 0; padding: 1.5rem; overflow-y: auto; background: var(--gris-fondo); }
 
 /* Topbar */
 .topbar {
@@ -442,6 +447,7 @@ svg { vertical-align: middle; }
 /* ── Layouts de dos columnas que se apilan ───────────────────────────────── */
 .split-contenido { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
 .curso-layout { display: flex; gap: 24px; align-items: flex-start; }
+.panel-info-curso { width: 260px; flex-shrink: 0; }
 
 @media (max-width: 767px) {
   .split-contenido { grid-template-columns: 1fr; }
@@ -449,6 +455,40 @@ svg { vertical-align: middle; }
   .curso-layout > * { width: 100%; min-width: 0; }
   /* el aside de un curso no tiene por qué ir primero al apilarse */
   .tabla-scroll > table { min-width: 520px; }
+}
+
+/* ── Cabecera de página: título + acciones ───────────────────────────────────
+   En escritorio es una fila con el título a la izquierda y los botones a la
+   derecha. En móvil los botones no encogen (tienen texto), así que comprimían
+   el título hasta dejarlo en una palabra por línea y empujaban la página al
+   scroll horizontal; apilados ocupan su propia fila y el título respira. */
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.page-header > :first-child { min-width: 0; }
+.page-header-acciones { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* ── Fila de tarjeta: ícono + info + acciones ────────────────────────────────
+   El patrón de las listas (cursos, certificados, prácticos). .fila-card-info
+   necesita min-width:0 por el mismo motivo que .main-content: sin él la
+   columna de texto no baja de su ancho intrínseco y las acciones se salen
+   por el borde derecho de la tarjeta. */
+.fila-card { display: flex; align-items: center; gap: 16px; }
+.fila-card-info { flex: 1; min-width: 0; }
+.fila-card-acciones { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+
+@media (max-width: 767px) {
+  .page-header { flex-direction: column; align-items: stretch; }
+  .page-header-acciones { flex-wrap: wrap; }
+  /* botones a ancho repartido: objetivos táctiles grandes y sin texto cortado.
+     El centrado también aplica a la cabecera con un único botón suelto, que
+     al estirarse dejaría su texto pegado a la izquierda. */
+  .page-header-acciones > *,
+  .page-header > button { flex: 1 1 auto; justify-content: center; }
+
+  .fila-card { flex-wrap: wrap; gap: 12px; }
+  .fila-card-acciones { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
+
+  .greeting-bar { flex-direction: column; align-items: flex-start; gap: 12px; padding: 1rem 1.1rem; }
+  .greeting-badge { align-self: stretch; }
 }
 
 /* ── Login: panel partido ────────────────────────────────────────────────────
@@ -472,6 +512,15 @@ svg { vertical-align: middle; }
 .login-panel { flex: 1; background: #fff; display: flex; flex-direction: column; }
 .login-form-area { flex: 1; padding: 2.5rem; display: flex; flex-direction: column; justify-content: center; }
 
+/* Fila de marca: "alumco | CAPACITACIONES" */
+.login-marca-row { display: flex; align-items: center; gap: 10px; max-width: 100%; }
+.login-letras { height: 32px; filter: brightness(0) invert(1); }
+.login-marca-sep { width: 1px; height: 28px; background: rgba(255,255,255,0.35); flex-shrink: 0; }
+.login-capacitaciones {
+  font-size: 18px; font-weight: 300; color: #fff;
+  letter-spacing: 0.18em; text-transform: uppercase; white-space: nowrap;
+}
+
 @media (max-width: 767px) {
   /* A 375px el panel de marca quedaba en 88px y el logo se salía por los
      bordes. Apilado: cabecera compacta arriba, formulario a ancho completo. */
@@ -480,6 +529,10 @@ svg { vertical-align: middle; }
   .login-deco { display: none; }
   .login-logo-block { gap: 12px; }
   .login-simbolo { height: 64px; }
+  .login-marca-row { gap: 8px; }
+  .login-letras { height: 24px; }
+  .login-marca-sep { height: 22px; }
+  .login-capacitaciones { font-size: 13px; letter-spacing: 0.1em; }
   .login-slogan { margin-top: 16px; padding-top: 14px; font-size: 13px; }
   .login-form-area { padding: 1.75rem 1.25rem; }
 }
@@ -563,8 +616,12 @@ svg { vertical-align: middle; }
      "sticky" se corre junto con el resto). Se esconde lo secundario (sección,
      rol, nombre) y se recorta a ícono lo que puede vivir sin su etiqueta. */
   .topbar { padding: 0 0.75rem; gap: 8px; }
-  .topbar-left { gap: 8px; min-width: 0; }
-  .topbar-right { gap: 6px; }
+  /* overflow:hidden es el seguro: .topbar-left encoge (min-width:0) pero sus
+     imágenes no, así que el logotipo se desbordaba de su caja y quedaba pintado
+     DEBAJO de los botones de accesibilidad. El logotipo de letras ya se oculta
+     por clase; esto evita que vuelva a pasar con cualquier otro contenido. */
+  .topbar-left { gap: 8px; min-width: 0; overflow: hidden; }
+  .topbar-right { gap: 6px; flex-shrink: 0; }
   .topbar-hide-mobile { display: none; }
   .topbar-a11y { margin-right: 0 !important; }
 

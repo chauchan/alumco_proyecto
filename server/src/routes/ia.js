@@ -10,7 +10,7 @@ const os = require('os');
 const crypto = require('crypto');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { notificarProfesor } = require('../config/mailer');
+const { notificar } = require('../utils/notificar');
 const { uploadBuffer, s3, BUCKET, keyFromUrl, generateSignedUrl } = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { auditar } = require('../utils/audit');
@@ -636,19 +636,8 @@ Reglas:
 
     if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 
-    // Notificar al profesor resuelto (fire-and-forget)
-    if (profesorResuelto) {
-      notificarProfesor({
-        profesorEmail:  profesorResuelto.email || null,
-        profesorNombre: profesorResuelto.nombre || 'Profesor',
-        cursoNombre:    nombre_curso,
-        cursoId,
-        modulosCount:   modulosGenerados,
-        preguntasCount: totalPreguntas,
-        nombreArchivo,
-        subidoPor:      req.usuario.nombre || 'Jefatura'
-      }).catch(e => console.error('[IA] Error notificando al profesor resuelto:', e.message));
-    }
+    // El profesor se entera al enviarle el borrador desde el generador
+    // (POST /api/ia/notificar-profesor), no al generarlo.
 
     await auditar(req, 'ia.generar_curso', 'cursos', cursoId, {
       nombre:         nombre_curso,
@@ -761,35 +750,38 @@ router.post('/modulo/:id/generar-ppt', verificarToken, async (req, res) => {
 });
 
 // ─── POST /api/ia/notificar-profesor ──────────────────────────────────────────
+// El borrador se avisa solo dentro del sistema (campana de notificaciones).
+// No se manda correo: dependía de un dominio verificado en Resend y fallaba,
+// bloqueando el envío del curso al profesor.
 router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'admin_sede'), async (req, res) => {
-  const { curso_id, curso_nombre, profesor_id, modulos_count, preguntas_count, nombre_archivo } = req.body;
+  const { curso_id, curso_nombre, profesor_id, modulos_count, preguntas_count } = req.body;
   if (!curso_nombre) return res.status(400).json({ error: 'Datos del curso incompletos' });
 
-  let profesorEmail  = null;
-  let profesorNombre = 'Profesor';
-  if (profesor_id) {
-    const { rows } = await pool.query('SELECT nombre, email FROM usuarios WHERE id = ?', [profesor_id]);
-    profesorEmail  = rows[0]?.email  || null;
-    profesorNombre = rows[0]?.nombre || 'Profesor';
+  // El profesor puede venir del borrador o quedar registrado en el curso
+  let profesorId = profesor_id || null;
+  if (!profesorId && curso_id) {
+    const { rows } = await pool.query('SELECT profesor_id FROM cursos WHERE id = ?', [curso_id]);
+    profesorId = rows[0]?.profesor_id || null;
   }
 
-  try {
-    await notificarProfesor({
-      profesorEmail,
-      profesorNombre,
-      cursoNombre:    curso_nombre,
-      cursoId:        curso_id,
-      modulosCount:   modulos_count,
-      preguntasCount: preguntas_count,
-      nombreArchivo:  nombre_archivo || 'protocolo.pdf',
-      subidoPor:      req.usuario.nombre || 'Jefatura'
-    });
-    console.log('[MAIL] Notificación enviada para curso:', curso_nombre);
-    res.json({ ok: true, mensaje: 'Notificación enviada al profesor' });
-  } catch (err) {
-    console.error('[MAIL] Error:', err.message);
-    res.status(500).json({ error: 'No se pudo enviar el correo. Verifica la configuración de email.' });
+  if (!profesorId) {
+    return res.json({ ok: true, notificado: false, mensaje: 'El curso no tiene profesor asignado' });
   }
+
+  const detalle = [
+    modulos_count   ? `${modulos_count} módulos`     : null,
+    preguntas_count ? `${preguntas_count} preguntas` : null
+  ].filter(Boolean).join(', ');
+
+  await notificar(profesorId, {
+    tipo:   'curso_borrador_ia',
+    titulo: 'Nuevo borrador de curso para revisar',
+    mensaje: `${req.usuario.nombre || 'Jefatura'} te envió el borrador "${curso_nombre}"` +
+             `${detalle ? ` (${detalle})` : ''}. No se publica hasta que lo revises y apruebes.`
+  });
+
+  console.log('[IA] Borrador enviado al profesor', profesorId, '— curso:', curso_nombre);
+  res.json({ ok: true, notificado: true, mensaje: 'Borrador enviado al profesor' });
 });
 
 // ─── POST /api/ia/generar-contenido ───────────────────────────────────────────

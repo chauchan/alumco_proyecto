@@ -1,8 +1,10 @@
 import { Icon } from '@iconify/react'
 
 export default function PanelInfoCurso({ curso, progreso, esperandoPractico, resultado }) {
+  // El ancho va por clase y no inline: al apilarse en móvil, .curso-layout > *
+  // lo lleva al 100%, y una regla CSS no puede sobreescribir un style inline.
   return (
-    <div style={{ width: 260, flexShrink: 0 }}>
+    <div className="panel-info-curso">
       <div style={{ background: 'var(--cd-card-bg)', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>Información del curso</div>
         {curso?.profesor_nombre && (

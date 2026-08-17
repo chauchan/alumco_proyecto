@@ -366,13 +366,13 @@ export default function GestionUsuarios() {
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 80 }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="page-header">
             <div>
               <Breadcrumb items={[{ label: 'Resumen global', path: '/jefatura' }, { label: 'Gestión de usuarios' }]} />
               <div className="page-title">Gestión de usuarios</div>
               <div className="page-sub">Crear y administrar usuarios de todas las sedes · {total} en total</div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="page-header-acciones">
               <button
                 onClick={() => { setMostrarImport(true); setImportStep(1) }}
                 style={{ ...BTN_GHOST, display: 'flex', alignItems: 'center', gap: 6 }}
@@ -654,7 +654,7 @@ export default function GestionUsuarios() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300 }} onClick={() => setConfirmarBulk(null)} />
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-            background: 'white', borderRadius: 12, padding: 28, width: 400, zIndex: 301,
+            background: 'white', borderRadius: 12, padding: 28, width: 400, maxWidth: 'calc(100vw - 32px)', zIndex: 301,
             boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
           }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
@@ -684,7 +684,7 @@ export default function GestionUsuarios() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300 }} onClick={cerrarImport} />
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-            background: 'white', borderRadius: 12, width: 560, maxHeight: '80vh',
+            background: 'white', borderRadius: 12, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '80vh',
             overflow: 'hidden', display: 'flex', flexDirection: 'column',
             zIndex: 301, boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
           }}>

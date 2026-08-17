@@ -219,12 +219,12 @@ export default function Practicos() {
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* Header */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div className="page-header">
             <div>
               <div className="page-title">Prácticos programados<Ayuda texto="Actividades presenciales obligatorias para ciertos cursos. Si un curso 'requiere práctico', aprobar la evaluación no alcanza: el colaborador también debe registrar asistencia a un práctico de ese curso para obtener el certificado." /></div>
               <div className="page-sub">Calendario de actividades prácticas por sede</div>
             </div>
-            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <div className="page-header-acciones">
               {googleConectado ? (
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                   <span style={{ fontSize:12, color:'var(--success)', background:'var(--success-bg)', border:'0.5px solid var(--verde)', borderRadius:6, padding:'4px 10px' }}>
@@ -450,7 +450,7 @@ export default function Practicos() {
       {modalAsistId && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}
           onClick={e => { if (e.target === e.currentTarget) setModalAsistId(null) }}>
-          <div style={{ background:'white', borderRadius:12, padding:28, width:500, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
+          <div style={{ background:'white', borderRadius:12, padding:28, width:500, maxWidth:'calc(100vw - 32px)', maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
                 <div style={{ fontSize:16, fontWeight:600 }}>Tomar asistencia</div>
@@ -527,7 +527,7 @@ export default function Practicos() {
       {mostrarModalEvento && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}
           onClick={e => { if (e.target === e.currentTarget) setMostrarModalEvento(false) }}>
-          <div style={{ background:'white', borderRadius:12, padding:28, width:440, boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:0 }}>
+          <div style={{ background:'white', borderRadius:12, padding:28, width:440, maxWidth:'calc(100vw - 32px)', boxShadow:'0 8px 32px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', gap:0 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
                 <div style={{ fontSize:16, fontWeight:600, color:'var(--texto)' }}>Nuevo evento</div>

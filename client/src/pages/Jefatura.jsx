@@ -166,12 +166,12 @@ export default function Jefatura() {
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* Header */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div className="page-header">
             <div>
               <div className="page-title">Resumen ONG ALUMCO</div>
               <div className="page-sub">Vista global de todas las sedes · {new Date().toLocaleDateString('es-CL',{month:'long',year:'numeric'})}</div>
             </div>
-            <div style={{ display:'flex', gap:8 }}>
+            <div className="page-header-acciones">
               <button className="btn-outline-dark" onClick={exportarExcel}><><Icon icon="lucide:download" width={13} style={{verticalAlign:"middle",marginRight:4}} /> Exportar a Excel</></button>
               <button className="btn-outline-dark" onClick={enviarRecordatoriosAhora} disabled={enviandoRecordatorios}>
                 <><Icon icon="lucide:bell" width={13} style={{verticalAlign:"middle",marginRight:4}} /> {enviandoRecordatorios ? 'Enviando…' : 'Enviar recordatorios'}</>

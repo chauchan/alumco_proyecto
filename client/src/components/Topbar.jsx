@@ -113,7 +113,10 @@ export default function Topbar({ seccion }) {
         </button>
         <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 34, cursor: 'pointer' }}
           onClick={() => navigate(rutaInicio[usuario?.rol] || '/')} />
-        <img src={LOGO_LETRAS} alt="alumco"
+        {/* El logotipo de letras mide ~78px: con él, la fila del topbar pasa de
+            los 360px de un móvil corriente y el logo terminaba solapado con los
+            botones de accesibilidad. El isotipo de al lado ya identifica la marca. */}
+        <img src={LOGO_LETRAS} alt="alumco" className="topbar-hide-mobile"
           style={{ height: 18, filter: 'brightness(0) invert(1)', cursor: 'pointer' }}
           onClick={() => navigate(rutaInicio[usuario?.rol] || '/')} />
         <div className="topbar-divider topbar-hide-mobile" />

@@ -4,6 +4,7 @@ const pool = require('../config/db');
 //   'practico_asignado'   — se programó un práctico para un curso del colaborador
 //   'evaluacion_bloqueo'  — un colaborador falló 2 veces y quedó bloqueado en un curso
 //   'curso_asignado'      — se asignó un curso al colaborador
+//   'curso_borrador_ia'   — jefatura envió al profesor un borrador generado con IA
 //   'general'             — notificación sin entidad específica (usado en migración legacy)
 //
 // Entidades válidas: 'practico', 'curso', 'intento', 'certificado', null

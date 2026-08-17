@@ -108,7 +108,7 @@ export default function GestionSedes() {
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="page-header">
             <div>
               <Breadcrumb items={[{ label: 'Resumen global', path: '/jefatura' }, { label: 'Sedes' }]} />
               <div className="page-title">Gestión de sedes</div>
@@ -199,7 +199,7 @@ export default function GestionSedes() {
           />
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-            background: 'white', borderRadius: 12, padding: 28, width: 420, zIndex: 301,
+            background: 'white', borderRadius: 12, padding: 28, width: 420, maxWidth: 'calc(100vw - 32px)', zIndex: 301,
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)'
           }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>

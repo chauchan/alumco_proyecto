@@ -139,7 +139,7 @@ export default function Profesor() {
         <main className="main-content" style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* Header */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div className="page-header">
             <div>
               <div className="page-title">Panel del Profesor</div>
               <div className="page-sub">Gestión de cursos y validación de certificados</div>
@@ -350,22 +350,24 @@ export default function Profesor() {
               {bloqueados.map(b => {
                 const key = `${b.curso_id}-${b.usuario_id}`
                 return (
-                  <div key={key} className="row-divider" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0' }}>
-                    <div style={{ flex:1 }}>
+                  <div key={key} className="row-divider fila-card" style={{ gap:10, padding:'8px 0' }}>
+                    <div className="fila-card-info">
                       <div style={{ fontSize:12, fontWeight:500 }}>{b.usuario_nombre}</div>
                       <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:2 }}>{b.curso_nombre}</div>
                     </div>
-                    <span style={{ fontSize:11, color:'var(--texto-muted)', whiteSpace:'nowrap' }}>
-                      {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
-                    </span>
-                    <button
-                      className="btn-sm btn-sm-primary"
-                      disabled={desbloqueando.has(key)}
-                      onClick={() => desbloquear(b.curso_id, b.usuario_id)}
-                      style={{ background:'var(--success)', color:'#fff', minWidth:100 }}
-                    >
-                      {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
-                    </button>
+                    <div className="fila-card-acciones" style={{ gap:10 }}>
+                      <span style={{ fontSize:11, color:'var(--texto-muted)', whiteSpace:'nowrap' }}>
+                        {b.ultimo_intento ? new Date(b.ultimo_intento).toLocaleDateString('es-CL') : '—'}
+                      </span>
+                      <button
+                        className="btn-sm btn-sm-primary"
+                        disabled={desbloqueando.has(key)}
+                        onClick={() => desbloquear(b.curso_id, b.usuario_id)}
+                        style={{ background:'var(--success)', color:'#fff', minWidth:100 }}
+                      >
+                        {desbloqueando.has(key) ? 'Desbloqueando…' : 'Desbloquear'}
+                      </button>
+                    </div>
                   </div>
                 )
               })}

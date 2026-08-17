@@ -533,7 +533,7 @@ export default function GeneradorIA() {
                                 await api.put(`/cursos/${resultado.curso_id}`, { modulos: modulosToSave }).catch(() => {})
                               }
                             }
-                            await api.post('/ia/notificar-profesor', {
+                            const { data } = await api.post('/ia/notificar-profesor', {
                               curso_id: resultado.curso_id,
                               curso_nombre: resultado.nombre,
                               profesor_id: resultado.profesor_id || null,
@@ -541,12 +541,15 @@ export default function GeneradorIA() {
                               preguntas_count: resultado.preguntas_count,
                               nombre_archivo: resultado.nombre_archivo
                             })
+                            if (data?.notificado === false) {
+                              toast.warn('El curso quedó guardado, pero no tiene profesor asignado para avisarle.')
+                            }
                             setEnviado(true)
                             guardarStorage(null)
                             guardarFormStorage(null)
                             setTimeout(() => navigate('/jefatura'), 1500)
                           } catch {
-                            toast.error('No pudimos enviar la notificación al profesor. Verifica la conexión e inténtalo de nuevo.')
+                            toast.error('No pudimos enviar el borrador al profesor. Verifica la conexión e inténtalo de nuevo.')
                           } finally { setEnviando(false) }
                         }}>
                         {enviando ? <><Icon icon="lucide:loader-circle" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviando...</> : enviado ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Enviado</> : 'Enviar al profesor'}
