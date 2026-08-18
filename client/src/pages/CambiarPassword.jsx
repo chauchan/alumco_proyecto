@@ -58,11 +58,11 @@ export default function CambiarPassword() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F4F5F7', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--gris-fondo)', display: 'flex', flexDirection: 'column' }}>
 
       {/* Topbar simple */}
       <header style={{
-        background: '#2B4BA0', height: 56,
+        background: 'var(--azul)', height: 56,
         display: 'flex', alignItems: 'center', padding: '0 24px', gap: 12
       }}>
         <span style={{ fontSize: 18, fontWeight: 500, color: '#fff', letterSpacing: 0.5 }}>alumco</span>
@@ -74,23 +74,23 @@ export default function CambiarPassword() {
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{
           background: 'white', borderRadius: 14,
-          border: '0.5px solid #E8E8E8',
+          border: '0.5px solid var(--gris-borde)',
           padding: '32px 36px', width: '100%', maxWidth: 440
         }}>
           {/* Ícono candado */}
           <div style={{
             width: 52, height: 52, borderRadius: '50%',
-            background: '#EEF2FF', display: 'flex', alignItems: 'center',
+            background: 'var(--azul-claro)', display: 'flex', alignItems: 'center',
             justifyContent: 'center', marginBottom: 20
           }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2B4BA0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--azul)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
           </div>
 
           <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 4 }}>Cambiar contraseña</div>
-          <div style={{ fontSize: 13, color: '#888', marginBottom: 28 }}>
+          <div style={{ fontSize: 13, color: 'var(--texto-muted)', marginBottom: 28 }}>
             Hola, <strong>{usuario?.nombre?.split(' ')[0]}</strong>. Ingresa tu contraseña actual y la nueva.
           </div>
 
@@ -106,7 +106,7 @@ export default function CambiarPassword() {
                   style={{ height: 42, width: '100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setVer(v => ({ ...v, actual: !v.actual }))}
-                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:0, display:'flex', alignItems:'center' }}>
                   <Icon icon={ver.actual ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
                 </button>
               </div>
@@ -123,7 +123,7 @@ export default function CambiarPassword() {
                   style={{ height: 42, width: '100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setVer(v => ({ ...v, nueva: !v.nueva }))}
-                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:0, display:'flex', alignItems:'center' }}>
                   <Icon icon={ver.nueva ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
                 </button>
               </div>
@@ -140,7 +140,7 @@ export default function CambiarPassword() {
                   style={{ height: 42, width: '100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setVer(v => ({ ...v, confirmar: !v.confirmar }))}
-                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:0, display:'flex', alignItems:'center' }}>
                   <Icon icon={ver.confirmar ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
                 </button>
               </div>
@@ -148,9 +148,9 @@ export default function CambiarPassword() {
 
             {error && (
               <div style={{
-                background: '#FFF0F0', border: '0.5px solid #E8505B',
+                background: 'var(--danger-bg)', border: '0.5px solid var(--rojo)',
                 borderRadius: 8, padding: '10px 14px',
-                fontSize: 13, color: '#C0392B', marginBottom: 16
+                fontSize: 13, color: 'var(--danger)', marginBottom: 16
               }}>
                 {error}
               </div>
@@ -158,9 +158,9 @@ export default function CambiarPassword() {
 
             {exito && (
               <div style={{
-                background: '#EDFAF3', border: '0.5px solid #7BC67A',
+                background: 'var(--success-bg)', border: '0.5px solid var(--verde)',
                 borderRadius: 8, padding: '10px 14px',
-                fontSize: 13, color: '#1A7A45', marginBottom: 16
+                fontSize: 13, color: 'var(--success)', marginBottom: 16
               }}>
                 <Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}
               </div>
@@ -170,7 +170,7 @@ export default function CambiarPassword() {
               type="submit"
               disabled={cargando}
               style={{
-                width: '100%', height: 44, background: '#2B4BA0',
+                width: '100%', height: 44, background: 'var(--azul)',
                 color: 'white', border: 'none', borderRadius: 8,
                 fontSize: 14, fontWeight: 500, cursor: 'pointer', marginBottom: 12
               }}
@@ -183,7 +183,7 @@ export default function CambiarPassword() {
               onClick={() => navigate(rutaVolver[usuario?.rol] || '/')}
               style={{
                 width: '100%', height: 40, background: 'none',
-                color: '#888', border: '0.5px solid #E8E8E8',
+                color: 'var(--texto-muted)', border: '0.5px solid var(--gris-borde)',
                 borderRadius: 8, fontSize: 13, cursor: 'pointer'
               }}
             >

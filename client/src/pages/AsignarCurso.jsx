@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
 
 const ESTAMENTOS = [
@@ -94,12 +95,13 @@ export default function AsignarCurso() {
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           <div>
+            <Breadcrumb items={[{ label: 'Mis cursos', path: '/profesor' }, { label: 'Asignar curso' }]} />
             <div className="page-title">Asignar curso</div>
             <div className="page-sub">{curso?.nombre}</div>
           </div>
 
-          {exito && <div style={{ background:'#EDFAF3', border:'0.5px solid #7BC67A', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#1A7A45' }}><Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}</div>}
-          {error && <div style={{ background:'#FFF0F0', border:'0.5px solid #E8505B', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#C0392B' }}><Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}</div>}
+          {exito && <div style={{ background:'var(--success-bg)', border:'0.5px solid var(--verde)', borderRadius:8, padding:'10px 14px', fontSize:13, color:'var(--success)' }}><Icon icon="lucide:check" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {exito}</div>}
+          {error && <div style={{ background:'var(--danger-bg)', border:'0.5px solid var(--rojo)', borderRadius:8, padding:'10px 14px', fontSize:13, color:'var(--danger)' }}><Icon icon="lucide:x" width={14} style={{verticalAlign:"middle",marginRight:4}} /> {error}</div>}
 
           {/* Modo de asignación */}
           <div className="card">
@@ -112,13 +114,13 @@ export default function AsignarCurso() {
                 <div key={m.value}
                   onClick={() => setModo(m.value)}
                   style={{
-                    flex: 1, border: `0.5px solid ${modo === m.value ? '#2B4BA0' : '#E8E8E8'}`,
+                    flex: 1, border: `0.5px solid ${modo === m.value ? 'var(--azul)' : 'var(--gris-borde)'}`,
                     borderRadius: 10, padding: 14, cursor: 'pointer',
-                    background: modo === m.value ? '#EEF2FF' : 'white'
+                    background: modo === m.value ? 'var(--azul-claro)' : 'white'
                   }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 500, color: modo === m.value ? '#2B4BA0' : '#1a1a1a', marginBottom: 4 }}>{m.label}</div>
-                  <div style={{ fontSize: 11, color: '#888' }}>{m.desc}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: modo === m.value ? 'var(--azul)' : 'var(--texto)', marginBottom: 4 }}>{m.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--texto-muted)' }}>{m.desc}</div>
                 </div>
               ))}
             </div>
@@ -137,23 +139,23 @@ export default function AsignarCurso() {
                       onClick={() => toggleEstamento(est)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                        border: `0.5px solid ${seleccionado ? '#2B4BA0' : '#E8E8E8'}`,
+                        border: `0.5px solid ${seleccionado ? 'var(--azul)' : 'var(--gris-borde)'}`,
                         borderRadius: 8, cursor: 'pointer',
-                        background: seleccionado ? '#EEF2FF' : 'white'
+                        background: seleccionado ? 'var(--azul-claro)' : 'white'
                       }}
                     >
                       <div style={{
                         width: 18, height: 18, borderRadius: 4, flexShrink: 0,
-                        border: `2px solid ${seleccionado ? '#2B4BA0' : '#CCC'}`,
-                        background: seleccionado ? '#2B4BA0' : 'white',
+                        border: `2px solid ${seleccionado ? 'var(--azul)' : '#CCC'}`,
+                        background: seleccionado ? 'var(--azul)' : 'white',
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                       }}>
                         {seleccionado && <Icon icon="lucide:check" color="white" width={12} />}
                       </div>
-                      <span style={{ flex: 1, fontSize: 13, color: seleccionado ? '#2B4BA0' : '#1a1a1a', fontWeight: seleccionado ? 500 : 400 }}>
+                      <span style={{ flex: 1, fontSize: 13, color: seleccionado ? 'var(--azul)' : 'var(--texto)', fontWeight: seleccionado ? 500 : 400 }}>
                         {est}
                       </span>
-                      <span style={{ fontSize: 11, color: '#888' }}>
+                      <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>
                         {count} colaborador{count !== 1 ? 'es' : ''}
                       </span>
                     </div>
@@ -161,7 +163,7 @@ export default function AsignarCurso() {
                 })}
               </div>
               {estamentosSeleccionados.length > 0 && (
-                <div style={{ marginTop: 12, padding: '8px 12px', background: '#EEF2FF', borderRadius: 8, fontSize: 12, color: '#2B4BA0' }}>
+                <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--azul-claro)', borderRadius: 8, fontSize: 12, color: 'var(--azul)' }}>
                   Se asignará a <strong>{usuariosAAsignar.length} colaborador{usuariosAAsignar.length !== 1 ? 'es' : ''}</strong> de los estamentos seleccionados
                 </div>
               )}
@@ -173,7 +175,7 @@ export default function AsignarCurso() {
             <div className="card">
               <div className="card-title" style={{ marginBottom: 12 }}>Seleccionar personas</div>
               {usuarios.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>No hay usuarios activos</div>
+                <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 20 }}>No hay usuarios activos</div>
               ) : (
                 <>
                   {/* Colaboradores agrupados por estamento */}
@@ -182,27 +184,27 @@ export default function AsignarCurso() {
                     if (grupo.length === 0) return null
                     return (
                       <div key={est} style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{est}</div>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{est}</div>
                         {grupo.map(u => (
                           <div key={u.id}
                             onClick={() => toggleUsuario(u.id)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                              border: `0.5px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#E8E8E8'}`,
+                              border: `0.5px solid ${seleccionados.includes(u.id) ? 'var(--azul)' : 'var(--gris-borde)'}`,
                               borderRadius: 8, cursor: 'pointer', marginBottom: 4,
-                              background: seleccionados.includes(u.id) ? '#EEF2FF' : 'white'
+                              background: seleccionados.includes(u.id) ? 'var(--azul-claro)' : 'white'
                             }}
                           >
                             <div style={{
                               width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-                              border: `2px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#CCC'}`,
-                              background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
+                              border: `2px solid ${seleccionados.includes(u.id) ? 'var(--azul)' : '#CCC'}`,
+                              background: seleccionados.includes(u.id) ? 'var(--azul)' : 'white',
                               display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
                               {seleccionados.includes(u.id) && <Icon icon="lucide:check" color="white" width={10} />}
                             </div>
                             <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
-                            <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>
+                            <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>{u.sede_nombre || '—'}</span>
                           </div>
                         ))}
                       </div>
@@ -214,27 +216,27 @@ export default function AsignarCurso() {
                     if (grupo.length === 0) return null
                     return (
                       <div key={rol} style={{ marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{ROL_LABEL[rol]}</div>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>{ROL_LABEL[rol]}</div>
                         {grupo.map(u => (
                           <div key={u.id}
                             onClick={() => toggleUsuario(u.id)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                              border: `0.5px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#E8E8E8'}`,
+                              border: `0.5px solid ${seleccionados.includes(u.id) ? 'var(--azul)' : 'var(--gris-borde)'}`,
                               borderRadius: 8, cursor: 'pointer', marginBottom: 4,
-                              background: seleccionados.includes(u.id) ? '#EEF2FF' : 'white'
+                              background: seleccionados.includes(u.id) ? 'var(--azul-claro)' : 'white'
                             }}
                           >
                             <div style={{
                               width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-                              border: `2px solid ${seleccionados.includes(u.id) ? '#2B4BA0' : '#CCC'}`,
-                              background: seleccionados.includes(u.id) ? '#2B4BA0' : 'white',
+                              border: `2px solid ${seleccionados.includes(u.id) ? 'var(--azul)' : '#CCC'}`,
+                              background: seleccionados.includes(u.id) ? 'var(--azul)' : 'white',
                               display: 'flex', alignItems: 'center', justifyContent: 'center'
                             }}>
                               {seleccionados.includes(u.id) && <Icon icon="lucide:check" color="white" width={10} />}
                             </div>
                             <span style={{ fontSize: 13, flex: 1 }}>{u.nombre}</span>
-                            <span style={{ fontSize: 11, color: '#888' }}>{u.sede_nombre || '—'}</span>
+                            <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>{u.sede_nombre || '—'}</span>
                           </div>
                         ))}
                       </div>
@@ -263,7 +265,7 @@ export default function AsignarCurso() {
               Asignar a {usuariosAAsignar.length > 0 ? `${usuariosAAsignar.length} persona${usuariosAAsignar.length !== 1 ? 's' : ''}` : 'personas'}
             </button>
             <button onClick={() => navigate('/profesor')}
-              style={{ background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '8px 16px', fontSize: 13, color: '#888', cursor: 'pointer' }}>
+              style={{ background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '8px 16px', fontSize: 13, color: 'var(--texto-muted)', cursor: 'pointer' }}>
               Cancelar
             </button>
           </div>

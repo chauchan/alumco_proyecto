@@ -7,9 +7,10 @@ const pdfParse = require('pdf-parse');
 const { Agent, fetch: undiciFetch } = require('undici');
 const { execFile } = require('child_process');
 const os = require('os');
+const crypto = require('crypto');
 const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
-const { notificarProfesor } = require('../config/mailer');
+const { notificar } = require('../utils/notificar');
 const { uploadBuffer, s3, BUCKET, keyFromUrl, generateSignedUrl } = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { auditar } = require('../utils/audit');
@@ -258,6 +259,25 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
+// ── Progreso de generación de curso con IA (polling) ──────────────────────────
+// Job en memoria: suficiente para un solo proceso backend (nuestro caso).
+const generacionJobs = new Map(); // jobId -> { etapa, actual, total, listo, error, curso }
+
+function actualizarJob(jobId, patch) {
+  generacionJobs.set(jobId, { ...(generacionJobs.get(jobId) || {}), ...patch });
+}
+
+function limpiarJobDespues(jobId, ms = 10 * 60 * 1000) {
+  setTimeout(() => generacionJobs.delete(jobId), ms).unref();
+}
+
+// GET /api/ia/generar-curso/progreso/:jobId — el cliente hace polling cada ~2s
+router.get('/generar-curso/progreso/:jobId', verificarToken, (req, res) => {
+  const job = generacionJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'El proceso no existe o ya expiró' });
+  res.json(job);
+});
+
 async function llamarOpenRouter(prompt, timeoutMs = 90000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -400,7 +420,25 @@ router.post('/generar-curso', verificarToken, verificarRol('jefatura', 'admin_se
   if (!req.file) return res.status(400).json({ error: 'Archivo PDF requerido' });
   if (!nombre_curso) return res.status(400).json({ error: 'El nombre del curso es requerido' });
 
-  try {
+  const jobId = crypto.randomUUID();
+  actualizarJob(jobId, { etapa: 'extrayendo', actual: 0, total: 0, listo: false, error: null });
+  res.status(202).json({ jobId });
+
+  // A partir de acá ya respondimos al cliente — el resto corre en segundo plano
+  // y el cliente sigue el avance haciendo polling a /generar-curso/progreso/:jobId.
+  procesarGeneracionCurso(jobId, req).catch(err => {
+    console.error('[IA] Error completo:', err);
+    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    const mensaje = err.name === 'AbortError'
+      ? 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.'
+      : (err.message || 'Error al generar el curso con IA.');
+    actualizarJob(jobId, { error: mensaje });
+    limpiarJobDespues(jobId);
+  });
+});
+
+async function procesarGeneracionCurso(jobId, req) {
+    const { nombre_curso, area, profesor_id, contexto, num_modulos, sede_objetivo, estamentos } = req.body;
     console.log('[IA] Paso 1: archivo recibido', req.file.originalname);
 
     // Si el archivo viene del bucket S3 (URL), descargarlo con el SDK autenticado
@@ -466,14 +504,19 @@ PROTOCOLO:
 ${textoParaOllama}`;
 
     console.log('[IA] Paso 3: generando módulos...');
+    actualizarJob(jobId, { etapa: 'generando_modulos' });
     const respModulos = await llamarIA(promptModulos);
     console.log('[IA] Raw módulos (1000 chars):', respModulos?.slice(0, 1000));
     const borradorModulos = parsearJSON(respModulos);
     if (!Array.isArray(borradorModulos.modulos) || borradorModulos.modulos.length === 0)
       throw new Error('La IA no generó módulos válidos');
 
-    console.log('[IA] Paso 3b: generando preguntas para', borradorModulos.modulos.length, 'módulos...');
-    const modulos = await Promise.all(borradorModulos.modulos.map(async (mod) => {
+    const totalModulos = borradorModulos.modulos.length;
+    let modulosCompletados = 0;
+    actualizarJob(jobId, { etapa: 'generando_contenido', actual: 0, total: totalModulos });
+
+    console.log('[IA] Paso 3b/3c: generando preguntas y presentaciones para', totalModulos, 'módulos...');
+    const modulosConPPT = await Promise.all(borradorModulos.modulos.map(async (mod) => {
       const promptPreguntas = `Genera 4 preguntas de opción múltiple para el módulo "${mod.titulo}" de un curso sobre: ${mod.descripcion}
 
 Responde ÚNICAMENTE con este JSON:
@@ -486,21 +529,21 @@ Reglas:
 - Alternativas incorrectas plausibles (errores reales del personal).
 - Sin "todas las anteriores" ni "ninguna de las anteriores".`;
 
+      let preguntas = [];
       try {
         const respPreg = await llamarIA(promptPreguntas);
-        const parsed = parsearJSON(respPreg);
-        return { ...mod, preguntas: parsed.preguntas || [] };
+        preguntas = parsearJSON(respPreg).preguntas || [];
       } catch (e) {
         console.error(`[IA] Error generando preguntas para "${mod.titulo}":`, e.message);
-        return { ...mod, preguntas: [] };
       }
-    }));
 
-    console.log('[IA] Paso 3c: generando presentaciones PPT en paralelo...');
-    const modulosConPPT = await Promise.all(modulos.map(async (mod) => {
       console.log(`[IA] Generando PPT: "${mod.titulo}"`);
       const presentacion = await generarPPTModulo(mod.titulo, mod.descripcion);
-      return { ...mod, presentacion };
+
+      modulosCompletados++;
+      actualizarJob(jobId, { etapa: 'generando_contenido', actual: modulosCompletados, total: totalModulos });
+
+      return { ...mod, preguntas, presentacion };
     }));
 
     const borrador = { modulos: modulosConPPT };
@@ -593,19 +636,8 @@ Reglas:
 
     if (!req.file._fromLib) fs.unlinkSync(pdfPathGuardado);
 
-    // Notificar al profesor resuelto (fire-and-forget)
-    if (profesorResuelto) {
-      notificarProfesor({
-        profesorEmail:  profesorResuelto.email || null,
-        profesorNombre: profesorResuelto.nombre || 'Profesor',
-        cursoNombre:    nombre_curso,
-        cursoId,
-        modulosCount:   modulosGenerados,
-        preguntasCount: totalPreguntas,
-        nombreArchivo,
-        subidoPor:      req.usuario.nombre || 'Jefatura'
-      }).catch(e => console.error('[IA] Error notificando al profesor resuelto:', e.message));
-    }
+    // El profesor se entera al enviarle el borrador desde el generador
+    // (POST /api/ia/notificar-profesor), no al generarlo.
 
     await auditar(req, 'ia.generar_curso', 'cursos', cursoId, {
       nombre:         nombre_curso,
@@ -614,30 +646,27 @@ Reglas:
       sede_objetivo:  sedeObjetivoNum
     });
 
-    res.status(201).json({
-      curso_id: cursoId,
-      nombre: nombre_curso,
-      profesor_id: profesorIdFinal,
-      profesor_nombre: profesorResuelto?.nombre || null,
-      generado_por_ia: true,
-      modulos: modulosConId,
-      preguntas_count: totalPreguntas,
-      nombre_archivo: nombreArchivo,
-      imagenes_protocolo: imagenesProtocolo,
-      aviso,
-      modulosOptimo,
-      totalChars,
-      message: 'Borrador generado. Debe ser revisado por el profesor antes de publicarse.'
+    actualizarJob(jobId, {
+      etapa: 'listo',
+      listo: true,
+      curso: {
+        curso_id: cursoId,
+        nombre: nombre_curso,
+        profesor_id: profesorIdFinal,
+        profesor_nombre: profesorResuelto?.nombre || null,
+        generado_por_ia: true,
+        modulos: modulosConId,
+        preguntas_count: totalPreguntas,
+        nombre_archivo: nombreArchivo,
+        imagenes_protocolo: imagenesProtocolo,
+        aviso,
+        modulosOptimo,
+        totalChars,
+        message: 'Borrador generado. Debe ser revisado por el profesor antes de publicarse.'
+      }
     });
-
-  } catch (err) {
-    console.error('[IA] Error completo:', err);
-    if (req.file?.path && !req.file._fromLib && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    if (err.name === 'AbortError')
-      return res.status(504).json({ error: 'La IA tardó demasiado. Intenta con un PDF más pequeño o reinicia Ollama.' });
-    res.status(500).json({ error: err.message || 'Error al generar el curso con IA.' });
-  }
-});
+    limpiarJobDespues(jobId);
+}
 
 // ─── POST /api/ia/generar-presentacion ────────────────────────────────────────
 router.post('/generar-presentacion', verificarToken, verificarRol('jefatura', 'admin_sede', 'profesor'), async (req, res) => {
@@ -721,35 +750,38 @@ router.post('/modulo/:id/generar-ppt', verificarToken, async (req, res) => {
 });
 
 // ─── POST /api/ia/notificar-profesor ──────────────────────────────────────────
+// El borrador se avisa solo dentro del sistema (campana de notificaciones).
+// No se manda correo: dependía de un dominio verificado en Resend y fallaba,
+// bloqueando el envío del curso al profesor.
 router.post('/notificar-profesor', verificarToken, verificarRol('jefatura', 'admin_sede'), async (req, res) => {
-  const { curso_id, curso_nombre, profesor_id, modulos_count, preguntas_count, nombre_archivo } = req.body;
+  const { curso_id, curso_nombre, profesor_id, modulos_count, preguntas_count } = req.body;
   if (!curso_nombre) return res.status(400).json({ error: 'Datos del curso incompletos' });
 
-  let profesorEmail  = null;
-  let profesorNombre = 'Profesor';
-  if (profesor_id) {
-    const { rows } = await pool.query('SELECT nombre, email FROM usuarios WHERE id = ?', [profesor_id]);
-    profesorEmail  = rows[0]?.email  || null;
-    profesorNombre = rows[0]?.nombre || 'Profesor';
+  // El profesor puede venir del borrador o quedar registrado en el curso
+  let profesorId = profesor_id || null;
+  if (!profesorId && curso_id) {
+    const { rows } = await pool.query('SELECT profesor_id FROM cursos WHERE id = ?', [curso_id]);
+    profesorId = rows[0]?.profesor_id || null;
   }
 
-  try {
-    await notificarProfesor({
-      profesorEmail,
-      profesorNombre,
-      cursoNombre:    curso_nombre,
-      cursoId:        curso_id,
-      modulosCount:   modulos_count,
-      preguntasCount: preguntas_count,
-      nombreArchivo:  nombre_archivo || 'protocolo.pdf',
-      subidoPor:      req.usuario.nombre || 'Jefatura'
-    });
-    console.log('[MAIL] Notificación enviada para curso:', curso_nombre);
-    res.json({ ok: true, mensaje: 'Notificación enviada al profesor' });
-  } catch (err) {
-    console.error('[MAIL] Error:', err.message);
-    res.status(500).json({ error: 'No se pudo enviar el correo. Verifica la configuración de email.' });
+  if (!profesorId) {
+    return res.json({ ok: true, notificado: false, mensaje: 'El curso no tiene profesor asignado' });
   }
+
+  const detalle = [
+    modulos_count   ? `${modulos_count} módulos`     : null,
+    preguntas_count ? `${preguntas_count} preguntas` : null
+  ].filter(Boolean).join(', ');
+
+  await notificar(profesorId, {
+    tipo:   'curso_borrador_ia',
+    titulo: 'Nuevo borrador de curso para revisar',
+    mensaje: `${req.usuario.nombre || 'Jefatura'} te envió el borrador "${curso_nombre}"` +
+             `${detalle ? ` (${detalle})` : ''}. No se publica hasta que lo revises y apruebes.`
+  });
+
+  console.log('[IA] Borrador enviado al profesor', profesorId, '— curso:', curso_nombre);
+  res.json({ ok: true, notificado: true, mensaje: 'Borrador enviado al profesor' });
 });
 
 // ─── POST /api/ia/generar-contenido ───────────────────────────────────────────

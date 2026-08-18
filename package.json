@@ -2,7 +2,7 @@
   "name": "alumco-proyecto",
   "version": "1.0.0",
   "scripts": {
-    "dev": "lsof -ti:3001 | xargs kill -9 2>/dev/null; concurrently \"npm run dev --prefix server\" \"sleep 3 && npm run dev --prefix client\""
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev --prefix server\" \"npm run dev --prefix client\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

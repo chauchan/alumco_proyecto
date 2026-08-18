@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
+import Breadcrumb from '../components/Breadcrumb'
 import api from '../services/api'
 import { useToast } from '../context/ToastContext'
 import { useConfirm } from '../context/ConfirmContext'
@@ -9,8 +10,8 @@ import { useConfirm } from '../context/ConfirmContext'
 const FORM_INICIAL = { nombre: '', ciudad: '' }
 
 const BTN_GHOST = {
-  background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8,
-  padding: '0 14px', height: 36, fontSize: 13, color: '#555', cursor: 'pointer'
+  background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8,
+  padding: '0 14px', height: 36, fontSize: 13, color: 'var(--texto-sec)', cursor: 'pointer'
 }
 
 export default function GestionSedes() {
@@ -107,8 +108,9 @@ export default function GestionSedes() {
         <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="page-header">
             <div>
+              <Breadcrumb items={[{ label: 'Resumen global', path: '/jefatura' }, { label: 'Sedes' }]} />
               <div className="page-title">Gestión de sedes</div>
               <div className="page-sub">
                 Administrar sedes de la organización · {sedes.filter(s => s.activa).length} activas
@@ -122,65 +124,67 @@ export default function GestionSedes() {
           {/* Tabla */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {cargando ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
+              <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando...</div>
             ) : sedes.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 40, fontSize: 13 }}>
-                No hay sedes registradas. Creá la primera con el botón de arriba.
+              <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 40, fontSize: 13 }}>
+                No hay sedes registradas. Crea la primera con el botón de arriba.
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#F4F5F7' }}>
-                    {['Nombre', 'Ciudad', 'Estado', 'Usuarios activos', 'Acciones'].map(h => (
-                      <th key={h} style={{
-                        fontSize: 11, fontWeight: 500, color: '#888', textAlign: 'left',
-                        padding: '10px 16px', borderBottom: '0.5px solid #E8E8E8'
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sedes.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '0.5px solid #E8E8E8', opacity: s.activa ? 1 : 0.55 }}>
-                      <td style={{ padding: '11px 16px', fontWeight: 500 }}>{s.nombre}</td>
-                      <td style={{ padding: '11px 16px', color: '#666' }}>{s.ciudad || '—'}</td>
-                      <td style={{ padding: '11px 16px' }}>
-                        <span className={`status-pill ${s.activa ? 'status-ok' : 'status-fallo'}`}>
-                          {s.activa ? 'Activa' : 'Inactiva'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '11px 16px', color: '#555' }}>
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          fontSize: 12, color: parseInt(s.usuarios_activos) > 0 ? '#2B4BA0' : '#AAA'
-                        }}>
-                          <Icon icon="lucide:users" width={12} />
-                          {s.usuarios_activos}
-                        </span>
-                      </td>
-                      <td style={{ padding: '11px 16px' }}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button
-                            onClick={() => abrirEditar(s)}
-                            style={{ ...BTN_GHOST, height: 30, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <Icon icon="lucide:pencil" width={11} /> Editar
-                          </button>
-                          {s.activa ? (
-                            <button className="btn-rechazar" onClick={() => handleDesactivar(s)}>
-                              Desactivar
-                            </button>
-                          ) : (
-                            <button className="btn-aprobar" onClick={() => handleReactivar(s)}>
-                              Reactivar
-                            </button>
-                          )}
-                        </div>
-                      </td>
+              <div className="tabla-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--gris-fondo)' }}>
+                      {['Nombre', 'Ciudad', 'Estado', 'Usuarios activos', 'Acciones'].map(h => (
+                        <th key={h} style={{
+                          fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left',
+                          padding: '10px 16px', borderBottom: '0.5px solid var(--gris-borde)'
+                        }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sedes.map(s => (
+                      <tr key={s.id} style={{ borderBottom: '0.5px solid var(--gris-borde)', opacity: s.activa ? 1 : 0.55 }}>
+                        <td style={{ padding: '11px 16px', fontWeight: 500 }}>{s.nombre}</td>
+                        <td style={{ padding: '11px 16px', color: '#666' }}>{s.ciudad || '—'}</td>
+                        <td style={{ padding: '11px 16px' }}>
+                          <span className={`status-pill ${s.activa ? 'status-ok' : 'status-fallo'}`}>
+                            {s.activa ? 'Activa' : 'Inactiva'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '11px 16px', color: 'var(--texto-sec)' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            fontSize: 12, color: parseInt(s.usuarios_activos) > 0 ? 'var(--azul)' : 'var(--texto-muted)'
+                          }}>
+                            <Icon icon="lucide:users" width={12} />
+                            {s.usuarios_activos}
+                          </span>
+                        </td>
+                        <td style={{ padding: '11px 16px' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => abrirEditar(s)}
+                              style={{ ...BTN_GHOST, height: 30, padding: '0 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              <Icon icon="lucide:pencil" width={11} /> Editar
+                            </button>
+                            {s.activa ? (
+                              <button className="btn-rechazar" onClick={() => handleDesactivar(s)}>
+                                Desactivar
+                              </button>
+                            ) : (
+                              <button className="btn-aprobar" onClick={() => handleReactivar(s)}>
+                                Reactivar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </main>
@@ -195,13 +199,14 @@ export default function GestionSedes() {
           />
           <div style={{
             position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-            background: 'white', borderRadius: 12, padding: 28, width: 420, zIndex: 301,
+            background: 'white', borderRadius: 12, padding: 28, width: 420, maxWidth: 'calc(100vw - 32px)', zIndex: 301,
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)'
           }}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 18 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>
               {modal.modo === 'crear' ? 'Nueva sede' : `Editar "${modal.sede.nombre}"`}
             </div>
-            <form onSubmit={handleGuardar}>
+            <div style={{ fontSize: 11, color: 'var(--texto-muted)', marginBottom: 16 }}>* campo obligatorio</div>
+            <form onSubmit={handleGuardar} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); e.currentTarget.requestSubmit() } }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                 <div className="field">
                   <label>Nombre *</label>

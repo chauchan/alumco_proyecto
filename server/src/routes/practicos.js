@@ -7,6 +7,7 @@ const { notificar } = require('../utils/notificar');
 const { enviarPracticoAsignado } = require('../config/mailer');
 const { auditar } = require('../utils/audit');
 const { generarCertificadoPDF } = require('../utils/pdfCertificado');
+const { porcentajeANotaChilena } = require('../utils/notaChilena');
 const { parseIdParam } = require('../utils/validate');
 
 async function sincronizarConGoogle(usuarioId, practico) {
@@ -248,7 +249,8 @@ router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_s
       if (asistio) {
         // Check: approved eval but no cert yet → auto-create cert placeholder
         const { rows: pendiente } = await pool.query(`
-          SELECT it.id AS intento_id, u.nombre AS usuario_nombre, c.nombre AS curso_nombre
+          SELECT it.id AS intento_id, it.nota AS intento_nota,
+                 u.nombre AS usuario_nombre, c.nombre AS curso_nombre
           FROM intentos it
           JOIN usuarios u ON u.id = it.usuario_id
           JOIN cursos c ON c.id = it.curso_id
@@ -258,7 +260,7 @@ router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_s
         `, [usuario_id, curso_id]);
 
         if (pendiente.length) {
-          const { intento_id, usuario_nombre, curso_nombre } = pendiente[0];
+          const { intento_id, intento_nota, usuario_nombre, curso_nombre } = pendiente[0];
           await pool.query('INSERT IGNORE INTO certificados (intento_id) VALUES (?)', [intento_id]);
           const { rows: [certRow] } = await pool.query('SELECT id FROM certificados WHERE intento_id = ?', [intento_id]);
           if (certRow) {
@@ -270,7 +272,11 @@ router.post('/:id/asistencia', verificarToken, verificarRol('profesor', 'admin_s
               curso: curso_nombre,
               fecha: new Date(),
               estado: 'aprobado',
-              qrUrl
+              qrUrl,
+              // Los certificados que nacen por acá (aprobar el práctico desbloquea
+              // el certificado) salían sin nota: era el único de los cuatro puntos
+              // de emisión que no la pasaba.
+              nota: porcentajeANotaChilena(intento_nota)
             })
               .then(async pdfUrl => {
                 await pool.query(

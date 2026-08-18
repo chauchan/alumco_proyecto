@@ -7,6 +7,23 @@ const { parseIdParam } = require('../utils/validate');
 
 const SOLO_JEFATURA = verificarRol('jefatura');
 
+// GET /api/sedes/mi-admin — contacto del admin_sede de la sede del usuario logueado (canal de soporte)
+router.get('/mi-admin', verificarToken, async (req, res) => {
+  try {
+    const { sede_id, rol } = req.usuario;
+    if (!sede_id || rol === 'admin_sede') return res.json({ contacto: null });
+    const { rows } = await pool.query(
+      `SELECT nombre, email FROM usuarios
+       WHERE sede_id = ? AND rol = 'admin_sede' AND activo = 1
+       ORDER BY id LIMIT 1`,
+      [sede_id]
+    );
+    res.json({ contacto: rows[0] || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener contacto de soporte' });
+  }
+});
+
 // GET /api/sedes — listar sedes con conteo de usuarios activos
 router.get('/', verificarToken, async (req, res) => {
   try {

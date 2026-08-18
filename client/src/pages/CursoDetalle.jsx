@@ -1,19 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import CursoBloqueado from '../components/CursoBloqueado'
 import api from '../services/api'
-import { Slide } from './GeneradorIA'
-
-const fileUrl = (url) => url || ''
+import TabVideoIntro from '../components/curso-detalle/TabVideoIntro'
+import TabModulos from '../components/curso-detalle/TabModulos'
+import TabEvaluacion from '../components/curso-detalle/TabEvaluacion'
+import PanelInfoCurso from '../components/curso-detalle/PanelInfoCurso'
 
 export default function CursoDetalle() {
   const { id: cursoId } = useParams()
   const navigate = useNavigate()
   const { usuario } = useAuth()
   const userId = usuario?.id
+  const toast = useToast()
 
   const [curso, setCurso] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -27,6 +31,10 @@ export default function CursoDetalle() {
 
   const [respuestas, setRespuestas] = useState({})
   const [resultado, setResultado] = useState(null)
+  // Certificado de este curso, para cerrarle el ciclo al colaborador en la
+  // misma pantalla en vez de mandarlo a buscarlo a "Mis certificados".
+  const [certificado, setCertificado] = useState(null)
+  const [buscandoCert, setBuscandoCert] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [bloqueadoHasta, setBloqueadoHasta] = useState(null)
   const [intentosRestantes, setIntentosRestantes] = useState(2)
@@ -101,17 +109,30 @@ export default function CursoDetalle() {
         const c = { ...cursoRes.data, preguntas, modulos }
         setCurso(c)
 
-        const localBloqueoRaw = localStorage.getItem(`curso_${userId}_${cursoId}_bloqueo`)
-        const localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
+        const claveBloqueo = `curso_${userId}_${cursoId}_bloqueo`
+        const localBloqueoRaw = localStorage.getItem(claveBloqueo)
+        let localBloqueo = localBloqueoRaw ? JSON.parse(localBloqueoRaw) : null
 
         setEsperandoPractico(!!progresoRes.data?.esperando_practico)
 
         const intentosFallidosDB = parseInt(progresoRes.data?.intentos_fallidos || 0, 10)
+        const bhDB = progresoRes.data?.bloqueado_hasta || null
+
+        // La base manda. Antes se tomaba el máximo entre servidor y localStorage,
+        // así que cuando un profesor desbloqueaba a alguien el bloqueo seguía vivo
+        // en el navegador del colaborador y no había forma de sacarlo: el máximo
+        // de "0 intentos" y "2 intentos" siempre da 2. El cache local solo sirve
+        // para que el bloqueo no se pierda si falla la escritura al servidor,
+        // nunca para resucitar uno que el servidor ya levantó.
+        if (progresoRes.data && !bhDB && intentosFallidosDB === 0) {
+          localStorage.removeItem(claveBloqueo)
+          localBloqueo = null
+        }
+
         const intentosFallidosLocal = parseInt(localBloqueo?.intentos_fallidos || 0, 10)
         const intentosFallidos = Math.max(intentosFallidosDB, intentosFallidosLocal)
         setIntentosRestantes(Math.max(0, 2 - intentosFallidos))
 
-        const bhDB = progresoRes.data?.bloqueado_hasta || null
         const bhLocal = localBloqueo?.bloqueado_hasta || null
         const bh = [bhDB, bhLocal].filter(Boolean).sort().reverse()[0] || null
 
@@ -130,7 +151,7 @@ export default function CursoDetalle() {
             setVideoVisto(true)
             if (yaCompletado) {
               const totalPreg = c.preguntas?.length || 0
-              setResultado({ score: 100, correctas: totalPreg, total: totalPreg, aprobado: true })
+              setResultado({ score: 100, notaChilena: 7, correctas: totalPreg, total: totalPreg, aprobado: true })
               setPaso('evaluacion')
             } else {
               setPaso('modulos')
@@ -142,7 +163,7 @@ export default function CursoDetalle() {
             }
             if (yaCompletado) {
               const totalPreg = c.preguntas?.length || 0
-              setResultado({ score: 100, correctas: totalPreg, total: totalPreg, aprobado: true })
+              setResultado({ score: 100, notaChilena: 7, correctas: totalPreg, total: totalPreg, aprobado: true })
               setPaso('evaluacion')
             } else if (pctGuardado >= 70 && c.preguntas?.length > 0) {
               setPaso('evaluacion')
@@ -157,6 +178,28 @@ export default function CursoDetalle() {
       .catch(() => {})
       .finally(() => setCargando(false))
   }, [cursoId])
+
+  // Al aprobar, buscar el certificado de este curso. El backend lo crea en
+  // estado 'pendiente' hasta que un profesor lo valida, así que la pantalla de
+  // cierre tiene que distinguir "ya descargable" de "en revisión": decir solo
+  // "curso finalizado" dejaba al colaborador sin saber si le faltaba algo.
+  useEffect(() => {
+    if (!resultado?.aprobado || !cursoId) return
+    setBuscandoCert(true)
+    api.get('/certificados')
+      .then(r => {
+        const lista = r.data || []
+        // Preferimos curso_id: dos cursos pueden llamarse igual y el
+        // colaborador se descargaría el certificado equivocado. Pero el
+        // servidor solo lo devuelve desde el cambio de esta rama, así que
+        // contra un backend anterior se cae al nombre en vez de no mostrar nada.
+        const porId = lista.find(c => c.curso_id != null && String(c.curso_id) === String(cursoId))
+        const propio = porId || lista.find(c => c.curso_nombre === curso?.nombre)
+        setCertificado(propio || null)
+      })
+      .catch(() => setCertificado(null))
+      .finally(() => setBuscandoCert(false))
+  }, [resultado?.aprobado, cursoId, curso?.nombre])
 
   // Inicializar módulo activo al entrar al paso de módulos
   useEffect(() => {
@@ -248,7 +291,7 @@ export default function CursoDetalle() {
     setEnviando(true)
     try {
       const { data } = await api.post(`/evaluaciones/${cursoId}/responder`, { respuestas: respuestasFormateadas })
-      const { nota: score, aprobado, numero_intento, doble_fallo, bloqueado_hasta: bh, esperando_practico } = data
+      const { nota: score, nota_chilena: notaChilena, aprobado, numero_intento, doble_fallo, bloqueado_hasta: bh, esperando_practico } = data
 
       if (doble_fallo && bh && new Date(bh) > new Date()) {
         setBloqueadoHasta(new Date(bh))
@@ -266,7 +309,7 @@ export default function CursoDetalle() {
         setEsperandoPractico(!!esperando_practico)
       }
 
-      setResultado({ score, correctas, total: curso.preguntas.length, aprobado })
+      setResultado({ score, notaChilena, correctas, total: curso.preguntas.length, aprobado })
     } catch (err) {
       if (err?.response?.status === 400) {
         // Already passed or max attempts reached — refresh state from server
@@ -277,146 +320,15 @@ export default function CursoDetalle() {
             setIntentosRestantes(Math.max(0, 2 - (r.data?.intentos_fallidos || 0)))
           })
           .catch(() => {})
+      } else if (err?.response?.status === 403) {
+        toast.error('No tienes permisos para rendir esta evaluación.')
       } else {
         console.error('[evaluacion]', err?.response?.data || err?.message)
+        toast.error('No pudimos enviar tu evaluación. Revisa tu conexión e inténtalo otra vez; si el problema sigue, avisa a tu administrador de sede.')
       }
     } finally {
       setEnviando(false)
     }
-  }
-
-  // ─── render módulo expandido ─────────────────────────────────────────────────
-  const renderContenidoModulo = (mod) => {
-    const cp = mod.contenido_presentacion
-    const slides = Array.isArray(cp) ? cp
-      : Array.isArray(cp?.diapositivas) ? cp.diapositivas
-      : []
-    const esPPT = slides.length > 0
-
-    // PPT sin slides y sin archivo subido: mostrar spinner mientras se genera con IA
-    if (mod.tipo === 'ppt' && !esPPT && !mod.archivo_url) {
-      return (
-        <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--cd-text-muted)' }}>
-          <Icon icon="lucide:loader" width={32} style={{ marginBottom: 12, display: 'block', margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
-          <div style={{ fontSize: 14, fontWeight: 500 }}>Generando presentación...</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>Esto puede tomar unos segundos</div>
-        </div>
-      )
-    }
-    const esVideo = mod.tipo === 'video' && mod.archivo_url
-    const esPDF = mod.tipo === 'pdf' && mod.archivo_url
-
-    if (esPPT) {
-      const total = slides.length
-      const slide = slides[slideActual] || null
-      const esUltimo = slideActual === total - 1
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Slide slide={slide} total={total} actual={slideActual} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <button onClick={() => setSlideActual(s => Math.max(0, s - 1))}
-              disabled={slideActual === 0}
-              style={{ background: 'var(--cd-subtle-bg)', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: slideActual === 0 ? 'not-allowed' : 'pointer', color: slideActual === 0 ? '#ccc' : 'var(--cd-text)' }}>
-              <><Icon icon="lucide:arrow-left" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Anterior</>
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>{slideActual + 1} / {total}</span>
-            {esUltimo ? (
-              <button onClick={() => marcarCompleto(mod.id)}
-                style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Completar módulo</>
-              </button>
-            ) : (
-              <button onClick={() => setSlideActual(s => Math.min(total - 1, s + 1))}
-                style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer' }}>
-                <>Siguiente <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
-              </button>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    if (esVideo) {
-      const videoSrc = signedUrls[mod.id] || ''
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <video
-            key={videoSrc}
-            controls
-            style={{ width: '100%', borderRadius: 10, background: '#000', maxHeight: 480 }}
-            onEnded={() => marcarCompleto(mod.id)}
-          >
-            {videoSrc && <source src={videoSrc} type="video/mp4" />}
-            {videoSrc && <source src={videoSrc} type="video/webm" />}
-          </video>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>El módulo se marcará como completo al terminar el video.</span>
-            <button onClick={() => marcarCompleto(mod.id)}
-              style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    if (esPDF) {
-      const pdfSrc = signedUrls[mod.id] || ''
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <iframe
-            src={pdfSrc}
-            style={{ width: '100%', height: 500, border: 'none', borderRadius: 10 }}
-            title={mod.titulo}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={() => marcarCompleto(mod.id)}
-              style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    if (mod.archivo_url) {
-      const downloadSrc = signedUrls[mod.id] || mod.archivo_url
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <iframe
-            key={downloadSrc}
-            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(downloadSrc)}`}
-            style={{ width: '100%', height: 520, border: 'none', borderRadius: 10 }}
-            title={mod.titulo}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <a href={downloadSrc} download target="_blank" rel="noreferrer"
-              style={{ background: 'var(--cd-subtle-bg)', color: 'var(--cd-text)', borderRadius: 8, padding: '8px 14px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <Icon icon="lucide:download" width={12} /> Descargar PPT
-            </a>
-            <button onClick={() => marcarCompleto(mod.id)}
-              style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ background: 'var(--cd-subtle-bg)', borderRadius: 10, padding: '18px 20px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--cd-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Contenido del módulo</div>
-          <div style={{ fontSize: 14, color: 'var(--cd-text)', lineHeight: 1.7 }}>{mod.descripcion || mod.titulo}</div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => marcarCompleto(mod.id)}
-            style={{ background: '#22C55E', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Marcar como visto</>
-          </button>
-        </div>
-      </div>
-    )
   }
 
   // ─── pasos indicator ─────────────────────────────────────────────────────────
@@ -434,9 +346,26 @@ export default function CursoDetalle() {
         <Sidebar />
         <main className="main-content" style={{ background: 'var(--cd-page-bg)', padding: '24px 32px' }}>
 
+          {/* Breadcrumb (Fase 2 del plan). El botón "Volver" usa el historial,
+              que se rompe si se llega por enlace directo o tras recargar; el
+              breadcrumb siempre apunta a la ruta real del listado. */}
+          <nav aria-label="Ruta de navegación" style={{ marginBottom: 10 }}>
+            <ol style={{ listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6, margin: 0, padding: 0, fontSize: 12, flexWrap: 'wrap' }}>
+              <li>
+                <Link to="/capacitaciones" style={{ color: 'var(--azul)' }}>Capacitaciones</Link>
+              </li>
+              <li aria-hidden="true" style={{ color: 'var(--cd-text-muted)', display: 'flex' }}>
+                <Icon icon="lucide:chevron-right" width={13} />
+              </li>
+              <li aria-current="page" style={{ color: 'var(--cd-text-sec)' }}>
+                {curso?.nombre || 'Curso'}
+              </li>
+            </ol>
+          </nav>
+
           {/* Encabezado con botón volver */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <button onClick={() => navigate(-1)}
+            <button onClick={() => navigate('/capacitaciones')}
               style={{ background: 'var(--cd-card-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--cd-text-sec)' }}>
               <Icon icon="lucide:arrow-left" width={14} /> Volver
             </button>
@@ -449,26 +378,9 @@ export default function CursoDetalle() {
           {cargando ? (
             <div style={{ textAlign: 'center', color: 'var(--cd-text-muted)', padding: 60 }}>Cargando curso...</div>
           ) : bloqueadoHasta ? (
-            /* ── CURSO BLOQUEADO ── */
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <div style={{ background: 'var(--cd-card-bg)', borderRadius: 16, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <Icon icon="lucide:lock" width={56} style={{color:'#E8505B'}} />
-                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--cd-text)' }}>Curso temporalmente bloqueado</div>
-                <div style={{ fontSize: 14, color: 'var(--cd-text-sec)', lineHeight: 1.6 }}>
-                  Has fallado este curso 2 veces. Podrás intentarlo nuevamente el{' '}
-                  <strong>{bloqueadoHasta.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
-                </div>
-                <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12, padding: '14px 24px', fontSize: 13, color: '#B91C1C', maxWidth: 360 }}>
-                  Tu administrador de sede ha sido notificado. Aprovecha este tiempo para repasar los contenidos.
-                </div>
-                <button onClick={() => navigate(-1)}
-                  style={{ background: '#1E3A6E', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
-                  Volver
-                </button>
-              </div>
-            </div>
+            <CursoBloqueado fechaDesbloqueo={bloqueadoHasta} />
           ) : (
-            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+            <div className="curso-layout">
 
               {/* Panel principal */}
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -478,7 +390,7 @@ export default function CursoDetalle() {
                   {/* Barra de progreso */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                     <div style={{ flex: 1, height: 6, background: 'var(--cd-border-light)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
+                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? 'var(--success)' : 'var(--azul)', borderRadius: 3, transition: 'width 0.4s' }} />
                     </div>
                     <span style={{ fontSize: 12, color: 'var(--cd-text-muted)', flexShrink: 0 }}>{progreso}%</span>
                   </div>
@@ -500,8 +412,8 @@ export default function CursoDetalle() {
                             background: 'none', border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer',
                             padding: '10px 18px', fontSize: 13,
                             fontWeight: activo ? 600 : 400,
-                            color: bloqueado ? '#ccc' : activo ? '#2B4BA0' : hecho ? '#22C55E' : 'var(--cd-text-muted)',
-                            borderBottom: activo ? '2px solid #2B4BA0' : hecho ? '2px solid #22C55E' : '2px solid transparent',
+                            color: bloqueado ? '#ccc' : activo ? 'var(--azul)' : hecho ? 'var(--success)' : 'var(--cd-text-muted)',
+                            borderBottom: activo ? '2px solid var(--azul)' : hecho ? '2px solid var(--success)' : '2px solid transparent',
                             display: 'flex', alignItems: 'center', gap: 5
                           }}>
                           {hecho && <Icon icon="lucide:check" width={11} />}
@@ -517,448 +429,50 @@ export default function CursoDetalle() {
                 <div style={{ background: 'var(--cd-card-bg)', borderRadius: 12, padding: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
 
                   {paso === 'video' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                      <div style={{ fontSize: 13, color: 'var(--cd-text-sec)', fontWeight: 500 }}>
-                        Mira el video introductorio antes de comenzar los módulos.
-                      </div>
-                      <video
-                        key={videoIntroUrl}
-                        ref={videoRef}
-                        controls
-                        style={{ width: '100%', borderRadius: 12, background: '#000', maxHeight: 480 }}
-                        onEnded={() => setVideoVisto(true)}
-                      >
-                        {videoIntroUrl && <source src={videoIntroUrl} type="video/mp4" />}
-                        {videoIntroUrl && <source src={videoIntroUrl} type="video/webm" />}
-                      </video>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 12, color: 'var(--cd-text-muted)' }}>
-                          {videoVisto
-                            ? <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:3,color:'#16A34A'}} /> Video completado</>
-                            : 'El video debe terminar para continuar.'}
-                        </span>
-                        <button
-                          onClick={() => {
-                            setVideoVisto(true)
-                            setPaso('modulos')
-                            api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: 1 })
-                              .catch(err => console.error('[progreso video]', err?.response?.data || err?.message))
-                          }}
-                          disabled={!videoVisto}
-                          style={{
-                            background: videoVisto ? '#2B4BA0' : '#ccc', color: '#fff', border: 'none',
-                            borderRadius: 10, padding: '10px 24px', fontSize: 13, fontWeight: 600,
-                            cursor: videoVisto ? 'pointer' : 'not-allowed'
-                          }}>
-                          <>Comenzar módulos <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
-                        </button>
-                      </div>
-                    </div>
+                    <TabVideoIntro
+                      videoIntroUrl={videoIntroUrl} videoVisto={videoVisto} videoRef={videoRef}
+                      onVideoEnded={() => setVideoVisto(true)}
+                      onComenzarModulos={() => {
+                        setVideoVisto(true)
+                        setPaso('modulos')
+                        api.patch(`/cursos/${cursoId}/progreso`, { porcentaje: 1 })
+                          .catch(err => console.error('[progreso video]', err?.response?.data || err?.message))
+                      }}
+                    />
                   )}
 
                   {paso === 'modulos' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                      {!curso?.modulos?.length ? (
-                        <div style={{ textAlign: 'center', color: 'var(--cd-text-muted)', padding: 32 }}>No hay módulos en este curso.</div>
-                      ) : (
-                        <>
-                          {/* ── Pestañas de módulos ── */}
-                          <div style={{
-                            display: 'flex', overflowX: 'auto', gap: 0,
-                            borderBottom: '1.5px solid var(--cd-border-light)', marginBottom: 20,
-                            scrollbarWidth: 'none'
-                          }}>
-                            {curso.modulos.map((mod, i) => {
-                              const completo = completados.has(mod.id)
-                              const activo = moduloActivo === mod.id
-                              return (
-                                <button key={mod.id}
-                                  onClick={() => { setModuloActivo(mod.id); setSlideActual(0) }}
-                                  style={{
-                                    flexShrink: 0, background: 'none', border: 'none',
-                                    padding: '10px 16px', cursor: 'pointer',
-                                    borderBottom: activo ? '2px solid #2B4BA0' : completo ? '2px solid #22C55E' : '2px solid transparent',
-                                    display: 'flex', alignItems: 'center', gap: 7,
-                                    color: activo ? '#2B4BA0' : completo ? '#16A34A' : 'var(--cd-text-sec)',
-                                    fontWeight: activo ? 600 : 400, fontSize: 13,
-                                    maxWidth: 200, marginBottom: -1.5,
-                                    whiteSpace: 'nowrap'
-                                  }}>
-                                  <span style={{
-                                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                                    background: activo ? '#2B4BA0' : completo ? '#22C55E' : 'var(--cd-border)',
-                                    color: activo || completo ? '#fff' : 'var(--cd-text-muted)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: 10, fontWeight: 700
-                                  }}>
-                                    {completo ? <Icon icon="lucide:check" width={10} /> : i + 1}
-                                  </span>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
-                                    {mod.titulo}
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
-
-                          {/* ── Contenido del módulo activo ── */}
-                          {(() => {
-                            const mod = curso.modulos.find(m => m.id === moduloActivo)
-                            if (!mod) return null
-                            const completo = completados.has(mod.id)
-                            const i = curso.modulos.indexOf(mod)
-                            return (
-                              <div>
-                                {/* Cabecera del módulo */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                                  <div style={{
-                                    width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                                    background: completo ? '#DCFCE7' : '#EEF2FF',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                  }}>
-                                    {completo
-                                      ? <Icon icon="lucide:check" color="#16A34A" width={16} />
-                                      : mod.tipo === 'video'
-                                        ? <Icon icon="lucide:video" width={16} style={{color:'#2B4BA0'}} />
-                                        : mod.tipo === 'pdf'
-                                          ? <Icon icon="lucide:file-text" width={16} style={{color:'#E8505B'}} />
-                                          : <Icon icon="lucide:presentation" width={16} style={{color:'var(--cd-text-muted)'}} />}
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: 14, fontWeight: 600, color: completo ? '#15803D' : 'var(--cd-text)' }}>
-                                      {i + 1}. {mod.titulo}
-                                    </div>
-                                    {mod.descripcion && <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginTop: 2 }}>{mod.descripcion}</div>}
-                                  </div>
-                                  {completo && (
-                                    <span style={{ marginLeft: 'auto', fontSize: 12, color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '4px 10px' }}>
-                                      <Icon icon="lucide:check" width={12} /> Completado
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Contenido */}
-                                {completo ? (
-                                  <div style={{ textAlign: 'center', padding: '32px 16px', color: '#16A34A' }}>
-                                    <Icon icon="lucide:check-circle" width={40} style={{marginBottom:8,display:'block',margin:'0 auto 12px'}} />
-                                    <div style={{ fontSize: 14, fontWeight: 500 }}>Módulo completado</div>
-                                    {i + 1 < curso.modulos.length && (
-                                      <button onClick={() => { setModuloActivo(curso.modulos[i + 1].id); setSlideActual(0) }}
-                                        style={{ marginTop: 14, background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                                        <>Siguiente módulo <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  renderContenidoModulo(mod)
-                                )}
-
-                                {/* ── Sección de comentarios del módulo ─────── */}
-                                {(() => {
-                                  const coms = comentariosPorModulo[mod.id] || []
-                                  const raices = coms.filter(c => !c.parent_id)
-                                  const respuestasDe = (parentId) => coms.filter(c => c.parent_id === parentId)
-                                  const textoInput = textoPorModulo[mod.id] || ''
-                                  const enviando = !!enviandoCom[mod.id]
-                                  const replyParent = replyingTo[mod.id] || null
-                                  const textoReply = replyTexto[mod.id] || ''
-
-                                  const fmtFecha = (iso) => {
-                                    const d = new Date(iso)
-                                    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }) +
-                                      ' ' + d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
-                                  }
-
-                                  return (
-                                    <div style={{ marginTop: 28, borderTop: '0.5px solid var(--cd-border-light)', paddingTop: 20 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--cd-text)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <Icon icon="lucide:message-circle" width={15} style={{color:'#2B4BA0'}} />
-                                        Preguntas y comentarios
-                                        {coms.length > 0 && (
-                                          <span style={{ fontSize: 11, background: '#EEF2FF', color: '#2B4BA0', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
-                                            {coms.length}
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Lista de comentarios raíz */}
-                                      {raices.length === 0 && (
-                                        <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', marginBottom: 14 }}>
-                                          Sé el primero en preguntar o comentar sobre este módulo.
-                                        </div>
-                                      )}
-                                      {raices.map(com => (
-                                        <div key={com.id} style={{ marginBottom: 14 }}>
-                                          {/* Comentario raíz */}
-                                          <div style={{ background: 'var(--cd-subtle-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 10, padding: '10px 14px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text)' }}>{com.autor_nombre}</span>
-                                              <span style={{ fontSize: 11, color: 'var(--cd-text-muted)' }}>{fmtFecha(com.creado_en)}</span>
-                                            </div>
-                                            <div style={{ fontSize: 13, color: 'var(--cd-text)', lineHeight: 1.6, wordBreak: 'break-word' }}>{com.texto}</div>
-                                            <button
-                                              onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: prev[mod.id] === com.id ? null : com.id }))}
-                                              style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: '#2B4BA0', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                              <Icon icon="lucide:corner-down-right" width={11} /> Responder
-                                            </button>
-                                          </div>
-
-                                          {/* Respuestas hijas */}
-                                          {respuestasDe(com.id).map(rep => (
-                                            <div key={rep.id} style={{ marginLeft: 24, marginTop: 6, background: 'var(--cd-card-bg)', border: '0.5px solid var(--cd-border)', borderRadius: 10, padding: '8px 12px' }}>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text)' }}>{rep.autor_nombre}</span>
-                                                <span style={{ fontSize: 11, color: 'var(--cd-text-muted)' }}>{fmtFecha(rep.creado_en)}</span>
-                                              </div>
-                                              <div style={{ fontSize: 13, color: 'var(--cd-text)', lineHeight: 1.6, wordBreak: 'break-word' }}>{rep.texto}</div>
-                                            </div>
-                                          ))}
-
-                                          {/* Caja de respuesta */}
-                                          {replyParent === com.id && (
-                                            <div style={{ marginLeft: 24, marginTop: 6, display: 'flex', gap: 8 }}>
-                                              <textarea
-                                                value={textoReply}
-                                                onChange={e => setReplyTexto(prev => ({ ...prev, [mod.id]: e.target.value }))}
-                                                placeholder="Escribe una respuesta..."
-                                                rows={2}
-                                                style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid var(--cd-border)', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
-                                              />
-                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                <button
-                                                  onClick={() => enviarComentario(mod.id, textoReply, com.id)}
-                                                  disabled={!textoReply.trim() || enviando}
-                                                  style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: textoReply.trim() ? 'pointer' : 'not-allowed', opacity: textoReply.trim() ? 1 : 0.5 }}>
-                                                  {enviando ? '...' : 'Enviar'}
-                                                </button>
-                                                <button
-                                                  onClick={() => setReplyingTo(prev => ({ ...prev, [mod.id]: null }))}
-                                                  style={{ background: 'var(--cd-subtle-bg)', color: 'var(--cd-text-sec)', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
-                                                  Cancelar
-                                                </button>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-
-                                      {/* Nueva pregunta / comentario raíz */}
-                                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                        <textarea
-                                          value={textoInput}
-                                          onChange={e => setTextoPorModulo(prev => ({ ...prev, [mod.id]: e.target.value }))}
-                                          placeholder="Escribe una pregunta o comentario sobre este módulo..."
-                                          rows={2}
-                                          style={{ flex: 1, resize: 'vertical', borderRadius: 8, border: '1px solid var(--cd-border)', padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
-                                        />
-                                        <button
-                                          onClick={() => enviarComentario(mod.id, textoInput, null)}
-                                          disabled={!textoInput.trim() || enviando}
-                                          style={{ alignSelf: 'flex-end', background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: textoInput.trim() ? 'pointer' : 'not-allowed', opacity: textoInput.trim() ? 1 : 0.5, whiteSpace: 'nowrap' }}>
-                                          <Icon icon="lucide:send" width={14} style={{verticalAlign:'middle',marginRight:4}} />
-                                          {enviando ? 'Enviando...' : 'Comentar'}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )
-                                })()}
-                              </div>
-                            )
-                          })()}
-
-                          {/* Botón ir a evaluación */}
-                          {curso?.preguntas?.length > 0 && (
-                            <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 20, borderTop: '0.5px solid var(--cd-border-light)' }}>
-                              {todosModulosCompletos ? (
-                                <button onClick={() => setPaso('evaluacion')} style={{
-                                  background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10,
-                                  padding: '11px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
-                                }}>
-                                  <>Ir a la evaluación <Icon icon="lucide:arrow-right" width={13} style={{verticalAlign:'middle',marginLeft:4}} /></>
-                                </button>
-                              ) : (
-                                <div style={{ fontSize: 12, color: 'var(--cd-text-muted)', background: 'var(--cd-subtle-bg)', borderRadius: 10, padding: '10px 20px', display: 'inline-block' }}>
-                                  <><Icon icon="lucide:lock" width={12} style={{verticalAlign:'middle',marginRight:3}} /> Completa todos los módulos para acceder a la evaluación</>
-                                  {' '}({completados.size}/{curso.modulos.length} completados)
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    <TabModulos
+                      modulos={curso?.modulos} moduloActivo={moduloActivo} onSetModuloActivo={setModuloActivo}
+                      completados={completados} slideActual={slideActual} onSetSlideActual={setSlideActual}
+                      signedUrls={signedUrls} onMarcarCompleto={marcarCompleto}
+                      comentariosPorModulo={comentariosPorModulo} textoPorModulo={textoPorModulo}
+                      onChangeTexto={(modId, val) => setTextoPorModulo(prev => ({ ...prev, [modId]: val }))}
+                      replyingTo={replyingTo} replyTexto={replyTexto}
+                      onChangeReplyTexto={(modId, val) => setReplyTexto(prev => ({ ...prev, [modId]: val }))}
+                      onToggleReply={(modId, comId) => setReplyingTo(prev => ({ ...prev, [modId]: prev[modId] === comId ? null : comId }))}
+                      enviandoCom={enviandoCom} onEnviarComentario={enviarComentario}
+                      todosModulosCompletos={todosModulosCompletos} tienePreguntas={curso?.preguntas?.length > 0}
+                      onIrEvaluacion={() => setPaso('evaluacion')}
+                    />
                   )}
 
                   {paso === 'evaluacion' && (
-                    <div>
-                      {resultado ? (
-                        <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                          {resultado.aprobado ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                              <Icon icon="lucide:trophy" width={64} style={{color:'#F5A623'}} />
-                              <div style={{ fontSize: 22, fontWeight: 700, color: '#15803D' }}>¡Curso finalizado!</div>
-                              <div style={{ fontSize: 14, color: 'var(--cd-text-sec)' }}>{curso?.nombre}</div>
-                              <div style={{
-                                background: 'linear-gradient(135deg, #1E3A6E 0%, #2B4BA0 100%)',
-                                borderRadius: 16, padding: '24px 40px', color: '#fff', width: '100%', maxWidth: 340
-                              }}>
-                                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.7, marginBottom: 8 }}>
-                                  Puntaje obtenido
-                                </div>
-                                <div style={{ fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{resultado.score}%</div>
-                                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 8 }}>
-                                  {resultado.correctas} de {resultado.total} preguntas correctas
-                                </div>
-                              </div>
-                              <div style={{ width: '100%', maxWidth: 340 }}>
-                                <div style={{ height: 8, background: 'var(--cd-border)', borderRadius: 4, overflow: 'hidden' }}>
-                                  <div style={{
-                                    height: '100%', borderRadius: 4, transition: 'width 0.8s ease',
-                                    width: `${resultado.score}%`,
-                                    background: resultado.score >= 80 ? '#22C55E' : resultado.score >= 60 ? '#F5A623' : '#E8505B'
-                                  }} />
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--cd-text-muted)', marginTop: 4 }}>
-                                  <span>0%</span>
-                                  <span style={{ color: 'var(--cd-text-muted)' }}>Mínimo aprobación: 60%</span>
-                                  <span>100%</span>
-                                </div>
-                              </div>
-                              <div style={{ fontSize: 12, color: '#16A34A', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '10px 20px' }}>
-                                <><Icon icon="lucide:check" width={13} style={{verticalAlign:'middle',marginRight:4}} /> Tu progreso ha sido registrado</>
-                              </div>
-                              {esperandoPractico && (
-                                <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#C2410C', display: 'flex', alignItems: 'center', gap: 8, maxWidth: 340, width: '100%' }}>
-                                  <Icon icon="lucide:clock" width={16} style={{flexShrink:0}} />
-                                  Has aprobado la evaluación. Falta asistir al práctico para certificarte.
-                                </div>
-                              )}
-                              <button onClick={() => navigate(-1)}
-                                style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 32px', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginTop: 4 }}>
-                                Volver a capacitaciones
-                              </button>
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                              <Icon icon="lucide:frown" width={56} style={{color:'#E8505B'}} />
-                              <div style={{ fontSize: 18, fontWeight: 600 }}>No aprobaste esta vez</div>
-                              <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 14, padding: '20px 32px', width: '100%', maxWidth: 320 }}>
-                                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: '#E8505B', letterSpacing: '0.08em', marginBottom: 6 }}>Tu puntaje</div>
-                                <div style={{ fontSize: 44, fontWeight: 800, color: '#E8505B', lineHeight: 1 }}>{resultado.score}%</div>
-                                <div style={{ fontSize: 13, color: 'var(--cd-text-muted)', marginTop: 6 }}>
-                                  {resultado.correctas} de {resultado.total} correctas · Necesitas 60% para aprobar
-                                </div>
-                              </div>
-                              <div style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                background: intentosRestantes <= 0 ? '#FFF5F5' : 'var(--cd-subtle-bg)',
-                                border: `1px solid ${intentosRestantes <= 0 ? '#FECACA' : 'var(--cd-border)'}`,
-                                borderRadius: 10, padding: '10px 20px', fontSize: 13
-                              }}>
-                                <Icon icon="lucide:refresh-cw" width={14} style={{color: intentosRestantes <= 0 ? '#E8505B' : 'var(--cd-text-muted)'}} />
-                                <span style={{ color: intentosRestantes <= 0 ? '#E8505B' : 'var(--cd-text-sec)', fontWeight: intentosRestantes <= 0 ? 600 : 400 }}>
-                                  Intentos restantes: <strong>{intentosRestantes}/2</strong>
-                                </span>
-                              </div>
-                              {intentosRestantes <= 0 ? (
-                                <div style={{ fontSize: 13, color: '#E8505B', textAlign: 'center', maxWidth: 300 }}>
-                                  Has agotado tus intentos. El curso quedará bloqueado por 7 días.
-                                </div>
-                              ) : (
-                                <button onClick={() => { setResultado(null); setRespuestas({}) }}
-                                  style={{ background: '#2B4BA0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                                  Intentar nuevamente
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                          <div style={{ fontSize: 13, color: 'var(--cd-text-sec)' }}>
-                            Responde todas las preguntas. Necesitas al menos 60% para aprobar.
-                          </div>
-                          {curso.preguntas.map((preg, pi) => (
-                            <div key={preg.id} style={{ border: '0.5px solid var(--cd-border)', borderRadius: 10, padding: 16 }}>
-                              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{pi + 1}. {preg.texto}</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {(preg.alternativas || []).filter(alt => alt?.texto?.trim()).slice(0, 4).map((alt, ai) => {
-                                  const sel = respuestas[preg.id] === ai
-                                  return (
-                                    <label key={ai} style={{
-                                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-                                      borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                                      background: sel ? '#EEF2FF' : 'var(--cd-subtle-bg)',
-                                      border: `1px solid ${sel ? '#2B4BA0' : 'var(--cd-border)'}`
-                                    }}>
-                                      <input type="radio" name={`preg-${preg.id}`} checked={sel}
-                                        onChange={() => setRespuestas(prev => ({ ...prev, [preg.id]: ai }))}
-                                        style={{ accentColor: '#2B4BA0' }} />
-                                      {alt.texto}
-                                    </label>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                          <button onClick={enviarEvaluacion} disabled={!todosRespondidos || enviando} style={{
-                            background: todosRespondidos ? '#2B4BA0' : '#ccc', color: '#fff',
-                            border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14,
-                            fontWeight: 600, cursor: todosRespondidos ? 'pointer' : 'not-allowed',
-                            alignSelf: 'center', marginTop: 4
-                          }}>
-                            {enviando ? 'Enviando...' : 'Enviar evaluación'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    <TabEvaluacion
+                      curso={curso} resultado={resultado} respuestas={respuestas}
+                      onChangeRespuesta={(pregId, idx) => setRespuestas(prev => ({ ...prev, [pregId]: idx }))}
+                      todosRespondidos={todosRespondidos} enviando={enviando} onEnviarEvaluacion={enviarEvaluacion}
+                      intentosRestantes={intentosRestantes} esperandoPractico={esperandoPractico}
+                      buscandoCert={buscandoCert} certificado={certificado}
+                      onIntentarNuevamente={() => { setResultado(null); setRespuestas({}) }}
+                      onVolverCapacitaciones={() => navigate('/capacitaciones')}
+                    />
                   )}
 
                 </div>
               </div>
 
-              {/* Panel lateral: info del curso */}
-              <div style={{ width: 260, flexShrink: 0 }}>
-                <div style={{ background: 'var(--cd-card-bg)', borderRadius: 12, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cd-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>Información del curso</div>
-                  {curso?.profesor_nombre && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <Icon icon="lucide:user" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
-                      <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>Prof. {curso.profesor_nombre}</span>
-                    </div>
-                  )}
-                  {curso?.area && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <Icon icon="lucide:tag" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
-                      <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>{curso.area}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                    <Icon icon="lucide:layers" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
-                    <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>{curso?.modulos?.length || 0} módulo{curso?.modulos?.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  {curso?.preguntas?.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <Icon icon="lucide:help-circle" width={14} style={{color:'var(--cd-text-muted)',flexShrink:0}} />
-                      <span style={{ fontSize: 12, color: 'var(--cd-text-sec)' }}>{curso.preguntas.length} preguntas de evaluación</span>
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '0.5px solid var(--cd-border-light)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--cd-text-muted)', marginBottom: 6 }}>Tu progreso</div>
-                    <div style={{ height: 6, background: 'var(--cd-border-light)', borderRadius: 3, overflow: 'hidden', marginBottom: 4 }}>
-                      <div style={{ height: '100%', width: `${progreso}%`, background: progreso >= 100 ? '#22C55E' : '#2B4BA0', borderRadius: 3, transition: 'width 0.4s' }} />
-                    </div>
-                    <div style={{ fontSize: 12, color: progreso >= 100 ? '#16A34A' : 'var(--cd-text-sec)', fontWeight: 500 }}>{progreso}% completado</div>
-                  </div>
-                  {esperandoPractico && !resultado && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--cd-border-light)', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#C2410C', display: 'flex', alignItems: 'flex-start', gap: 7 }}>
-                      <Icon icon="lucide:clock" width={14} style={{flexShrink:0, marginTop:1}} />
-                      <span>Has aprobado la evaluación. Falta asistir al práctico para certificarte.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <PanelInfoCurso curso={curso} progreso={progreso} esperandoPractico={esperandoPractico} resultado={resultado} />
 
             </div>
           )}

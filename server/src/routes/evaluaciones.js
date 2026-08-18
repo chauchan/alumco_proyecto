@@ -7,6 +7,7 @@ const { generarCertificadoPDF } = require('../utils/pdfCertificado');
 const { auditar } = require('../utils/audit');
 const { enviarBloqueo } = require('../config/mailer');
 const { parseIdParam } = require('../utils/validate');
+const { porcentajeANotaChilena } = require('../utils/notaChilena');
 
 // GET /api/evaluaciones/:curso_id/estado
 router.get('/:curso_id/estado', verificarToken, async (req, res) => {
@@ -35,7 +36,7 @@ router.get('/:curso_id/estado', verificarToken, async (req, res) => {
 // POST /api/evaluaciones/:curso_id/responder
 // Body: { respuestas: [{ pregunta_id, alternativa_id }] }
 // También acepta alternativa_idx para compatibilidad con el frontend anterior
-router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'), async (req, res) => {
+router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador', 'profesor', 'admin_sede', 'jefatura'), async (req, res) => {
   const curso_id = parseIdParam(req, 'curso_id');
   if (curso_id === null) return res.status(400).json({ error: 'curso_id inválido' });
   const usuario_id = req.usuario.id;
@@ -158,7 +159,8 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
             curso: cursoNombreRow?.nombre || '',
             fecha: new Date(),
             estado: 'aprobado',
-            qrUrl
+            qrUrl,
+            nota: porcentajeANotaChilena(nota)
           })
             .then(pdfUrl => {
               if (pdfUrl) pool.query('UPDATE certificados SET archivo_url = ? WHERE id = ?', [pdfUrl, certRow.id])
@@ -215,8 +217,11 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
       }
     }
 
+    const notaChilena = porcentajeANotaChilena(nota);
+
     res.json({
       nota,
+      nota_chilena: notaChilena,
       aprobado: cursoAprobado,
       numero_intento,
       doble_fallo: !cursoAprobado && numero_intento === 2,
@@ -228,7 +233,7 @@ router.post('/:curso_id/responder', verificarToken, verificarRol('colaborador'),
             : 'Felicitaciones, aprobaste el curso. Tu certificado está pendiente de validación.')
         : numero_intento === 2
           ? 'No aprobaste. Has alcanzado el máximo de intentos. Contacta a tu profesor para un refuerzo.'
-          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${nota}%`,
+          : `No aprobaste. Tienes 1 intento más disponible. Nota: ${notaChilena.toFixed(1)}`,
       ...(warnings.length ? { warnings } : {})
     });
   } catch (err) {
@@ -250,17 +255,30 @@ router.get('/dobles-fallos', verificarToken, verificarRol('profesor', 'admin_sed
       whereExtra = ' AND c.profesor_id = ?';
       params.push(userId);
     }
+    // La lista se arma desde `progreso`, no desde `intentos`.
+    //
+    // `intentos` es historial inmutable: contar ahí las filas con aprobado = 0
+    // hacía que el botón "Desbloquear" no tuviera ningún efecto visible. El
+    // desbloqueo limpia `progreso` (que es lo que realmente bloquea al
+    // colaborador), pero los dos intentos fallidos siguen existiendo para
+    // siempre, así que al recargar la persona reaparecía en la lista y parecía
+    // que la acción había fallado.
+    //
+    // `progreso.intentos_fallidos` es además la misma fuente que usa
+    // `requieren_atencion` en reportes.js, con lo que el panel y el contador
+    // dejan de contradecirse.
     const { rows } = await pool.query(`
       SELECT u.id as usuario_id, u.nombre as usuario_nombre, u.sede_id,
              s.nombre as sede_nombre, c.id as curso_id, c.nombre as curso_nombre,
-             MAX(i.fecha) as ultimo_intento
-      FROM intentos i
-      JOIN usuarios u ON i.usuario_id = u.id
-      JOIN cursos c ON i.curso_id = c.id
+             p.intentos_fallidos, p.bloqueado_hasta,
+             (SELECT MAX(i.fecha) FROM intentos i
+               WHERE i.usuario_id = u.id AND i.curso_id = c.id AND i.aprobado = 0
+             ) as ultimo_intento
+      FROM progreso p
+      JOIN usuarios u ON p.usuario_id = u.id
+      JOIN cursos c   ON p.curso_id   = c.id
       LEFT JOIN sedes s ON u.sede_id = s.id
-      WHERE i.aprobado = 0${whereExtra}
-      GROUP BY u.id, u.nombre, u.sede_id, s.nombre, c.id, c.nombre
-      HAVING COUNT(i.id) >= 2
+      WHERE p.intentos_fallidos >= 2 AND p.bloqueado_hasta > NOW() AND u.activo = 1${whereExtra}
       ORDER BY ultimo_intento DESC
     `, params);
     res.json(rows);

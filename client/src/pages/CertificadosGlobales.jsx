@@ -4,6 +4,8 @@ import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import Paginacion from '../components/Paginacion'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { useFiltrosUrl } from '../hooks/useFiltrosUrl'
 import api, { descargarCertificado } from '../services/api'
 
 const ESTAMENTOS = [
@@ -21,15 +23,15 @@ const LIMIT = 20
 
 export default function CertificadosGlobales() {
   const { usuario } = useAuth()
+  const toast = useToast()
+  const [filtros, setFiltro] = useFiltrosUrl({ busqueda: '', filtroSede: '', filtroEstamento: '', filtroEstado: '', pagina: '1' })
+  const { busqueda, filtroSede, filtroEstamento, filtroEstado } = filtros
+  const pagina = parseInt(filtros.pagina) || 1
+
   const [certificados, setCertificados] = useState([])
   const [total, setTotal] = useState(0)
-  const [pagina, setPagina] = useState(1)
   const [sedes, setSedes] = useState([])
   const [cargando, setCargando] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroSede, setFiltroSede] = useState('')
-  const [filtroEstamento, setFiltroEstamento] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState('')
 
   const busquedaRef = useRef(busqueda)
   busquedaRef.current = busqueda
@@ -47,14 +49,20 @@ export default function CertificadosGlobales() {
       .then(([c, s]) => {
         setCertificados(c.data.rows)
         setTotal(c.data.total)
-        setPagina(c.data.page)
+        setFiltro('pagina', String(c.data.page))
         setSedes(s.data)
       })
       .catch(() => {})
       .finally(() => setCargando(false))
   }, [filtroSede, filtroEstamento, filtroEstado])
 
+  const montadoRef = useRef(false)
   useEffect(() => {
+    if (!montadoRef.current) {
+      montadoRef.current = true
+      cargar(pagina)
+      return
+    }
     const delay = busqueda !== prevBusquedaRef.current ? 300 : 0
     prevBusquedaRef.current = busqueda
     const t = setTimeout(() => cargar(1), delay)
@@ -64,7 +72,9 @@ export default function CertificadosGlobales() {
   const aprobados = certificados.filter(c => c.estado === 'aprobado').length
   const pendientes = certificados.filter(c => c.estado === 'pendiente').length
 
-  const titulo = usuario?.rol === 'jefatura' ? 'Certificados ONG' : 'Certificados de la sede'
+  const titulo = usuario?.rol === 'jefatura' ? 'Certificados ONG'
+    : usuario?.rol === 'profesor' ? 'Certificados de mis cursos'
+    : 'Certificados de la sede'
 
   return (
     <div className="app-shell">
@@ -79,6 +89,8 @@ export default function CertificadosGlobales() {
             <div className="page-sub">
               {usuario?.rol === 'jefatura'
                 ? 'Certificados de todos los colaboradores de la ONG'
+                : usuario?.rol === 'profesor'
+                ? 'Certificados de los colaboradores en los cursos que dictas'
                 : `Certificados de los colaboradores de ${usuario?.sede_nombre || 'tu sede'}`}
             </div>
           </div>
@@ -86,9 +98,9 @@ export default function CertificadosGlobales() {
           {/* Stats */}
           <div className="stats-grid-3">
             {[
-              { val: total,     label: 'Total (con filtros)', color: '#2B4BA0' },
-              { val: aprobados, label: 'Aprobados (pág. actual)',  color: '#7BC67A' },
-              { val: pendientes,label: 'Pendientes (pág. actual)', color: '#F5A623' },
+              { val: total,     label: 'Total (con filtros)', color: 'var(--azul)' },
+              { val: aprobados, label: 'Aprobados (pág. actual)',  color: 'var(--success)' },
+              { val: pendientes,label: 'Pendientes (pág. actual)', color: 'var(--warning)' },
             ].map(s => (
               <div key={s.label} className="stat-card">
                 <div className="stat-label">{s.label}</div>
@@ -104,23 +116,23 @@ export default function CertificadosGlobales() {
                 type="text"
                 placeholder="Buscar por nombre, RUT o curso..."
                 value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                style={{ flex: 1, minWidth: 220, height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 13, background: '#F4F5F7' }}
+                onChange={e => setFiltro('busqueda', e.target.value)}
+                style={{ flex: 1, minWidth: 220, height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 13, background: 'var(--gris-fondo)' }}
               />
               {usuario?.rol === 'jefatura' && (
-                <select value={filtroSede} onChange={e => setFiltroSede(e.target.value)}
-                  style={{ height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 10px', fontSize: 13, background: '#F4F5F7' }}>
+                <select value={filtroSede} onChange={e => setFiltro('filtroSede', e.target.value)}
+                  style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                   <option value="">Todas las sedes</option>
                   {sedes.map(s => <option key={s.id} value={String(s.id)}>{s.nombre}</option>)}
                 </select>
               )}
-              <select value={filtroEstamento} onChange={e => setFiltroEstamento(e.target.value)}
-                style={{ height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 10px', fontSize: 13, background: '#F4F5F7' }}>
+              <select value={filtroEstamento} onChange={e => setFiltro('filtroEstamento', e.target.value)}
+                style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                 <option value="">Todos los estamentos</option>
                 {ESTAMENTOS.map(e => <option key={e} value={e}>{e}</option>)}
               </select>
-              <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}
-                style={{ height: 36, border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 10px', fontSize: 13, background: '#F4F5F7' }}>
+              <select value={filtroEstado} onChange={e => setFiltro('filtroEstado', e.target.value)}
+                style={{ height: 36, border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 10px', fontSize: 13, background: 'var(--gris-fondo)' }}>
                 <option value="">Todos los estados</option>
                 <option value="aprobado">Aprobado</option>
                 <option value="pendiente">Pendiente</option>
@@ -128,13 +140,13 @@ export default function CertificadosGlobales() {
               </select>
               {(busqueda || filtroSede || filtroEstamento || filtroEstado) && (
                 <button
-                  onClick={() => { setBusqueda(''); setFiltroSede(''); setFiltroEstamento(''); setFiltroEstado(''); setPagina(1) }}
-                  style={{ height: 36, background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '0 12px', fontSize: 12, color: '#888', cursor: 'pointer' }}
+                  onClick={() => setFiltro.multiple({ busqueda: '', filtroSede: '', filtroEstamento: '', filtroEstado: '', pagina: '1' })}
+                  style={{ height: 36, background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '0 12px', fontSize: 12, color: 'var(--texto-muted)', cursor: 'pointer' }}
                 >
                   Limpiar
                 </button>
               )}
-              <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginLeft: 'auto' }}>
                 {total} resultado{total !== 1 ? 's' : ''}
               </span>
             </div>
@@ -143,73 +155,75 @@ export default function CertificadosGlobales() {
           {/* Tabla */}
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             {cargando ? (
-              <div style={{ textAlign: 'center', color: '#888', padding: 32 }}>Cargando...</div>
+              <div style={{ textAlign: 'center', color: 'var(--texto-muted)', padding: 32 }}>Cargando...</div>
             ) : certificados.length === 0 ? (
-              <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: '#888', padding: 40 }}>
+              <div style={{ display: 'flex',flexDirection: 'column', alignItems: 'center', textAlign: 'center', color: 'var(--texto-muted)', padding: 40 }}>
                 <Icon icon="lucide:clipboard-list" width={32} style={{marginBottom:8,display:"block",color:"#CCC"}} />
                 <div style={{ fontSize: 14, fontWeight: 500 }}>No se encontraron certificados</div>
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#F4F5F7' }}>
-                    {['Colaborador', 'RUT', 'Estamento', 'Sede', 'Curso', 'Fecha', 'Estado', 'Acción'].map(h => (
-                      <th key={h} style={{ fontSize: 11, fontWeight: 500, color: '#888', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid #E8E8E8' }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {certificados.map(cert => (
-                    <tr key={cert.id} style={{ borderBottom: '0.5px solid #E8E8E8' }}>
-                      <td style={{ padding: '10px 14px', fontWeight: 500 }}>{cert.usuario_nombre}</td>
-                      <td style={{ padding: '10px 14px', color: '#888', fontSize: 12 }}>{cert.usuario_rut || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: '#555' }}>{cert.estamento || '—'}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 12, color: '#888' }}>{cert.sede_nombre || '—'}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontSize: 13 }}>{cert.curso_nombre}</div>
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#888', fontSize: 12 }}>
-                        {cert.fecha_emision
-                          ? new Date(cert.fecha_emision).toLocaleDateString('es-CL')
-                          : '—'}
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span className={`status-pill ${
-                          cert.estado === 'aprobado' ? 'status-ok' :
-                          cert.estado === 'rechazado' ? 'status-fallo' : 'status-pend'
-                        }`}>
-                          {cert.estado === 'aprobado' ? 'Aprobado' :
-                           cert.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px' }}>
-                        {cert.estado === 'aprobado' ? (
-                          <button
-                            type="button"
-                            onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`)}
-                            style={{ fontSize: 11, color: '#2B4BA0', border: '0.5px solid #E8E8E8', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer' }}
-                          >
-                            <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
-                          </button>
-                        ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
-                          <button
-                            className="btn-aprobar"
-                            onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado: 'aprobado' })
-                              .then(() => cargar(pagina))
-                            }
-                          >
-                            Validar
-                          </button>
-                        ) : (
-                          <span style={{ fontSize: 11, color: '#AAA' }}>—</span>
-                        )}
-                      </td>
+              <div className="tabla-scroll">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--gris-fondo)' }}>
+                      {['Colaborador', 'RUT', 'Estamento', 'Sede', 'Curso', 'Fecha', 'Estado', 'Acción'].map(h => (
+                        <th key={h} style={{ fontSize: 11, fontWeight: 500, color: 'var(--texto-muted)', textAlign: 'left', padding: '10px 14px', borderBottom: '0.5px solid var(--gris-borde)' }}>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {certificados.map(cert => (
+                      <tr key={cert.id} style={{ borderBottom: '0.5px solid var(--gris-borde)' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 500 }}>{cert.usuario_nombre}</td>
+                        <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>{cert.usuario_rut || '—'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--texto-sec)' }}>{cert.estamento || '—'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--texto-muted)' }}>{cert.sede_nombre || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ fontSize: 13 }}>{cert.curso_nombre}</div>
+                        </td>
+                        <td style={{ padding: '10px 14px', color: 'var(--texto-muted)', fontSize: 12 }}>
+                          {cert.fecha_emision
+                            ? new Date(cert.fecha_emision).toLocaleDateString('es-CL')
+                            : '—'}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span className={`status-pill ${
+                            cert.estado === 'aprobado' ? 'status-ok' :
+                            cert.estado === 'rechazado' ? 'status-fallo' : 'status-pend'
+                          }`}>
+                            {cert.estado === 'aprobado' ? 'Aprobado' :
+                             cert.estado === 'rechazado' ? 'Rechazado' : 'Pendiente'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          {cert.estado === 'aprobado' ? (
+                            <button
+                              type="button"
+                              onClick={() => descargarCertificado(cert.id, `certificado_${(cert.usuario_nombre || 'colaborador').replace(/[^a-zA-Z0-9_-]+/g, '_')}_${cert.id}.pdf`, toast)}
+                              style={{ fontSize: 11, color: 'var(--azul)', border: '0.5px solid var(--gris-borde)', borderRadius: 8, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', cursor: 'pointer' }}
+                            >
+                              <Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar
+                            </button>
+                          ) : cert.estado === 'pendiente' && (usuario?.rol === 'profesor' || usuario?.rol === 'admin_sede' || usuario?.rol === 'jefatura') ? (
+                            <button
+                              className="btn-aprobar"
+                              onClick={() => api.patch(`/certificados/${cert.id}/validar`, { estado: 'aprobado' })
+                                .then(() => cargar(pagina))
+                              }
+                            >
+                              Validar
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--texto-muted)' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

@@ -57,23 +57,23 @@ export function ConfirmProvider({ children }) {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                background: state.danger ? '#FFF0F0' : '#EEF2FF',
+                background: state.danger ? 'var(--danger-bg)' : 'var(--azul-claro)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <Icon
                   icon={state.danger ? 'lucide:triangle-alert' : 'lucide:help-circle'}
                   width={20}
-                  style={{ color: state.danger ? '#E8505B' : '#2B4BA0' }}
+                  style={{ color: state.danger ? 'var(--rojo)' : 'var(--azul)' }}
                 />
               </div>
               <div style={{ flex: 1, paddingTop: 4 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--texto)' }}>
                   {state.title}
                 </div>
               </div>
             </div>
             {state.message && (
-              <div style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: 22, paddingLeft: 48 }}>
+              <div style={{ fontSize: 13, color: 'var(--texto-sec)', lineHeight: 1.6, marginBottom: 22, paddingLeft: 48 }}>
                 {state.message}
               </div>
             )}
@@ -81,8 +81,8 @@ export function ConfirmProvider({ children }) {
               <button
                 onClick={() => close(false)}
                 style={{
-                  background: 'none', border: '0.5px solid #E8E8E8', borderRadius: 8,
-                  padding: '8px 16px', fontSize: 13, cursor: 'pointer', color: '#555',
+                  background: 'none', border: '0.5px solid var(--gris-borde)', borderRadius: 8,
+                  padding: '8px 16px', fontSize: 13, cursor: 'pointer', color: 'var(--texto-sec)',
                 }}
               >
                 {state.cancelText}
@@ -91,7 +91,7 @@ export function ConfirmProvider({ children }) {
                 onClick={() => close(true)}
                 autoFocus
                 style={{
-                  background: state.danger ? '#E8505B' : '#2B4BA0', border: 'none',
+                  background: state.danger ? 'var(--rojo)' : 'var(--azul)', border: 'none',
                   borderRadius: 8, padding: '8px 16px', fontSize: 13, cursor: 'pointer',
                   color: '#fff', fontWeight: 500,
                 }}

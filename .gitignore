@@ -6,3 +6,4 @@ dist/
 build/
 uploads/
 *.log
+.env.bak*

@@ -12,7 +12,7 @@ export default function Paginacion({ total, limit, pagina, onChange }) {
   if (right < totalPaginas) { if (right < totalPaginas - 1) pages.push('...'); pages.push(totalPaginas) }
 
   const btnBase = {
-    height: 32, minWidth: 32, border: '0.5px solid #E8E8E8', borderRadius: 7,
+    height: 32, minWidth: 32, border: '0.5px solid var(--gris-borde)', borderRadius: 7,
     fontSize: 13, cursor: 'pointer', display: 'inline-flex',
     alignItems: 'center', justifyContent: 'center', padding: '0 8px',
   }
@@ -22,23 +22,23 @@ export default function Paginacion({ total, limit, pagina, onChange }) {
       <button
         onClick={() => onChange(pagina - 1)}
         disabled={pagina <= 1}
-        style={{ ...btnBase, background: pagina <= 1 ? '#F4F5F7' : '#fff', color: pagina <= 1 ? '#CCC' : '#555' }}
+        style={{ ...btnBase, background: pagina <= 1 ? 'var(--gris-fondo)' : '#fff', color: pagina <= 1 ? '#CCC' : 'var(--texto-sec)' }}
       >
         ‹
       </button>
 
       {pages.map((p, i) =>
         p === '...' ? (
-          <span key={`e${i}`} style={{ padding: '0 4px', color: '#AAA', fontSize: 13 }}>…</span>
+          <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--texto-muted)', fontSize: 13 }}>…</span>
         ) : (
           <button
             key={p}
             onClick={() => onChange(p)}
             style={{
               ...btnBase,
-              background: pagina === p ? '#2B4BA0' : '#fff',
+              background: pagina === p ? 'var(--azul)' : '#fff',
               color: pagina === p ? '#fff' : '#333',
-              border: pagina === p ? 'none' : '0.5px solid #E8E8E8',
+              border: pagina === p ? 'none' : '0.5px solid var(--gris-borde)',
               fontWeight: pagina === p ? 600 : 400,
             }}
           >
@@ -50,12 +50,12 @@ export default function Paginacion({ total, limit, pagina, onChange }) {
       <button
         onClick={() => onChange(pagina + 1)}
         disabled={pagina >= totalPaginas}
-        style={{ ...btnBase, background: pagina >= totalPaginas ? '#F4F5F7' : '#fff', color: pagina >= totalPaginas ? '#CCC' : '#555' }}
+        style={{ ...btnBase, background: pagina >= totalPaginas ? 'var(--gris-fondo)' : '#fff', color: pagina >= totalPaginas ? '#CCC' : 'var(--texto-sec)' }}
       >
         ›
       </button>
 
-      <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>
+      <span style={{ fontSize: 12, color: 'var(--texto-muted)', marginLeft: 8 }}>
         {total} en total
       </span>
     </div>

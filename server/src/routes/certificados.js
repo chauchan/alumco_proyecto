@@ -4,46 +4,74 @@ const pool = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/auth');
 const { generarCertificadoPDF, buildCertificadoPDF } = require('../utils/pdfCertificado');
 const { parseIdParam } = require('../utils/validate');
+const { auditar } = require('../utils/audit');
+const { porcentajeANotaChilena } = require('../utils/notaChilena');
 
-// GET /api/certificados — listar certificados del usuario o pendientes para profesor
+// GET /api/certificados — los certificados propios del usuario autenticado.
+//
+// Antes esta ruta devolvía cosas distintas según el rol: al colaborador los
+// suyos, al profesor la cola de pendientes de sus cursos, y a admin_sede y
+// jefatura todos los de su alcance. Como "Mis certificados", el panel del
+// colaborador y CursoDetalle consumen esta misma ruta, un profesor entraba a
+// "Mis certificados" y veía los de sus alumnos.
+//
+// Ahora significa siempre lo mismo para todos los roles: los míos. La cola de
+// validación vive en /por-validar y el listado con alcance en /todos.
 router.get('/', verificarToken, async (req, res) => {
-  const { rol, id, sede_id } = req.usuario;
+  const { id } = req.usuario;
   try {
-    let query, params = [];
-    if (rol === 'colaborador') {
-      query = `SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
-                      c.nombre as curso_nombre, v.nombre as validado_por_nombre
-               FROM certificados cert
-               JOIN intentos it ON cert.intento_id = it.id
-               JOIN cursos c ON it.curso_id = c.id
-               LEFT JOIN usuarios v ON cert.validado_por = v.id
-               WHERE it.usuario_id = ? ORDER BY cert.created_at DESC`;
-      params = [id];
-    } else if (rol === 'profesor') {
-      query = `SELECT cert.id, cert.estado, cert.created_at,
-                      u.nombre as usuario_nombre, c.nombre as curso_nombre
-               FROM certificados cert
-               JOIN intentos it ON cert.intento_id = it.id
-               JOIN cursos c ON it.curso_id = c.id AND c.profesor_id = ?
-               JOIN usuarios u ON it.usuario_id = u.id
-               WHERE cert.estado = 'pendiente' ORDER BY cert.created_at ASC`;
-      params = [id];
-    } else {
-      query = `SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
-                      u.nombre as usuario_nombre, c.nombre as curso_nombre, s.nombre as sede_nombre
-               FROM certificados cert
-               JOIN intentos it ON cert.intento_id = it.id
-               JOIN usuarios u ON it.usuario_id = u.id
-               JOIN cursos c ON it.curso_id = c.id
-               LEFT JOIN sedes s ON u.sede_id = s.id
-               ${rol === 'admin_sede' ? 'WHERE u.sede_id = ?' : ''}
-               ORDER BY cert.created_at DESC`;
-      if (rol === 'admin_sede') params = [sede_id];
-    }
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query(
+      `SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
+              it.curso_id, c.nombre as curso_nombre, v.nombre as validado_por_nombre
+       FROM certificados cert
+       JOIN intentos it ON cert.intento_id = it.id
+       JOIN cursos c ON it.curso_id = c.id
+       LEFT JOIN usuarios v ON cert.validado_por = v.id
+       WHERE it.usuario_id = ? ORDER BY cert.created_at DESC`,
+      [id]
+    );
     res.json(rows);
   } catch (err) {
+    console.error('[GET /certificados]', err);
     res.status(500).json({ error: 'Error al obtener certificados' });
+  }
+});
+
+// GET /api/certificados/por-validar — certificados de los cursos que dicta el
+// profesor (o de su alcance, para admin_sede y jefatura).
+//
+// Devuelve todos los estados, no solo los pendientes: el panel del profesor
+// cuenta los aprobados para la tarjeta "Certificados emitidos", y al traer solo
+// pendientes ese número era siempre 0. El cliente filtra por estado.
+router.get('/por-validar', verificarToken, verificarRol('profesor', 'admin_sede', 'jefatura'), async (req, res) => {
+  const { rol, id, sede_id } = req.usuario;
+  try {
+    let alcance = '', params = [];
+    if (rol === 'profesor') {
+      alcance = 'WHERE c.profesor_id = ?';
+      params = [id];
+    } else if (rol === 'admin_sede') {
+      alcance = 'WHERE u.sede_id = ?';
+      params = [sede_id];
+    }
+    const { rows } = await pool.query(
+      `SELECT cert.id, cert.estado, cert.archivo_url, cert.fecha_emision, cert.created_at,
+              it.curso_id, it.nota,
+              u.id as usuario_id, u.nombre as usuario_nombre,
+              c.nombre as curso_nombre, s.nombre as sede_nombre
+       FROM certificados cert
+       JOIN intentos it ON cert.intento_id = it.id
+       JOIN usuarios u ON it.usuario_id = u.id
+       JOIN cursos c ON it.curso_id = c.id
+       LEFT JOIN sedes s ON u.sede_id = s.id
+       ${alcance}
+       ORDER BY (cert.estado = 'pendiente') DESC, cert.created_at ASC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[GET /certificados/por-validar]', err);
+    res.status(500).json({ error: 'Error al obtener certificados por validar' });
   }
 });
 
@@ -52,12 +80,12 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
   const id = parseIdParam(req, 'id');
   if (id === null) return res.status(400).json({ error: 'id inválido' });
   const { estado } = req.body;
-  if (!['aprobado', 'rechazado'].includes(estado))
-    return res.status(400).json({ error: 'Estado debe ser aprobado o rechazado' });
+  if (!['aprobado', 'rechazado', 'pendiente'].includes(estado))
+    return res.status(400).json({ error: 'Estado debe ser aprobado, rechazado o pendiente' });
 
   try {
     const { rows } = await pool.query(
-      `SELECT cert.id, cert.intento_id,
+      `SELECT cert.id, cert.intento_id, it.nota AS intento_nota,
               u.nombre as usuario_nombre, c.nombre as curso_nombre
        FROM certificados cert
        JOIN intentos it ON cert.intento_id = it.id
@@ -79,16 +107,19 @@ router.patch('/:id/validar', verificarToken, verificarRol('profesor', 'admin_sed
         curso: cert.curso_nombre,
         fecha: new Date(),
         estado: 'aprobado',
-        qrUrl
+        qrUrl,
+        nota: porcentajeANotaChilena(cert.intento_nota)
       });
       fecha_emision = new Date();
     }
 
+    const validado_por = estado === 'pendiente' ? null : req.usuario.id;
     await pool.query(
       'UPDATE certificados SET estado = ?, validado_por = ?, archivo_url = ?, fecha_emision = ? WHERE id = ?',
-      [estado, req.usuario.id, archivo_url, fecha_emision, req.params.id]
+      [estado, validado_por, archivo_url, fecha_emision, req.params.id]
     );
     const { rows: updated } = await pool.query('SELECT * FROM certificados WHERE id = ?', [req.params.id]);
+    await auditar(req, 'certificado.validar', 'certificado', parseInt(req.params.id), { estado, usuario: cert.usuario_nombre, curso: cert.curso_nombre });
     res.json(updated[0]);
   } catch (err) {
     console.error(err);
@@ -108,6 +139,8 @@ router.get('/todos', verificarToken, verificarRol('admin_sede', 'jefatura', 'pro
 
     if (rol === 'admin_sede') {
       where += ' AND u.sede_id = ?'; params.push(sede_id);
+    } else if (rol === 'profesor') {
+      where += ' AND c.profesor_id = ?'; params.push(req.usuario.id);
     } else if (sedeQuery) {
       where += ' AND u.sede_id = ?'; params.push(parseInt(sedeQuery));
     }
@@ -179,7 +212,7 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT cert.id, cert.estado, cert.fecha_emision, cert.created_at,
-              it.usuario_id, u.nombre as usuario_nombre,
+              it.usuario_id, it.nota AS intento_nota, u.nombre as usuario_nombre,
               c.nombre as curso_nombre
        FROM certificados cert
        JOIN intentos it ON cert.intento_id = it.id
@@ -201,7 +234,8 @@ router.get('/:id/descargar', verificarToken, async (req, res) => {
       curso: cert.curso_nombre,
       fecha: cert.fecha_emision || cert.created_at,
       estado: 'aprobado',
-      qrUrl
+      qrUrl,
+      nota: porcentajeANotaChilena(cert.intento_nota)
     });
 
     const safeName = (cert.usuario_nombre || 'certificado')

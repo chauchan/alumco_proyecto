@@ -57,6 +57,7 @@ const notificacionesRoutes = require('./routes/notificaciones');
 const googleRoutes         = require('./routes/google');
 const protocolosRoutes     = require('./routes/protocolos');
 const modulosRoutes        = require('./routes/modulos');
+const buscarRoutes         = require('./routes/buscar');
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/google',        googleRoutes);
 app.use('/api/protocolos',   protocolosRoutes);
 app.use('/api/modulos',      modulosRoutes);
+app.use('/api/buscar',       buscarRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
@@ -174,6 +176,19 @@ async function start() {
   });
 
   const server = app.listen(PORT, () => console.log(`Servidor ALUMCO corriendo en puerto ${PORT}`));
+
+  // Sin esto, dejar un servidor anterior corriendo termina en un volcado de
+  // pila de 'Unhandled error event' que no dice qué hacer. Es el caso más
+  // común al reiniciar en desarrollo, así que merece un mensaje propio.
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n✗ El puerto ${PORT} ya está en uso: hay otro servidor corriendo.`);
+      console.error(`  Windows:  netstat -ano | findstr :${PORT}   →   taskkill /PID <pid> /F`);
+      console.error(`  Linux/Mac: lsof -ti:${PORT} | xargs kill -9\n`);
+      process.exit(1);
+    }
+    throw err;
+  });
 
   // Timeout amplio para peticiones largas (generación IA con múltiples módulos)
   // 15 min = margen sobre el peor caso de generación secuencial

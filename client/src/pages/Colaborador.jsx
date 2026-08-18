@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import Sidebar from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { visualDeArea } from '../utils/areaVisual'
 import api from '../services/api'
 
 const NavIcon = ({ d }) => (
@@ -61,7 +62,7 @@ export default function Colaborador() {
               </div>
             </div>
             <div className="greeting-badge">
-              <div style={{ fontSize:22, fontWeight:500, color:'#F5A623' }}>{pendientes.length}</div>
+              <div style={{ fontSize:22, fontWeight:500, color:'var(--warning)' }}>{pendientes.length}</div>
               <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)' }}>cursos pendientes</div>
             </div>
           </div>
@@ -88,36 +89,41 @@ export default function Colaborador() {
               <span className="card-link" onClick={() => navigate('/capacitaciones')} style={{ cursor:'pointer' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {cargando ? (
-              <div className="card" style={{ textAlign:'center', color:'#888', padding:24 }}>Cargando cursos...</div>
+              <div className="card" style={{ textAlign:'center', color:'var(--texto-muted)', padding:24 }}>Cargando cursos...</div>
             ) : pendientes.length === 0 ? (
-              <div className="card" style={{ textAlign:'center', color:'#888', padding:24 }}>
+              <div className="card" style={{ textAlign:'center', color:'var(--texto-muted)', padding:24 }}>
                 ¡Estás al día con todos tus cursos!
               </div>
-            ) : pendientes.map(curso => (
-              <div key={curso.id} className="card" style={{ display:'flex', alignItems:'center', gap:14, marginBottom:8 }}>
-                <div style={{ width:36, height:36, borderRadius:8, background:'#FFF0EC', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Icon icon="lucide:book-open" width={18} style={{ color:'#E8505B' }} />
+            ) : pendientes.map(curso => {
+              const area = visualDeArea(curso.area)
+              return (
+              <div key={curso.id} className="card fila-card" style={{ gap:14, marginBottom:8 }}>
+                <div title={curso.area || 'General'} style={{ width:36, height:36, borderRadius:8, background:area.fondo, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon={area.icon} width={18} style={{ color:area.color }} />
                 </div>
-                <div style={{ flex:1 }}>
+                <div className="fila-card-info">
                   <div style={{ fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                     {curso.nombre}
                     {curso.obligatorio ? (
-                      <span style={{ fontSize:9, background:'#E8505B', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span>
+                      <span style={{ fontSize:9, background:'var(--rojo)', color:'#fff', borderRadius:4, padding:'2px 6px', fontWeight:700, letterSpacing:'0.04em' }}>OBLIGATORIO</span>
                     ) : (
                       <span className="badge-nuevo">Nuevo</span>
                     )}
                   </div>
-                  <div style={{ fontSize:11, color:'#888', marginTop:3 }}>{curso.area || 'General'}</div>
+                  <div style={{ fontSize:11, color:'var(--texto-muted)', marginTop:3 }}>{curso.area || 'General'}</div>
                   <div className="progress-bar-wrap" style={{ marginTop:6 }}>
                     <div className="progress-bar-fill" style={{ width:`${curso.progreso||0}%` }} />
                   </div>
                 </div>
-                <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}
-                  onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
-                  {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
-                </button>
+                <div className="fila-card-acciones">
+                  <button className={curso.progreso > 0 ? 'btn-sm btn-sm-outline' : 'btn-primary'} style={{ fontSize:12 }}
+                    onClick={() => navigate(`/capacitaciones/${curso.id}`)}>
+                    {curso.progreso > 0 ? 'Continuar' : 'Iniciar'}
+                  </button>
+                </div>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Certificados */}
@@ -127,20 +133,22 @@ export default function Colaborador() {
               <span className="card-link" onClick={() => navigate('/mis-certificados')} style={{ cursor:'pointer' }}>Ver todos <Icon icon="lucide:arrow-right" width={12} style={{verticalAlign:"middle"}} /></span>
             </div>
             {certAprobados.slice(0,3).map(cert => (
-              <div key={cert.id} className="card" style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
-                <div style={{ width:32, height:32, background:'#EEF2FF', borderRadius:8, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Icon icon="lucide:award" width={16} style={{ color:'#2B4BA0' }} />
+              <div key={cert.id} className="card fila-card" style={{ gap:12, marginBottom:8 }}>
+                <div style={{ width:32, height:32, background:'var(--azul-claro)', borderRadius:8, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Icon icon="lucide:award" width={16} style={{ color:'var(--azul)' }} />
                 </div>
-                <span style={{ flex:1, fontSize:13 }}>{cert.curso_nombre}</span>
-                <span style={{ fontSize:11, color:'#888' }}>
-                  {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
-                </span>
-                <a href={`/api/certificados/${cert.id}/descargar`} style={{
-                  fontSize:11, color:'#2B4BA0', border:'0.5px solid #E8E8E8',
-                  borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:4
-                }}>
-                  <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
-                </a>
+                <span className="fila-card-info" style={{ fontSize:13 }}>{cert.curso_nombre}</span>
+                <div className="fila-card-acciones">
+                  <span style={{ fontSize:11, color:'var(--texto-muted)' }}>
+                    {cert.fecha_emision ? new Date(cert.fecha_emision).toLocaleDateString('es-CL') : ''}
+                  </span>
+                  <a href={`/api/certificados/${cert.id}/descargar`} style={{
+                    fontSize:11, color:'var(--azul)', border:'0.5px solid var(--gris-borde)',
+                    borderRadius:8, padding:'5px 10px', display:'flex', alignItems:'center', gap:4
+                  }}>
+                    <><Icon icon="lucide:download" width={12} style={{verticalAlign:"middle",marginRight:2}} /> Descargar</>
+                  </a>
+                </div>
               </div>
             ))}
           </div>

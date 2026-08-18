@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { Icon } from '@iconify/react'
 import { useAuth } from '../context/AuthContext'
 import { LOGO_SIMBOLO, LOGO_LETRAS } from '../assets/logo'
@@ -10,136 +10,154 @@ const RUTA = { colaborador:'/colaborador', profesor:'/profesor', admin_sede:'/ad
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sesionExpirada = searchParams.get('expirada') === '1'
   const [form, setForm] = useState({ identificador:'', password:'' })
   const [error, setError] = useState('')
   const [cargando, setCargando] = useState(false)
   const [verPassword, setVerPassword] = useState(false)
   const { acc, toggle } = useAccesibilidad()
 
+  // Qué campos marcar en rojo. 'ambos' cubre el caso de credenciales
+  // incorrectas, donde el servidor no dice cuál de los dos falló.
+  const [campoError, setCampoError] = useState(null)
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.identificador || !form.password) return setError('Completa todos los campos')
-    setCargando(true); setError('')
+    if (!form.identificador || !form.password) {
+      setCampoError(!form.identificador ? 'identificador' : 'password')
+      return setError('Completa todos los campos para poder ingresar.')
+    }
+    setCargando(true); setError(''); setCampoError(null)
     try {
       const u = await login(form.identificador, form.password)
-      navigate(RUTA[u.rol] || '/')
+      const rutaGuardada = sessionStorage.getItem('ruta_antes_de_expirar')
+      sessionStorage.removeItem('ruta_antes_de_expirar')
+      navigate(rutaGuardada || RUTA[u.rol] || '/')
     } catch (err) {
-      setError(err.response?.data?.error || 'Credenciales incorrectas')
+      setCampoError('ambos')
+      setError(err.response?.data?.error || 'El RUT o la contraseña no coinciden. Revisa los datos e inténtalo de nuevo.')
     } finally { setCargando(false) }
   }
 
+  const marcado = (campo) => campoError === campo || campoError === 'ambos'
+  const estiloCampo = (campo) => marcado(campo)
+    ? { height:42, borderColor:'var(--danger)', boxShadow:'0 0 0 3px rgba(192,57,43,0.10)' }
+    : { height:42 }
+
   return (
-    <div style={{ display:'flex', minHeight:'100vh' }}>
+    <div className="login-split">
 
       {/* Panel izquierdo */}
-      <div style={{
-        width:'44%',
-        background: 'linear-gradient(160deg, #5A7ED6 0%, #4060BC 55%, #2B4BA0 100%)',
-        display:'flex', flexDirection:'column',
-        justifyContent:'center', alignItems:'center',
-        padding:'3rem 2.5rem', position:'relative', overflow:'hidden',
-        gap: 0,
-      }}>
+      <div className="login-brand">
 
-        {/* Decoración superior derecha */}
-        <div style={{
-          position:'absolute', top:-60, right:-60,
-          width:220, height:220, borderRadius:'50%',
-          background:'rgba(255,255,255,0.06)'
-        }} />
-        <div style={{
-          position:'absolute', top:30, right:30,
-          width:90, height:90, borderRadius:'50%',
-          background:'rgba(255,255,255,0.06)'
-        }} />
-
-        {/* Decoración inferior izquierda */}
-        <div style={{
-          position:'absolute', bottom:-80, left:-50,
-          width:260, height:260, borderRadius:'50%',
-          background:'rgba(255,255,255,0.05)'
-        }} />
-        <svg style={{ position:'absolute', bottom:32, right:32, opacity:0.08 }} width="140" height="140" viewBox="0 0 100 100">
+        {/* Decoración: puramente ornamental, se oculta en móvil (.login-deco) */}
+        <div className="login-deco" style={{ position:'absolute', top:-60, right:-60, width:220, height:220, borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+        <div className="login-deco" style={{ position:'absolute', top:30, right:30, width:90, height:90, borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+        <div className="login-deco" style={{ position:'absolute', bottom:-80, left:-50, width:260, height:260, borderRadius:'50%', background:'rgba(255,255,255,0.05)' }} />
+        <svg className="login-deco" style={{ position:'absolute', bottom:32, right:32, opacity:0.08 }} width="140" height="140" viewBox="0 0 100 100">
           <polygon points="50,5 95,50 50,95 5,50" fill="white"/>
         </svg>
 
         {/* Logo centrado */}
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:20, zIndex:1 }}>
-          <img src={LOGO_SIMBOLO} alt="ALUMCO" style={{ height: 100 }} />
+        <div className="login-logo-block">
+          <img className="login-simbolo" src={LOGO_SIMBOLO} alt="ALUMCO" />
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <img src={LOGO_LETRAS} alt="alumco" style={{ height: 32, filter: 'brightness(0) invert(1)' }} />
-              <div style={{
-                width: 1, height: 28, background: 'rgba(255,255,255,0.35)'
-              }} />
-              <span style={{
-                fontSize: 18, fontWeight: 300, color: '#fff',
-                letterSpacing: '0.18em', textTransform: 'uppercase'
-              }}>Capacitaciones</span>
+            {/* Los tamaños viven en index.css porque en móvil esta fila mide
+                338px y se recortaba por ambos lados dentro de .login-brand
+                (que tiene overflow:hidden); un media query no puede
+                sobreescribir un style inline. */}
+            <div className="login-marca-row">
+              <img className="login-letras" src={LOGO_LETRAS} alt="alumco" />
+              <div className="login-marca-sep" />
+              <span className="login-capacitaciones">Capacitaciones</span>
             </div>
           </div>
 
           {/* Slogan */}
-          <div style={{
-            marginTop: 28,
-            maxWidth: 300,
-            textAlign: 'center',
-            fontSize: 15,
-            fontWeight: 400,
-            color: 'rgba(255,255,255,0.75)',
-            lineHeight: 1.65,
-            fontStyle: 'italic',
-            borderTop: '1px solid rgba(255,255,255,0.18)',
-            paddingTop: 24,
-          }}>
+          <div className="login-slogan">
             "Nuestros Cuidados son el reflejo de la Empatía."
           </div>
         </div>
       </div>
 
       {/* Panel derecho */}
-      <div style={{ flex:1, background:'white', display:'flex', flexDirection:'column' }}>
-        <div style={{ flex:1, padding:'2.5rem', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+      <div className="login-panel">
+        <div className="login-form-area">
           <div style={{ fontSize:20, fontWeight:500, marginBottom:4 }}>Bienvenida/o</div>
-          <div style={{ fontSize:13, color:'#888', marginBottom:32, lineHeight:1.6 }}>
+          <div style={{ fontSize:13, color:'var(--texto-muted)', marginBottom:32, lineHeight:1.6 }}>
             Ingresa con las credenciales entregadas<br/>por tu organización
           </div>
 
-          <form onSubmit={handleSubmit}>
+          {sesionExpirada && (
+            <div role="status" style={{
+              background: 'var(--warning-bg)', border: '1px solid var(--warning)', borderRadius: 8,
+              padding: '10px 14px', fontSize: 13, color: 'var(--warning)', marginBottom: 18,
+            }}>
+              Tu sesión expiró por inactividad. Vuelve a ingresar y te llevamos donde estabas.
+            </div>
+          )}
+
+          {/* noValidate: los campos siguen marcados como required para el lector
+              de pantalla, pero la validación la hacemos nosotros para mostrar el
+              mensaje diseñado y no la burbuja nativa del navegador. */}
+          <form onSubmit={handleSubmit} noValidate>
             <div className="field">
-              <label>RUT o correo</label>
-              <input type="text" placeholder="12.345.678-9"
+              <label htmlFor="login-identificador">
+                RUT o correo <span aria-hidden="true" style={{ color:'var(--danger)' }}>*</span>
+              </label>
+              <input id="login-identificador" type="text" placeholder="12.345.678-9"
                 value={form.identificador}
                 onChange={e => setForm({...form, identificador: e.target.value})}
-                style={{ height:42 }}
+                aria-invalid={marcado('identificador')}
+                aria-describedby={error ? 'login-error' : undefined}
+                required
+                style={estiloCampo('identificador')}
               />
             </div>
             <div className="field">
-              <label>Contraseña</label>
+              <label htmlFor="login-password">
+                Contraseña <span aria-hidden="true" style={{ color:'var(--danger)' }}>*</span>
+              </label>
               <div style={{ position: 'relative' }}>
-                <input type={verPassword ? 'text' : 'password'} placeholder="••••••••"
+                <input id="login-password" type={verPassword ? 'text' : 'password'} placeholder="••••••••"
                   value={form.password}
                   onChange={e => setForm({...form, password: e.target.value})}
-                  style={{ height:42, width:'100%', paddingRight: 40 }}
+                  aria-invalid={marcado('password')}
+                  aria-describedby={error ? 'login-error' : undefined}
+                  required
+                  style={{ ...estiloCampo('password'), width:'100%', paddingRight: 40 }}
                 />
                 <button type="button" onClick={() => setVerPassword(v => !v)}
-                  style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#aaa', padding:0, display:'flex', alignItems:'center' }}>
+                  style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--texto-muted)', padding:4, display:'flex', alignItems:'center', borderRadius:'var(--radius-md)' }}>
                   <Icon icon={verPassword ? 'lucide:eye-off' : 'lucide:eye'} width={18} />
                 </button>
               </div>
             </div>
 
             <div style={{ textAlign:'right', marginBottom:18 }}>
-              <Link to="/forgot-password" style={{ fontSize:12, color:'#2B4BA0' }}>
+              <Link to="/forgot-password" style={{ fontSize:12, color:'var(--azul)', display:'inline-block', padding:'5px 0' }}>
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
 
-            {error && <p style={{ color:'#E8505B', fontSize:13, marginBottom:12 }}>{error}</p>}
+            {/* role="alert" hace que el lector de pantalla anuncie el error sin
+                que el usuario tenga que volver a recorrer el formulario. */}
+            {error && (
+              <p id="login-error" role="alert" style={{
+                display:'flex', alignItems:'flex-start', gap:8,
+                background:'var(--danger-bg)', color:'var(--danger)',
+                border:'0.5px solid var(--danger)', borderRadius:'var(--radius-md)',
+                padding:'9px 12px', fontSize:13, lineHeight:1.5, marginBottom:12,
+              }}>
+                <Icon icon="lucide:alert-circle" width={16} style={{ flexShrink:0, marginTop:1 }} />
+                {error}
+              </p>
+            )}
 
             <button type="submit" disabled={cargando} style={{
-              width:'100%', height:44, background:'#2B4BA0', color:'#fff', border:'none',
+              width:'100%', height:44, background:'var(--azul)', color:'#fff', border:'none',
               borderRadius:8, fontSize:14, fontWeight:500, cursor:'pointer',
               display:'flex', alignItems:'center', justifyContent:'center', gap:8
             }}>
@@ -158,22 +176,22 @@ export default function Login() {
 
         {/* Barra accesibilidad */}
         <div style={{
-          borderTop:'0.5px solid #E8E8E8', padding:'10px 2.5rem',
+          borderTop:'0.5px solid var(--gris-borde)', padding:'10px 2.5rem',
           display:'flex', alignItems:'center', gap:10, background:'#F9F9F9'
         }}>
-          <span style={{ fontSize:11, color:'#888' }}>Accesibilidad:</span>
+          <span style={{ fontSize:11, color:'var(--texto-muted)' }}>Accesibilidad:</span>
           <button onClick={() => toggle('textoGrande')} style={{
             fontSize:11, cursor:'pointer', borderRadius:20, padding:'4px 10px',
-            border: acc.textoGrande ? '1.5px solid #2B4BA0' : '0.5px solid #E8E8E8',
-            background: acc.textoGrande ? '#EEF2FF' : 'white',
-            color: acc.textoGrande ? '#2B4BA0' : '#888',
+            border: acc.textoGrande ? '1.5px solid var(--azul)' : '0.5px solid var(--gris-borde)',
+            background: acc.textoGrande ? 'var(--azul-claro)' : 'white',
+            color: acc.textoGrande ? 'var(--azul)' : 'var(--texto-muted)',
             fontWeight: acc.textoGrande ? 600 : 400,
           }}>A+ Texto grande</button>
           <button onClick={() => toggle('altoContraste')} style={{
             fontSize:11, cursor:'pointer', borderRadius:20, padding:'4px 10px',
-            border: acc.altoContraste ? '1.5px solid #1A1A1A' : '0.5px solid #E8E8E8',
-            background: acc.altoContraste ? '#1A1A1A' : 'white',
-            color: acc.altoContraste ? '#fff' : '#888',
+            border: acc.altoContraste ? '1.5px solid var(--texto)' : '0.5px solid var(--gris-borde)',
+            background: acc.altoContraste ? 'var(--texto)' : 'white',
+            color: acc.altoContraste ? '#fff' : 'var(--texto-muted)',
             fontWeight: acc.altoContraste ? 600 : 400,
           }}>Alto contraste</button>
         </div>

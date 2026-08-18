@@ -141,9 +141,31 @@ router.get('/', verificarToken, async (req, res) => {
 });
 
 // GET /api/cursos/mis-capacitaciones
+//
+// Los roles de gestión (profesor, admin_sede, jefatura) también se capacitan,
+// pero no tienen estamento y jefatura tampoco tiene sede, así que el targeting
+// pensado para colaboradores los dejaba fuera de todo y la sección aparecía
+// siempre vacía. Para ellos la oferta es todo lo publicado que alcanza su
+// ámbito; para el colaborador se mantiene el filtro de obligatorios dirigidos.
 router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
-  const { id } = req.usuario;
+  const { id, rol } = req.usuario;
+  const esColaborador = rol === 'colaborador';
   try {
+    const filtros = esColaborador
+      ? `AND c.obligatorio = 1
+         AND (c.sede_objetivo IS NULL OR c.sede_objetivo = COALESCE(me.sede_id, 0))
+         AND (
+           NOT EXISTS (SELECT 1 FROM curso_estamentos ce WHERE ce.curso_id = c.id)
+           OR EXISTS (
+             SELECT 1 FROM curso_estamentos ce
+             WHERE ce.curso_id = c.id AND ce.estamento_id = me.estamento_id
+           )
+         )`
+      // Sin sede (jefatura) ve toda la organización; con sede, lo suyo y lo global.
+      // Un profesor no necesita cursar lo que él mismo dicta.
+      : `AND (me.sede_id IS NULL OR c.sede_objetivo IS NULL OR c.sede_objetivo = me.sede_id)
+         AND (c.profesor_id IS NULL OR c.profesor_id <> me.id)`;
+
     const { rows } = await pool.query(
       `SELECT c.*, a.nombre AS area, u.nombre AS profesor_nombre,
               COALESCE(p.porcentaje, 0) AS progreso,
@@ -155,16 +177,9 @@ router.get('/mis-capacitaciones', verificarToken, async (req, res) => {
        LEFT JOIN usuarios  u  ON u.id       = c.profesor_id
        LEFT JOIN progreso  p  ON p.curso_id = c.id AND p.usuario_id = ?
        JOIN  usuarios      me ON me.id      = ?
-       WHERE c.publicado = 1 AND c.obligatorio = 1
-         AND (c.sede_objetivo IS NULL OR c.sede_objetivo = COALESCE(me.sede_id, 0))
-         AND (
-           NOT EXISTS (SELECT 1 FROM curso_estamentos ce WHERE ce.curso_id = c.id)
-           OR EXISTS (
-             SELECT 1 FROM curso_estamentos ce
-             WHERE ce.curso_id = c.id AND ce.estamento_id = me.estamento_id
-           )
-         )
-       ORDER BY c.nombre`,
+       WHERE c.publicado = 1
+         ${filtros}
+       ORDER BY c.obligatorio DESC, c.nombre`,
       [id, id]
     );
     res.json(rows);

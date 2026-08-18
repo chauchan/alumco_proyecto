@@ -6,6 +6,7 @@ const ToastContext = createContext(null);
 let _nextId = 0;
 const MAX_TOASTS = 3;
 const DURATION = 4000;
+const UNDO_DURATION = 5000;   // "Deshacer" visible por 5 segundos
 const FADE_MS  = 300;
 
 export function ToastProvider({ children }) {
@@ -16,17 +17,32 @@ export function ToastProvider({ children }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), FADE_MS);
   }, []);
 
-  const add = useCallback((message, type) => {
+  // opts: { action: { label, onClick }, duration }
+  const add = useCallback((message, type, opts = {}) => {
     const id = ++_nextId;
-    setToasts(prev => [...prev.slice(-(MAX_TOASTS - 1)), { id, message, type, leaving: false }]);
-    setTimeout(() => dismiss(id), DURATION);
+    const action = opts.action || null;
+    const duration = opts.duration || (action ? UNDO_DURATION : DURATION);
+    setToasts(prev => [...prev.slice(-(MAX_TOASTS - 1)), { id, message, type, action, leaving: false }]);
+    setTimeout(() => dismiss(id), duration);
+    return id;
+  }, [dismiss]);
+
+  // Al pulsar la acción se cierra el toast y se ejecuta el callback: sin esto
+  // el "Deshacer" seguiría en pantalla después de haber deshecho.
+  const runAction = useCallback((t) => {
+    dismiss(t.id);
+    if (t.action?.onClick) t.action.onClick();
   }, [dismiss]);
 
   const toast = {
-    success: (msg) => add(msg, 'success'),
-    error:   (msg) => add(msg, 'error'),
-    warn:    (msg) => add(msg, 'warn'),
-    info:    (msg) => add(msg, 'info'),
+    success: (msg, opts) => add(msg, 'success', opts),
+    error:   (msg, opts) => add(msg, 'error', opts),
+    warn:    (msg, opts) => add(msg, 'warn', opts),
+    info:    (msg, opts) => add(msg, 'info', opts),
+    /* Confirmación reversible: muestra el mensaje con un "Deshacer" durante 5s.
+       Uso: toast.undo('Certificado aprobado', () => revertirAprobacion(id)) */
+    undo:    (msg, onUndo, opts = {}) =>
+      add(msg, 'success', { ...opts, action: { label: 'Deshacer', onClick: onUndo } }),
   };
 
   return (
@@ -34,7 +50,12 @@ export function ToastProvider({ children }) {
       {children}
       <div className="toast-container" role="status" aria-live="polite">
         {toasts.map(t => (
-          <Toast key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
+          <Toast
+            key={t.id}
+            toast={t}
+            onDismiss={() => dismiss(t.id)}
+            onAction={() => runAction(t)}
+          />
         ))}
       </div>
     </ToastContext.Provider>
